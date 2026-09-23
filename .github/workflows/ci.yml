@@ -26,12 +26,7 @@ jobs:
         run: dotnet build -c Release --no-restore
 
       # Golden-image tests compare against baselines rendered on the author's machine; font
-      # anti-aliasing differs on the CI image, so they're a local-only regression guard.
+      # anti-aliasing differs on the CI image, so they're a local-only regression guard. The
+      # remaining tests already render cards headlessly (STA threads), covering the pipeline.
       - name: Test
         run: dotnet test -c Release --no-build --filter "FullyQualifiedName!~GoldenTests"
-
-      - name: Headless render smoke test
-        run: |
-          $exe = "src/Cardinator/bin/Release/net8.0-windows/win-x64/Cardinator.exe"
-          & $exe --selftest "${{ runner.temp }}/selftest"
-          if ($LASTEXITCODE -ne 0) { throw "selftest failed" }
