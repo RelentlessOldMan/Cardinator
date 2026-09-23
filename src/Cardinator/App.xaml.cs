@@ -1,5 +1,9 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Cardinator.Models;
 using Cardinator.Services;
 
 namespace Cardinator;
@@ -101,9 +105,70 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length > 1 && e.Args[0] == "--uishot")
+        {
+            int code = RunUiShot(e.Args[1]);
+            Shutdown(code);
+            return;
+        }
+
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
+    }
+
+    /// <summary>
+    /// Renders the app's actual windows to PNGs off-screen (no display needed — works even on a
+    /// locked machine), for documentation screenshots. Uses sample data so the shots are populated.
+    /// </summary>
+    private int RunUiShot(string outDir)
+    {
+        try
+        {
+            Directory.CreateDirectory(outDir);
+
+            var main = new MainWindow();
+            SaveWindow(main, 1240, 820, Path.Combine(outDir, "app-main.png"));
+
+            var sample = SampleCards.All("Ocean Blue").First().Clone();
+            var details = new DetailsWindow(sample);
+            SaveWindow(details, 560, 760, Path.Combine(outDir, "app-details.png"));
+
+            var help = new HelpWindow(Version);
+            SaveWindow(help, 600, 720, Path.Combine(outDir, "app-help.png"));
+
+            Console.WriteLine($"UI screenshots written to {outDir}.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("UI screenshot FAILED: " + ex);
+            return 1;
+        }
+    }
+
+    private static void SaveWindow(Window w, int width, int height, string path)
+    {
+        if (w.Content is not FrameworkElement root) return;
+
+        // Give the root the window's background so transparent areas aren't see-through.
+        if (root is Panel p && p.Background == null)
+            p.Background = (Brush)Current.Resources["Bg"];
+
+        var size = new Size(width, height);
+        root.Measure(size);
+        root.Arrange(new Rect(size));
+        root.UpdateLayout();
+
+        // Let bindings/layout settle (e.g. the live preview image) before rasterizing.
+        w.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
+        root.UpdateLayout();
+
+        var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(root);
+        rtb.Freeze();
+        CardExporter.SavePng(rtb, path);
+        Console.WriteLine($"Wrote {path} ({width}x{height}).");
     }
 
     private static void PrintUsage()
@@ -126,6 +191,8 @@ public partial class App : Application
                   Create a custom template from your own frame image (local file or URL).
               Cardinator.exe --cardback <out.png> ["Wordmark"]
                   Render the decorative card back (for double-sided printing).
+              Cardinator.exe --uishot <outDir>
+                  Render the app's own windows to PNGs off-screen (documentation screenshots).
               Cardinator.exe --batch <list.csv> <outDir> [artDir]
                   Import a name list / CSV, fill blanks from Scryfall, render all.
               Cardinator.exe --sheet <list.csv> <outDir> [artDir] [a4]

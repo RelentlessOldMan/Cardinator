@@ -19,6 +19,14 @@ a print-quality **PNG**. Every field is editable, so you can make completely ori
 
 ---
 
+## The app
+
+Simple by design: type a name, pick a frame, drop in art, export. Everything else is one click away.
+
+<p><img src="docs/images/app-main.png" width="760" alt="Cardinator main window"></p>
+
+---
+
 ## Gallery
 
 Real Cardinator output — a normal creature plus the special layouts it lays out for you
