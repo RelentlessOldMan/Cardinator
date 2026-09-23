@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>Cardinator</AssemblyName>
+    <RootNamespace>Cardinator</RootNamespace>
+    <ApplicationIcon></ApplicationIcon>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <!-- Publish settings (used by `dotnet publish`; dev builds stay framework-dependent & fast).
+         Trimming is unsupported for WPF, so it stays off. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SharpVectors.Reloaded" Version="1.8.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Cardinator.Tests" />
+  </ItemGroup>
+
+</Project>

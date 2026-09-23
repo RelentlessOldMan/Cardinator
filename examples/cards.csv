@@ -1,0 +1,5 @@
+name,art,mana,type,rules,flavor,pt,template,rarity,artist
+Aria Stormcaller,art/aria.png,{R}{W}{B},Legendary Creature — Human Alchemist,"First strike\n{T}: Transmute — draw a card, then discard a card.","Equivalent exchange: to obtain, something of equal value must be lost.",3/3,Gold Multicolor,M,Cardinator Demo
+Lightning Bolt,,,,,,,Crimson Red,,
+Counterspell,,,,,,,Ocean Blue,,
+Llanowar Elves,art/elf.jpg,,,,,,Forest Green,,
