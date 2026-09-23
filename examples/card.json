@@ -1,0 +1,15 @@
+{
+  "name": "Nightfall Wanderer",
+  "manaCost": "{2}{U}{R}",
+  "typeLine": "Legendary Creature — Spirit Scout",
+  "rulesText": "Flying, haste\nWhenever Nightfall Wanderer deals combat damage to a player, draw a card, then you may discard a card.\n{T}: Add {U} or {R}.",
+  "flavorText": "She walks the ridge between dusk and dawn.",
+  "power": "3",
+  "toughness": "4",
+  "setCode": "CST",
+  "collectorNumber": "42",
+  "rarity": "M",
+  "artist": "Cardinator Demo",
+  "copyright": "© 2026 Cardinator",
+  "templateName": "Ocean Blue"
+}

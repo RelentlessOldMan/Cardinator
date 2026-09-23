@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{07EC9F88-560A-4966-BAD4-9B154801F468}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cardinator", "src\Cardinator\Cardinator.csproj", "{BA87FE8F-939D-4CD0-BDD2-A2F24970B63F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{B77D76A1-8F47-4CA6-97D1-C0E679110EA1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cardinator.Tests", "tests\Cardinator.Tests\Cardinator.Tests.csproj", "{F402ACBA-74BC-45CC-A64C-883E8E1BC85B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BA87FE8F-939D-4CD0-BDD2-A2F24970B63F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA87FE8F-939D-4CD0-BDD2-A2F24970B63F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA87FE8F-939D-4CD0-BDD2-A2F24970B63F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA87FE8F-939D-4CD0-BDD2-A2F24970B63F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F402ACBA-74BC-45CC-A64C-883E8E1BC85B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F402ACBA-74BC-45CC-A64C-883E8E1BC85B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F402ACBA-74BC-45CC-A64C-883E8E1BC85B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F402ACBA-74BC-45CC-A64C-883E8E1BC85B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{BA87FE8F-939D-4CD0-BDD2-A2F24970B63F} = {07EC9F88-560A-4966-BAD4-9B154801F468}
+		{F402ACBA-74BC-45CC-A64C-883E8E1BC85B} = {B77D76A1-8F47-4CA6-97D1-C0E679110EA1}
+	EndGlobalSection
+EndGlobal

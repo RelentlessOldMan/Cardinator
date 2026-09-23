@@ -1,0 +1,114 @@
+<Window x:Class="Cardinator.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Cardinator help" Height="720" Width="600" MinHeight="480" MinWidth="480"
+        Background="{StaticResource Bg}" WindowStartupLocation="CenterOwner"
+        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True" ShowInTaskbar="False">
+
+    <Window.Resources>
+        <!-- Local helpers for the cheat-sheet body -->
+        <Style x:Key="Body" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,7"/>
+            <Setter Property="LineHeight" Value="19"/>
+        </Style>
+        <Style x:Key="Key" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style x:Key="KeyDesc" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- header -->
+        <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="22,16">
+            <StackPanel>
+                <TextBlock Text="Quick help" FontSize="17" FontWeight="SemiBold"/>
+                <TextBlock Text="Look up a card · swap in your art · export a PNG" Foreground="{StaticResource Subtle}" FontSize="12" Margin="0,2,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="22,18">
+            <StackPanel>
+
+                <TextBlock Text="Make a card" Style="{StaticResource GroupHeader}"/>
+                <TextBlock Style="{StaticResource Body}"><Run Text="1."/>  Type a card name and click <Run FontWeight="SemiBold" Text="Search"/> (or press Ctrl+L) to auto-fill from Scryfall — or just type the fields yourself for an original card.</TextBlock>
+                <TextBlock Style="{StaticResource Body}"><Run Text="2."/>  Pick a <Run FontWeight="SemiBold" Text="Frame"/> from the dropdown.</TextBlock>
+                <TextBlock Style="{StaticResource Body}"><Run Text="3."/>  Add your <Run FontWeight="SemiBold" Text="artwork"/> (see below), then drag the preview to pan and scroll to zoom.</TextBlock>
+                <TextBlock Style="{StaticResource Body}"><Run Text="4."/>  Open <Run FontWeight="SemiBold" Text="Edit details…"/> to change any field (rules, flavor, rarity, artist, stats).</TextBlock>
+                <TextBlock Style="{StaticResource Body}"><Run Text="5."/>  <Run FontWeight="SemiBold" Text="Export PNG…"/> (1500×2100) or <Run FontWeight="SemiBold" Text="Copy image"/> to the clipboard.</TextBlock>
+
+                <TextBlock Text="Adding artwork" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Change art…"/> — browse for an image file.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Paste"/> — a copied image, a copied image file, or an image URL from the clipboard.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Drag"/> an image file straight onto the window.</TextBlock>
+
+                <TextBlock Text="Mana &amp; rules text" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
+                <TextBlock Style="{StaticResource Body}">Mana uses tokens like <Run FontFamily="Consolas" Text="{}{2}{R}{W}"/>, <Run FontFamily="Consolas" Text="{}{X}"/>, <Run FontFamily="Consolas" Text="{}{T}"/> (tap), hybrids <Run FontFamily="Consolas" Text="{}{R/W}"/>. Typing loosely (<Run FontFamily="Consolas" Text="2RW"/>) works too.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">Rules text understands the same <Run FontFamily="Consolas" Text="{}{...}"/> symbols inline. Press Enter for a new ability on its own line. Long text auto-shrinks to fit.</TextBlock>
+
+                <TextBlock Text="Special card types (automatic)" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Planeswalker"/> — type line says Planeswalker + set Loyalty → loyalty box &amp; ability badges (+2:, -3:).</TextBlock>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Saga"/> — type line says Saga → chapter markers (I, II, III).</TextBlock>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Class"/> — type line says Class → level badges.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Adventure"/> — fill the Adventure fields → a spell sub-box on the creature.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Double-faced"/> — looking one up adds the back as a second card.</TextBlock>
+
+                <TextBlock Text="Keyboard shortcuts" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{StaticResource Key}" Text="Ctrl+N"/>
+                        <TextBlock Style="{StaticResource Key}" Text="Ctrl+O"/>
+                        <TextBlock Style="{StaticResource Key}" Text="Ctrl+S"/>
+                        <TextBlock Style="{StaticResource Key}" Text="Ctrl+L"/>
+                        <TextBlock Style="{StaticResource Key}" Text="Ctrl+E"/>
+                        <TextBlock Style="{StaticResource Key}" Text="Ctrl+D"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Style="{StaticResource KeyDesc}" Text="New project"/>
+                        <TextBlock Style="{StaticResource KeyDesc}" Text="Open project"/>
+                        <TextBlock Style="{StaticResource KeyDesc}" Text="Save (same file after first save)"/>
+                        <TextBlock Style="{StaticResource KeyDesc}" Text="Look up current card"/>
+                        <TextBlock Style="{StaticResource KeyDesc}" Text="Export current card"/>
+                        <TextBlock Style="{StaticResource KeyDesc}" Text="Duplicate current card"/>
+                    </StackPanel>
+                </Grid>
+                <TextBlock Style="{StaticResource Body}" Margin="0,4,0,0">The title bar shows <Run FontWeight="SemiBold" Text="●"/> when you have unsaved changes; Cardinator asks before you lose work.</TextBlock>
+
+                <TextBlock Text="Many cards at once" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
+                <TextBlock Style="{StaticResource Body}">Use the <Run FontWeight="SemiBold" Text="Batch"/> section: <Run FontWeight="SemiBold" Text="Import list / CSV"/> (names or a spreadsheet), <Run FontWeight="SemiBold" Text="Match art folder"/>, <Run FontWeight="SemiBold" Text="Look up missing"/>, <Run FontWeight="SemiBold" Text="Export all"/>, and <Run FontWeight="SemiBold" Text="Print sheet"/> (3×3 at real size). Save the whole set as one project file.</TextBlock>
+
+                <TextBlock Text="Where your files live" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
+                <TextBlock Style="{StaticResource Body}">Everything is in the <Run FontFamily="Consolas" Text="CardinatorData"/> folder next to the app: exported cards in <Run FontFamily="Consolas" Text="output"/>, frames in <Run FontFamily="Consolas" Text="templates"/>, cached symbols in <Run FontFamily="Consolas" Text="symbols"/>. Move the app + that folder together to keep everything.</TextBlock>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- footer -->
+        <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="22,14">
+            <Grid>
+                <TextBlock x:Name="VersionText" Text="Cardinator" Foreground="{StaticResource Subtle}" FontSize="12" VerticalAlignment="Center"/>
+                <Button Content="Close" Style="{StaticResource Primary}" MinWidth="110" HorizontalAlignment="Right" Click="OnClose"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
