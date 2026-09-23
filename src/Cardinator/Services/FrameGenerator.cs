@@ -1,4 +1,5 @@
 using System.IO;
+using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -17,6 +18,25 @@ public static class FrameGenerator
     public const int Supersample = 2;
 
     public static void Generate(TemplateSpec spec, string framePngPath)
+    {
+        // RenderTargetBitmap requires an STA thread; if we're not on one (e.g. a background/CI
+        // thread), do the work on a dedicated STA thread so generation works anywhere.
+        if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
+        {
+            GenerateCore(spec, framePngPath);
+            return;
+        }
+
+        Exception? captured = null;
+        var t = new Thread(() => { try { GenerateCore(spec, framePngPath); } catch (Exception ex) { captured = ex; } })
+        { IsBackground = true };
+        t.SetApartmentState(ApartmentState.STA);
+        t.Start();
+        t.Join();
+        if (captured != null) throw captured;
+    }
+
+    private static void GenerateCore(TemplateSpec spec, string framePngPath)
     {
         int w = spec.CanvasWidth * Supersample;
         int h = spec.CanvasHeight * Supersample;

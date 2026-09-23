@@ -20,7 +20,18 @@ public sealed class Template
 /// </summary>
 public sealed class TemplateService
 {
+    // Serializes first-time generation so concurrent callers can't race on the same files.
+    private static readonly object LoadLock = new();
+
     public IReadOnlyList<Template> LoadAll()
+    {
+        lock (LoadLock)
+        {
+            return LoadAllCore();
+        }
+    }
+
+    private IReadOnlyList<Template> LoadAllCore()
     {
         try { EnsureDefaults(); } catch { /* best-effort; enumeration below still tries */ }
 
