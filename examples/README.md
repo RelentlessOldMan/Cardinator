@@ -1,39 +1,38 @@
-# Example files
+# Examples
 
-Sample inputs you can try with Cardinator.
+Worked, ready-to-run examples. **Each folder has its input files, our own placeholder art, the exact
+command to run, and the rendered output checked in** — so you can see the whole flow before trying
+your own.
 
-## `cards.csv`
+| Example | Use case | You provide | You get |
+|---------|----------|-------------|---------|
+| [**01 · Custom set**](01-custom-set/) | Design your own set from a spreadsheet | a CSV of invented cards + art | every card rendered + a print sheet |
+| [**02 · Proxy a real deck**](02-proxy-deck/) | Proxy real cards with your own art | a deck list of real names + art | text auto-filled from Scryfall + a print sheet |
+| [**03 · Full-art cards**](03-full-art/) | Text directly on the artwork | a CSV using the *Full Art* frame | full-art cards |
+| [**04 · Bring your own frame**](04-custom-frame/) | Use a frame you designed yourself | a transparent frame PNG | a new template + a card on it |
 
-A small card list showing the two ways to make cards in one file:
+Single card in a hurry? [`card.json`](card.json) renders with `--render` (see below).
 
-- **Fully custom** — the *Aria Stormcaller* row fills in everything by hand (mana, type, rules,
-  flavor, power/toughness, art, template).
-- **Name only** — *Lightning Bolt*, *Counterspell* and *Llanowar Elves* give just a name (plus a
-  template, and art for the elf). Cardinator looks each one up on **Scryfall** and fills the rest.
+## How to run any example
 
-### Try it
+**In the app (easiest):** click **Import list / CSV…** and pick the example's `.csv`. Art paths in
+the CSV resolve next to the file, so the art loads automatically. Then **Export all…** or
+**Print sheet…**.
 
-**In the app:** click **Import list / CSV…** and choose `cards.csv`. Anything blank is filled
-from Scryfall; anything you typed is kept as your override.
-
-**From the command line:**
+**From the command line** (run from the repo root, using the published `Cardinator.exe`):
 
 ```powershell
-Cardinator.exe --batch examples/cards.csv out
+# render every card to PNGs, and a printable 3x3 sheet, into the example's output/ folder
+Cardinator.exe --batch examples/01-custom-set/cards.csv examples/01-custom-set/output examples/01-custom-set
+Cardinator.exe --sheet examples/01-custom-set/cards.csv examples/01-custom-set/output examples/01-custom-set
 ```
 
-This imports the list, fills the blanks from Scryfall, and renders every card to a PNG in `out/`.
+The third argument is the folder your art paths are relative to (here, the example folder).
 
-> The `art/…` paths are placeholders — point them at real images (relative paths resolve next to
-> the CSV) or drop them in later with **Match art folder…**. Rows without art still render on a
-> plain art window.
+## Notes
 
-### Column reference
-
-Columns are matched by friendly names in any order; unknown columns are ignored. Common ones:
-
-`name`, `art`, `mana`, `type`, `rules`, `flavor`, `power`, `toughness`, `pt` (e.g. `3/3`),
-`loyalty`, `template`, `rarity`, `set`, `number`, `artist`, `copyright`, `lookup`.
-
-In `rules` and `flavor`, write `\n` for a line break. Set `lookup` to `false` to stop a
-name-only row from being fetched from Scryfall.
+- The artwork in these examples is **our own** placeholder art (simple generated scenes) so nothing
+  copyrighted ships in this repo — swap in your own images.
+- Example 02 uses **real card names**; Cardinator fetches their text (and shows the real mana
+  symbols) from Scryfall at run time. That's fan content — see the repo's Legal note. Everything you
+  make is for personal use.

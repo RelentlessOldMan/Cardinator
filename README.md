@@ -108,7 +108,7 @@ Details → **[User Guide: making many cards](docs/USER_GUIDE.md#4-making-many-c
 | **[Making your own frames](docs/TEMPLATES.md)** | The `template.json` format and how to add/share templates |
 | **[Command-line reference](docs/CLI.md)** | Headless modes for scripting/batch/verification |
 | **[Developing](docs/DEVELOPING.md)** | Build, test, architecture, and how rendering works |
-| **[Examples](examples/README.md)** | A sample CSV you can import right away |
+| **[Examples](examples/README.md)** | Ready-to-run worked examples — custom set, real-deck proxies, full-art, custom frame — with inputs **and** outputs checked in |
 
 ---
 
