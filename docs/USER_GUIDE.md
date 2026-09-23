@@ -21,6 +21,11 @@ There's nothing to install and no runtime to download — it's a single self-con
 The main screen is built around the everyday flow: **look up a card, swap in your own art,
 export.**
 
+![Cardinator main window](images/app-main.png)
+
+*Left: your cards + batch tools. Middle: the editor (name/search, frame, artwork, export). Right:
+the live preview that updates as you type.*
+
 1. **Type a card name** in the box at the top and click **Search** (or press **Ctrl+L**).
    Cardinator fetches it from Scryfall and fills in the name, mana cost, type, rules text,
    power/toughness — **and the real card artwork** (pulled from Scryfall) if the card doesn't
@@ -39,6 +44,8 @@ export.**
 5. **Tweak anything** by hand in **Edit details…** — every field is editable, so you can change
    the rules text, add flavor text, set rarity, artist, etc. — or make a completely original card
    with no Scryfall lookup at all.
+
+   ![Edit details dialog](images/app-details.png)
 6. **Export PNG…** saves a print-quality **1500×2100** image (into `CardinatorData/output` by
    default) — pick **PNG or JPEG** in the save dialog. Or click **Copy image** to drop the finished
    card straight onto your clipboard for pasting into Discord/chat. For print services that need a
@@ -121,6 +128,10 @@ Use **New / Open / Save** in the top-right to manage projects. A project is a si
 - an **image** → sets the current card's art;
 - a **`.cardinator` / `.json`** → opens that project;
 - a **`.txt` / `.csv` / `.tsv`** → imports that card list.
+
+Press **F1** (or the **Help** button) any time for the built-in cheat sheet:
+
+![Built-in help](images/app-help.png)
 
 Cardinator marks the title bar with a **●** when you have unsaved changes, and asks before you
 close or open something else over unsaved work.

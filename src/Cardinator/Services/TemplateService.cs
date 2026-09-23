@@ -11,6 +11,9 @@ public sealed class Template
     public required TemplateSpec Spec { get; init; }
     public required string FramePath { get; init; }
     public required BitmapImage FrameImage { get; init; }
+
+    // Shown by the Frame combo box's collapsed selection box, which falls back to ToString().
+    public override string ToString() => Name;
 }
 
 /// <summary>
