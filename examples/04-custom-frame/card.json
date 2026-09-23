@@ -1,0 +1,15 @@
+{
+  "name": "Warden of the Violet Gate",
+  "manaCost": "{2}{W}{U}",
+  "typeLine": "Legendary Creature — Spirit Guardian",
+  "rulesText": "Flying, vigilance\nOther creatures you control get +0/+1.",
+  "flavorText": "None pass without her leave.",
+  "power": "2",
+  "toughness": "5",
+  "setCode": "CST",
+  "collectorNumber": "1",
+  "rarity": "M",
+  "artist": "Cardinator Demo",
+  "artPath": "examples/04-custom-frame/art/hero.png",
+  "templateName": "Ornate Purple"
+}

@@ -1,0 +1,7 @@
+name,art,mana,type,rules,flavor,pt,loyalty,template,rarity,artist
+Aria Stormcaller,art/aria.png,{R}{W}{B},Legendary Creature — Human Alchemist,"First strike\n{T}: Transmute — draw a card, then discard a card.",Equivalent exchange.,3/3,,Gold Multicolor,M,Cardinator Demo
+Emberwing Drake,art/emberwing.png,{2}{R},Creature — Dragon,"Flying, haste",,3/3,,Crimson Red,C,
+Tidal Oracle,art/tidal.png,{1}{U},Creature — Merfolk Wizard,{T}: Scry 1.,,1/3,,Ocean Blue,U,
+Grove Warden,art/grove.png,{2}{G},Creature — Treefolk,"Reach\nWhen Grove Warden enters, create a 1/1 green Saproling creature token.",,0/5,,Forest Green,C,
+Sunspire Edict,art/sunspire.png,{1}{W},Instant,Destroy target attacking or blocking creature.,Justice falls like the dawn.,,,Parchment,U,
+"Chronoshaper, Timeless",art/chrono.png,{3}{U},Legendary Planeswalker — Chronoshaper,"+1: Draw a card.\n-2: Tap target permanent.\n-6: Take an extra turn after this one.",,,4,Planeswalker,M,Cardinator Demo
