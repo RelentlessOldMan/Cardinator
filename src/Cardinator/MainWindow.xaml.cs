@@ -152,7 +152,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (template == null) return;
         try
         {
-            PreviewImage = _renderer.RenderToBitmap(_selectedCard, template, supersample: 1);
+            PreviewImage = _renderer.RenderToBitmap(_selectedCard, template, supersample: 1, previewHints: true);
         }
         catch (Exception ex)
         {
