@@ -29,28 +29,30 @@ Simple by design: type a name, pick a frame, drop in art, export. Everything els
 
 ## Gallery
 
-Real Cardinator output — a normal creature plus the special layouts it lays out for you
-automatically (planeswalker, saga, adventure, artifact), each on a different built-in frame:
+Real Cardinator output — original cards across the different frame **styles**: ornate, clean,
+classic, faded, borderless, full-art, and the cinematic **overlay** (full-bleed art with the text
+laid over the bottom). Everything below — frames, mana symbols, loyalty badges, saga chapters, the
+adventure sub-box, rarity pips, P/T box and footer — is drawn by Cardinator.
 
 <p>
-  <img src="docs/images/card-creature.png"    width="230" alt="Creature card">
-  <img src="docs/images/card-planeswalker.png" width="230" alt="Planeswalker card">
-  <img src="docs/images/card-saga.png"         width="230" alt="Saga card">
+  <img src="docs/images/gallery/cinematic-legend.png"     width="230" alt="Cinematic overlay creature">
+  <img src="docs/images/gallery/gold-legend.png"          width="230" alt="Ornate legendary creature">
+  <img src="docs/images/gallery/showcase-creature.png"    width="230" alt="Borderless creature">
 </p>
 <p>
-  <img src="docs/images/card-adventure.png"    width="230" alt="Adventure card">
-  <img src="docs/images/card-artifact.png"     width="230" alt="Artifact card">
-  <img src="docs/images/card-fullart.png"       width="230" alt="Full-art card, text on the artwork">
+  <img src="docs/images/gallery/planeswalker-classic.png" width="230" alt="Classic planeswalker">
+  <img src="docs/images/gallery/forest-saga.png"          width="230" alt="Classic saga">
+  <img src="docs/images/gallery/fullart-legend.png"       width="230" alt="Full-art creature">
 </p>
 
-*(Six original cards on six different frames — authentic Scryfall mana symbols, loyalty badges, saga
-chapters, the adventure sub-box, rarity pip and footer, all drawn by Cardinator. The last is
-**full-art** (text on the artwork). Art here is our own placeholder scenery; in the app you drop in
-your own or pull a card's real art from Scryfall.)*
+**[See the full gallery — 12 cards across every style →](docs/GALLERY.md)**
 
-**10 built-in frames** (Gold, Crimson, Ocean, Forest, Slate, Midnight, Parchment, Sunset,
-Planeswalker, Full Art) — with ornamental filigree you can toggle and tweak.
-**[See them all →](docs/TEMPLATES.md#the-built-in-frames)**
+*(Art here is our own placeholder scenery; in the app you drop in your own or pull a card's real art
+from Scryfall.)*
+
+**11 built-in frames** (Gold, Crimson, Ocean, Forest, Slate, Midnight, Parchment, Sunset,
+Planeswalker, Full Art, Showcase) plus the **Cinematic** overlay — with ornamental filigree you can
+toggle and tweak. **[See them all →](docs/TEMPLATES.md#the-built-in-frames)**
 
 ---
 

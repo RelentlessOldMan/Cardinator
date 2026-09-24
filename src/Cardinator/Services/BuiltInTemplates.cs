@@ -19,7 +19,36 @@ public static class BuiltInTemplates
         yield return Make("Sunset Orange", "#C46A24", "#F0BC7E", "#F5E4CE", "#7E4012", "faded");
         yield return MakeFullArt();
         yield return MakeShowcase();
+        yield return MakeCinematic();
     }
+
+    /// <summary>
+    /// A "full art with a frame over it" card: the artwork fills the whole card, and a cinematic
+    /// dark band with gold trim sits over the lower portion where the type line + rules text are
+    /// drawn directly on the art (à la mtgcardsmith showcase full-arts). P/T box on creatures.
+    /// </summary>
+    private static TemplateSpec MakeCinematic() => new()
+    {
+        Name = "Cinematic",
+        CanvasWidth = 750,
+        CanvasHeight = 1050,
+        FrameStyle = "overlay",
+        Colors = new FrameColors { Border = "#0A0A0A", Frame = "#B8912B", Frame2 = "#F0DA97", Panel = "#12141B", PanelBorder = "#6E5A1E" },
+        TitleBar = new Region { X = 44, Y = 40, W = 662, H = 64 },
+        ArtWindow = new Region { X = 0, Y = 0, W = 750, H = 1050 },
+        TypeBar = new Region { X = 44, Y = 720, W = 662, H = 52 },
+        TextBox = new Region { X = 52, Y = 780, W = 646, H = 150 },
+        PtBox = new Region { X = 556, Y = 892, W = 152, H = 66 },
+        CreditBar = new Region { X = 50, Y = 966, W = 460, H = 40 },
+        TitleFont = new FontSpec { Family = "Georgia", Size = 35, Bold = true, Align = "left", Color = "#F6E9C7", Shadow = true },
+        TypeFont = new FontSpec { Family = "Georgia", Size = 24, Bold = true, Align = "left", Color = "#F6E9C7", Shadow = true },
+        RulesFont = new FontSpec { Family = "Georgia", Size = 24, Align = "left", Color = "#F4F5F8", Shadow = true },
+        FlavorFont = new FontSpec { Family = "Georgia", Size = 23, Italic = true, Align = "left", Color = "#DADDE4", Shadow = true },
+        PtFont = new FontSpec { Family = "Georgia", Size = 32, Bold = true, Align = "center", Color = "#F6E9C7", Shadow = true },
+        CreditFont = new FontSpec { Family = "Segoe UI", Size = 13, Italic = true, Align = "left", Color = "#E7E3D6", Shadow = true },
+        ManaSymbolSize = 40,
+        RulesSymbolSize = 26,
+    };
 
     /// <summary>
     /// A "full art" template: the artwork fills the whole card and the text sits directly on it,
@@ -39,8 +68,9 @@ public static class BuiltInTemplates
         TitleBar = new Region { X = 40, Y = 34, W = 670, H = 64 },
         ArtWindow = new Region { X = 0, Y = 0, W = 750, H = 1050 },
         TypeBar = new Region { X = 40, Y = 742, W = 670, H = 52 },
-        TextBox = new Region { X = 40, Y = 800, W = 670, H = 208 },
-        PtBox = new Region { X = 600, Y = 966, W = 118, H = 60 },
+        TextBox = new Region { X = 40, Y = 800, W = 670, H = 176 },
+        PtBox = new Region { X = 556, Y = 890, W = 152, H = 66 },
+        CreditBar = new Region { X = 44, Y = 986, W = 460, H = 40 },
         TitleFont = new FontSpec { Family = "Georgia", Size = 36, Bold = true, Align = "left", Color = "#FFFFFF", Shadow = true },
         TypeFont = new FontSpec { Family = "Georgia", Size = 24, Bold = true, Align = "left", Color = "#FFFFFF", Shadow = true },
         RulesFont = new FontSpec { Family = "Georgia", Size = 24, Align = "left", Color = "#FFFFFF", Shadow = true },
@@ -62,8 +92,9 @@ public static class BuiltInTemplates
         TitleBar = new Region { X = 40, Y = 36, W = 670, H = 62 },
         ArtWindow = new Region { X = 0, Y = 0, W = 750, H = 1050 },
         TypeBar = new Region { X = 40, Y = 748, W = 670, H = 50 },
-        TextBox = new Region { X = 40, Y = 800, W = 670, H = 206 },
-        PtBox = new Region { X = 602, Y = 966, W = 116, H = 60 },
+        TextBox = new Region { X = 40, Y = 800, W = 670, H = 176 },
+        PtBox = new Region { X = 556, Y = 890, W = 152, H = 66 },
+        CreditBar = new Region { X = 44, Y = 986, W = 460, H = 40 },
         TitleFont = new FontSpec { Family = "Georgia", Size = 34, Bold = true, Align = "left", Color = "#FFFFFF", Shadow = true },
         TypeFont = new FontSpec { Family = "Georgia", Size = 23, Bold = true, Align = "left", Color = "#FFFFFF", Shadow = true },
         RulesFont = new FontSpec { Family = "Georgia", Size = 23, Align = "left", Color = "#F2F3F6", Shadow = true },
@@ -91,8 +122,8 @@ public static class BuiltInTemplates
         TitleBar = new Region { X = 28, Y = 28, W = 694, H = 66 },
         ArtWindow = new Region { X = 44, Y = 104, W = 662, H = 496 },
         TypeBar = new Region { X = 28, Y = 610, W = 694, H = 58 },
-        TextBox = new Region { X = 44, Y = 678, W = 662, H = 320 },
-        PtBox = new Region { X = 596, Y = 972, W = 126, H = 62 },
+        TextBox = new Region { X = 44, Y = 678, W = 662, H = 300 },
+        PtBox = new Region { X = 556, Y = 942, W = 152, H = 66 },
         TitleFont = new FontSpec { Family = "Georgia", Size = 34, Bold = true, Align = "left", Color = "#141414" },
         TypeFont = new FontSpec { Family = "Georgia", Size = 25, Bold = true, Align = "left", Color = "#141414" },
         RulesFont = new FontSpec { Family = "Georgia", Size = 25, Align = "left", Color = "#141414" },
