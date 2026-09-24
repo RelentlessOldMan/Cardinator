@@ -76,6 +76,32 @@ public class MoreTemplatesTests
         }
     }
 
+    [Fact]
+    public void FrameStyles_ProduceDistinctFrames()
+    {
+        var spec = BuiltInTemplates.All().First(s => !s.FullArt);
+        string P() => System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"style-{Guid.NewGuid():N}.png");
+        var classic = P(); var clean = P(); var ornate = P();
+        try
+        {
+            spec.FrameStyle = "classic"; FrameGenerator.Generate(spec, classic);
+            spec.FrameStyle = "clean"; FrameGenerator.Generate(spec, clean);
+            spec.FrameStyle = "ornate"; FrameGenerator.Generate(spec, ornate);
+
+            var a = System.IO.File.ReadAllBytes(classic);
+            var b = System.IO.File.ReadAllBytes(clean);
+            var c = System.IO.File.ReadAllBytes(ornate);
+            Assert.False(a.AsSpan().SequenceEqual(b), "classic vs clean should differ");
+            Assert.False(a.AsSpan().SequenceEqual(c), "classic vs ornate should differ");
+            Assert.False(b.AsSpan().SequenceEqual(c), "clean vs ornate should differ");
+        }
+        finally
+        {
+            foreach (var f in new[] { classic, clean, ornate })
+                try { System.IO.File.Delete(f); } catch { }
+        }
+    }
+
     private static bool HasContent(BitmapSource bmp)
     {
         int stride = bmp.PixelWidth * 4;
