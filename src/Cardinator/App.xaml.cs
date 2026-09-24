@@ -112,6 +112,14 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length > 3 && e.Args[0] == "--appshot")
+        {
+            // --appshot <csv> <artDir> <out.png> [selectNameSubstring]
+            int code = RunAppShot(e.Args[1], e.Args[2], e.Args[3], e.Args.Length > 4 ? e.Args[4] : null);
+            Shutdown(code);
+            return;
+        }
+
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
@@ -127,7 +135,7 @@ public partial class App : Application
         {
             Directory.CreateDirectory(outDir);
 
-            var main = new MainWindow();
+            var main = new MainWindow { SuppressClosePrompt = true };
             // Give the preview card some art so the flagship screenshot isn't a blank window.
             var shot = main.SelectedCard;
             if (shot != null)
@@ -151,6 +159,38 @@ public partial class App : Application
         catch (Exception ex)
         {
             Console.Error.WriteLine("UI screenshot FAILED: " + ex);
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Renders the main window with a real deck loaded from a CSV (Scryfall-filled) — a "here's the
+    /// app doing the thing" screenshot for the docs. Off-screen, so it works on a locked machine.
+    /// </summary>
+    private int RunAppShot(string csvPath, string artDir, string outPng, string? selectName)
+    {
+        try
+        {
+            var content = File.ReadAllText(csvPath);
+            var templates = new TemplateService().LoadAll();
+            var imported = ImportService.Parse(content, artDir, templates[0].Name);
+            System.Threading.Tasks.Task.Run(() => BatchService.FillFromScryfallAsync(imported, downloadArt: false))
+                .GetAwaiter().GetResult();
+
+            var main = new MainWindow { SuppressClosePrompt = true };
+            main.Cards.Clear();
+            foreach (var it in imported) main.Cards.Add(it.Card);
+            main.SelectedCard = main.Cards.FirstOrDefault(c =>
+                selectName != null && c.Name.Contains(selectName, StringComparison.OrdinalIgnoreCase))
+                ?? main.Cards.FirstOrDefault();
+
+            SaveWindow(main, 1240, 820, outPng);
+            Console.WriteLine($"App screenshot written to {outPng} ({main.Cards.Count} cards).");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("App screenshot FAILED: " + ex);
             return 1;
         }
     }
@@ -201,6 +241,8 @@ public partial class App : Application
                   Render the decorative card back (for double-sided printing).
               Cardinator.exe --uishot <outDir>
                   Render the app's own windows to PNGs off-screen (documentation screenshots).
+              Cardinator.exe --appshot <list.csv> <artDir> <out.png> ["name"]
+                  Render the main window with a deck loaded (documentation screenshots).
               Cardinator.exe --batch <list.csv> <outDir> [artDir]
                   Import a name list / CSV, fill blanks from Scryfall, render all.
               Cardinator.exe --sheet <list.csv> <outDir> [artDir] [a4]

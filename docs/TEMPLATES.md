@@ -129,6 +129,27 @@ Your image is kept exactly as provided (Cardinator won't regenerate it). Then op
 `template.json` and adjust the region rectangles so the art window and text areas line up with your
 frame.
 
+### Where do frames come from?
+
+Cardinator doesn't ship a catalog of frames to download, and it deliberately doesn't pull them from
+anywhere online — the authentic Magic frames are Wizards of the Coast's, and community frame packs
+are mostly derived from them. So there's nothing to "browse and download" in the app (Scryfall,
+which the app uses for card text/art/symbols, has no blank frame templates either).
+
+What *is* built in and safe:
+
+- **The generated frames** — the built-ins (Crimson Red, Ocean Blue, Full Art, …) are drawn by the
+  app from `template.json`. Copy one, change its colors/regions, and you have a new frame with no
+  image at all.
+- **Any transparent PNG you provide** — draw your own, or point Cardinator at a frame image you have
+  the rights to use. The **Import…** button takes a **local file or a URL**
+  (`--newtemplate "Name" https://…/frame.png` on the command line). What you use it with is up to
+  you; for anything Magic-derived, keep it to personal / fan use.
+
+A frame image should be a **transparent PNG the size of a card** (or 5:7), opaque only where you
+want frame/border/panels and see-through where the art and text should show. Add `fullart` on import
+for an art-fills-the-card look (text sits on the art); otherwise the default windowed regions apply.
+
 ## Sharing templates
 
 A template is self-contained in its folder — zip up

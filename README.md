@@ -108,7 +108,7 @@ output are all checked in.** Click a thumbnail for that example's guide.
 <table>
 <tr>
 <td align="center" width="25%"><a href="examples/01-custom-set/"><img src="examples/01-custom-set/output/sheet_page_01.png" width="150" alt="Custom set"></a><br/><a href="examples/01-custom-set/"><b>Custom set</b></a><br/><sub>your own cards from a CSV</sub></td>
-<td align="center" width="25%"><a href="examples/02-proxy-deck/"><img src="examples/02-proxy-deck/output/sheet_page_01.png" width="150" alt="Proxy a real deck"></a><br/><a href="examples/02-proxy-deck/"><b>Proxy a real deck</b></a><br/><sub>real names + your art</sub></td>
+<td align="center" width="25%"><a href="examples/02-proxy-deck/"><img src="examples/02-proxy-deck/output/sheet_page_01.png" width="150" alt="Real cards, custom art"></a><br/><a href="examples/02-proxy-deck/"><b>Real cards, custom art ⭐</b></a><br/><sub>a whole deck in your art</sub></td>
 <td align="center" width="25%"><a href="examples/03-full-art/"><img src="examples/03-full-art/output/001_nightfall-wanderer.png" width="150" alt="Full-art"></a><br/><a href="examples/03-full-art/"><b>Full-art</b></a><br/><sub>text on the artwork</sub></td>
 <td align="center" width="25%"><a href="examples/04-custom-frame/"><img src="examples/04-custom-frame/output/warden.png" width="150" alt="Custom frame"></a><br/><a href="examples/04-custom-frame/"><b>Custom frame</b></a><br/><sub>bring your own frame PNG</sub></td>
 </tr>
