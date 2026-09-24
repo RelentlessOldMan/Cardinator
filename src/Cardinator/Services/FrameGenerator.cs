@@ -65,13 +65,13 @@ public static class FrameGenerator
         switch ((spec.FrameStyle ?? "classic").Trim().ToLowerInvariant())
         {
             case "clean": DrawCleanFrame(dc, spec); break;
-            case "ornate": DrawClassicFrame(dc, spec, ornate: true); break;
-            default: DrawClassicFrame(dc, spec, ornate: false); break;
+            case "ornate": DrawOrnateFrame(dc, spec); break;
+            default: DrawClassicFrame(dc, spec); break;
         }
     }
 
     /// <summary>The default MTG-style frame: gradient border, beveled art window and panels, filigree.</summary>
-    private static void DrawClassicFrame(DrawingContext dc, TemplateSpec spec, bool ornate)
+    private static void DrawClassicFrame(DrawingContext dc, TemplateSpec spec)
     {
         double W = spec.CanvasWidth, H = spec.CanvasHeight;
         var c = spec.Colors;
@@ -89,28 +89,17 @@ public static class FrameGenerator
         var frameBrush = new LinearGradientBrush(frame2Color, frameColor, new Point(0, 0), new Point(0.4, 1));
 
         var full = new Rect(0, 0, W, H);
-        var inner = Inset(full, ornate ? 20 : 14);
+        var inner = Inset(full, 14);
         var art = ToRect(spec.ArtWindow);
 
         double cardR = spec.CornerRadius, panelR = spec.PanelRadius;
 
-        // 1. Outer black edge as a ring (does not cover the art window).
         dc.DrawGeometry(border, null, Exclude(RoundedGeom(full, cardR), RoundedGeom(inner, cardR - 6)));
-
-        // 2. Frame fill covering the inner card, with the art window punched out.
         dc.DrawGeometry(frameBrush, null,
             Exclude(RoundedGeom(inner, cardR - 6), new RectangleGeometry(art, panelR, panelR)));
-
-        // 2b. Inner keyline just inside the frame edge for a double-border look.
         dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Darken(panelBorderColor, 0.10)), 2),
             Inset(inner, 6), cardR - 12, cardR - 12);
 
-        // 2c. Ornate: a second, bright metallic keyline for a richer border.
-        if (ornate)
-            dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Lighten(frame2Color, 0.4)), 2.5),
-                Inset(inner, 2), cardR - 8, cardR - 8);
-
-        // 3. Art window bevel: dark ring + light highlight + inner shadow line.
         var artOuter = Inset(art, -8);
         dc.DrawGeometry(new SolidColorBrush(panelBorderColor), null,
             Exclude(new RectangleGeometry(artOuter, panelR, panelR), new RectangleGeometry(art, panelR, panelR)));
@@ -119,14 +108,12 @@ public static class FrameGenerator
         dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Color.FromArgb(110, 0, 0, 0)), 2),
             Inset(art, -0.5), panelR, panelR);
 
-        // 4. Panels (title / type / text / power-toughness).
         DrawPanel(dc, panel, panelPen, panelColor, spec.TitleBar, panelR);
         DrawPanel(dc, panel, panelPen, panelColor, spec.TypeBar, panelR);
         DrawPanel(dc, panel, panelPen, panelColor, spec.TextBox, panelR);
         DrawPanel(dc, panel, panelPen, panelColor, spec.PtBox, panelR);
 
-        // 5. Ornamental filigree (always on for ornate).
-        if (ornate || spec.Embellishments)
+        if (spec.Embellishments)
             DrawEmbellishments(dc, inner, art, frame2Color, panelBorderColor);
     }
 
@@ -156,6 +143,135 @@ public static class FrameGenerator
         var fill = new SolidColorBrush(panelColor);
         foreach (var r in new[] { spec.TitleBar, spec.TypeBar, spec.TextBox, spec.PtBox })
             dc.DrawRoundedRectangle(fill, pen, ToRect(r), panelR, panelR);
+    }
+
+    /// <summary>A heavily decorated frame: metallic band, a title banner, bold corner scrollwork + gems.</summary>
+    private static void DrawOrnateFrame(DrawingContext dc, TemplateSpec spec)
+    {
+        double W = spec.CanvasWidth, H = spec.CanvasHeight;
+        var c = spec.Colors;
+        var borderColor = TemplateSpec.ParseColor(c.Border);
+        var frameColor = TemplateSpec.ParseColor(c.Frame);
+        var frame2Color = TemplateSpec.ParseColor(c.Frame2);
+        var panelColor = TemplateSpec.ParseColor(c.Panel);
+        var panelBorderColor = TemplateSpec.ParseColor(c.PanelBorder);
+
+        var full = new Rect(0, 0, W, H);
+        var art = ToRect(spec.ArtWindow);
+        double cardR = spec.CornerRadius, panelR = spec.PanelRadius;
+        var gold = Lighten(frame2Color, 0.35);
+
+        // Outer dark edge.
+        dc.DrawGeometry(new SolidColorBrush(borderColor), null,
+            Exclude(RoundedGeom(full, cardR), RoundedGeom(Inset(full, 11), cardR - 5)));
+
+        // Thick metallic band (3-stop sheen), art window punched out.
+        var band = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0.55, 1) };
+        band.GradientStops.Add(new GradientStop(Lighten(frame2Color, 0.4), 0));
+        band.GradientStops.Add(new GradientStop(frameColor, 0.5));
+        band.GradientStops.Add(new GradientStop(Lighten(frame2Color, 0.22), 1));
+        band.Freeze();
+        dc.DrawGeometry(band, null,
+            Exclude(RoundedGeom(Inset(full, 11), cardR - 5), new RectangleGeometry(art, panelR, panelR)));
+
+        // Double pinline (bright metallic + dark).
+        dc.DrawRoundedRectangle(null, FrozenPen(Lighten(frame2Color, 0.55), 3), Inset(full, 17), cardR - 9, cardR - 9);
+        dc.DrawRoundedRectangle(null, FrozenPen(Darken(panelBorderColor, 0.10), 1.5), Inset(full, 23), cardR - 13, cardR - 13);
+
+        // Art window bevel with a bright inner keyline.
+        var artOuter = Inset(art, -9);
+        dc.DrawGeometry(new SolidColorBrush(panelBorderColor), null,
+            Exclude(new RectangleGeometry(artOuter, panelR, panelR), new RectangleGeometry(art, panelR, panelR)));
+        dc.DrawRoundedRectangle(null, FrozenPen(Lighten(frame2Color, 0.5), 2), Inset(art, -4), panelR, panelR);
+
+        // Panels (type / text / P-T) — light gradient with a gold top edge. Title uses a banner.
+        var panelBrush = new LinearGradientBrush(Lighten(panelColor, 0.10), panelColor, new Point(0, 0), new Point(0, 1));
+        panelBrush.Freeze();
+        var pPen = FrozenPen(panelBorderColor, 2);
+        foreach (var r in new[] { spec.TypeBar, spec.TextBox, spec.PtBox })
+        {
+            var rect = ToRect(r);
+            dc.DrawRoundedRectangle(panelBrush, pPen, rect, panelR, panelR);
+            dc.DrawLine(FrozenPen(gold, 1.5), new Point(rect.X + panelR, rect.Y + 2.5), new Point(rect.Right - panelR, rect.Y + 2.5));
+        }
+
+        // Filigree divider under the type line.
+        var tb = ToRect(spec.TypeBar);
+        FiligreeDivider(dc, gold, panelBorderColor, tb.X + 18, tb.Bottom + 5, tb.Right - 18);
+
+        // Title banner (light nameplate with a gold ornate outline + gems), keeps the title readable.
+        DrawBanner(dc, ToRect(spec.TitleBar), panelBrush, panelBorderColor, gold);
+
+        // Bold corner scrollwork + big gems.
+        const double m = 22;
+        OrnateCorner(dc, gold, panelBorderColor, full.X + m, full.Y + m, 1, 1);
+        OrnateCorner(dc, gold, panelBorderColor, full.Right - m, full.Y + m, -1, 1);
+        OrnateCorner(dc, gold, panelBorderColor, full.X + m, full.Bottom - m, 1, -1);
+        OrnateCorner(dc, gold, panelBorderColor, full.Right - m, full.Bottom - m, -1, -1);
+    }
+
+    private static Pen FrozenPen(Color color, double thickness)
+    {
+        var p = new Pen(new SolidColorBrush(color), thickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+        p.Freeze();
+        return p;
+    }
+
+    private static void Gem(DrawingContext dc, Color fill, Color edge, double x, double y, double r)
+    {
+        dc.DrawGeometry(new SolidColorBrush(fill), FrozenPen(edge, 1.5), Diamond(x, y, r));
+        dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), null,
+            new Point(x - r * 0.25, y - r * 0.3), r * 0.26, r * 0.26);
+    }
+
+    private static void DrawBanner(DrawingContext dc, Rect bar, Brush fill, Color edge, Color gold)
+    {
+        double midY = bar.Y + bar.Height / 2;
+        var g = new StreamGeometry();
+        using (var s = g.Open())
+        {
+            s.BeginFigure(new Point(bar.X - 14, midY), true, true);
+            s.LineTo(new Point(bar.X + 8, bar.Y - 3), true, false);
+            s.LineTo(new Point(bar.Right - 8, bar.Y - 3), true, false);
+            s.LineTo(new Point(bar.Right + 14, midY), true, false);
+            s.LineTo(new Point(bar.Right - 8, bar.Bottom + 3), true, false);
+            s.LineTo(new Point(bar.X + 8, bar.Bottom + 3), true, false);
+        }
+        g.Freeze();
+        dc.DrawGeometry(fill, FrozenPen(edge, 2.5), g);
+        dc.DrawGeometry(null, FrozenPen(gold, 1.5), g);
+        Gem(dc, gold, edge, bar.X - 7, midY, 8);
+        Gem(dc, gold, edge, bar.Right + 7, midY, 8);
+    }
+
+    private static void OrnateCorner(DrawingContext dc, Color gold, Color edge, double cx, double cy, int sx, int sy)
+    {
+        dc.PushTransform(LocalTransform(cx, cy, sx, sy));
+        var g = new StreamGeometry();
+        using (var s = g.Open())
+        {
+            s.BeginFigure(new Point(48, 0), false, false);
+            s.BezierTo(new Point(20, 0), new Point(0, 5), new Point(0, 26), true, false);
+            s.LineTo(new Point(0, 48), true, false);
+            s.BeginFigure(new Point(48, 0), false, false);   // outward curl at the arm end
+            s.BezierTo(new Point(58, -5), new Point(55, 14), new Point(41, 11), true, false);
+            s.BeginFigure(new Point(0, 48), false, false);   // inward curl at the down-arm end
+            s.BezierTo(new Point(-5, 58), new Point(14, 55), new Point(11, 41), true, false);
+        }
+        g.Freeze();
+        dc.DrawGeometry(null, FrozenPen(gold, 5), g);
+        dc.DrawGeometry(null, FrozenPen(edge, 1.5), g);
+        dc.Pop();
+        Gem(dc, gold, edge, cx, cy, 11);
+    }
+
+    private static void FiligreeDivider(DrawingContext dc, Color gold, Color edge, double x1, double y, double x2)
+    {
+        double cx = (x1 + x2) / 2;
+        var pen = FrozenPen(gold, 2);
+        dc.DrawLine(pen, new Point(x1, y), new Point(cx - 16, y));
+        dc.DrawLine(pen, new Point(cx + 16, y), new Point(x2, y));
+        Gem(dc, gold, edge, cx, y, 7);
     }
 
     // --- ornamental embellishments -----------------------------------------

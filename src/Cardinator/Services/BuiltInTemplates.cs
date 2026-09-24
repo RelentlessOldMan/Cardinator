@@ -11,7 +11,7 @@ public static class BuiltInTemplates
         yield return Make("Gold Multicolor", "#B8912B", "#F0DA97", "#ECE6D2", "#6E5A1E", "ornate");
         yield return Make("Ocean Blue", "#2E6E9E", "#9FC7E0", "#DCE8F0", "#234F6E", "clean");
         yield return Make("Forest Green", "#3E7A44", "#A9CF9F", "#E1ECDD", "#2A5730", "classic");
-        yield return Make("Crimson Red", "#A23A2E", "#E3A79A", "#F0DED9", "#6E241C", "classic");
+        yield return Make("Crimson Red", "#A23A2E", "#E3A79A", "#F0DED9", "#6E241C", "ornate");
         yield return Make("Slate Artifact", "#6E7378", "#C4C9CE", "#E6E8EA", "#3E4348", "clean");
         yield return Make("Planeswalker", "#6B4E8E", "#C9B3E0", "#E7DEF0", "#3E2E56", "classic");
         yield return Make("Midnight", "#23262E", "#4A5060", "#D9DDE6", "#12141A", "clean");
