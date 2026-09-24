@@ -69,6 +69,7 @@ public static class FrameGenerator
             case "borderless": DrawBorderlessFrame(dc, spec); break;
             case "overlay": DrawOverlayFrame(dc, spec); break;
             case "faded": DrawFadedFrame(dc, spec); break;
+            case "wave": DrawClassicFrame(dc, spec); DrawWaveCrown(dc, spec); break;
             default: DrawClassicFrame(dc, spec); break;
         }
     }
@@ -93,6 +94,66 @@ public static class FrameGenerator
             dc.DrawRoundedRectangle(fill, edge, rect, panelR, panelR);
         }
         // P/T box is drawn per-card by the renderer (creatures only).
+    }
+
+    /// <summary>Wave: a classic frame plus a colorful scalloped "wave" crown flowing across the top of
+    /// the card (over the frame, above the title), like a showcase/extended treatment.</summary>
+    private static void DrawWaveCrown(DrawingContext dc, TemplateSpec spec)
+    {
+        double W = spec.CanvasWidth;
+        var c = spec.Colors;
+        var wave = TemplateSpec.ParseColor(c.Frame2);         // the vivid frame-highlight color
+        var deep = TemplateSpec.ParseColor(c.Frame);
+        var edge = TemplateSpec.ParseColor(c.PanelBorder);
+
+        // Band sits inside the black border (drawn later), over the top frame, above the title bar.
+        double left = 34, right = W - 34, top = 30;
+        double baseY = spec.TitleBar.Y - 12;   // scallop baseline just above the title
+        double amp = 15;
+        int n = 6;
+        double seg = (right - left) / n;
+
+        Geometry BuildBand(double lift)
+        {
+            var g = new StreamGeometry();
+            using (var s = g.Open())
+            {
+                s.BeginFigure(new Point(left, top), true, true);
+                s.LineTo(new Point(right, top), true, false);
+                s.LineTo(new Point(right, baseY - lift), true, false);
+                for (int i = 0; i < n; i++)
+                {
+                    double x1 = right - (i + 1) * seg;
+                    double midx = right - (i + 0.5) * seg;
+                    s.QuadraticBezierTo(new Point(midx, baseY + amp - lift), new Point(x1, baseY - lift), true, false);
+                }
+                s.LineTo(new Point(left, top), true, false);
+            }
+            g.Freeze();
+            return g;
+        }
+
+        // A deeper echo behind for a layered, flowing look, then the bright wave on top.
+        dc.DrawGeometry(new SolidColorBrush(Darken(deep, 0.15)), null, BuildBand(-8));
+        var fill = new LinearGradientBrush(Lighten(wave, 0.40), wave, new Point(0, 0), new Point(0, 1));
+        fill.Freeze();
+        var band = BuildBand(0);
+        dc.DrawGeometry(fill, FrozenPen(edge, 2.5), band);
+
+        // Bright crest line along the scalloped edge + a couple of foam gems for flourish.
+        var crest = new StreamGeometry();
+        using (var s = crest.Open())
+        {
+            s.BeginFigure(new Point(right, baseY), false, false);
+            for (int i = 0; i < n; i++)
+            {
+                double x1 = right - (i + 1) * seg;
+                double midx = right - (i + 0.5) * seg;
+                s.QuadraticBezierTo(new Point(midx, baseY + amp), new Point(x1, baseY), true, false);
+            }
+        }
+        crest.Freeze();
+        dc.DrawGeometry(null, FrozenPen(Lighten(wave, 0.6), 2), crest);
     }
 
     /// <summary>Overlay: full-bleed art with a cinematic dark band + gold trim over the lower card,
@@ -214,8 +275,9 @@ public static class FrameGenerator
         dc.DrawGeometry(border, null, Exclude(RoundedGeom(full, cardR), RoundedGeom(inner, cardR - 6)));
         dc.DrawGeometry(frameBrush, null,
             Exclude(RoundedGeom(inner, cardR - 6), new RectangleGeometry(art, panelR, panelR)));
+        // Inner keyline sits inboard of the thick black card border so it stays visible.
         dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Darken(panelBorderColor, 0.10)), 3),
-            Inset(inner, 6), cardR - 12, cardR - 12);
+            Inset(full, 34), Math.Max(1, cardR - 18), Math.Max(1, cardR - 18));
 
         var artOuter = Inset(art, -9);
         dc.DrawGeometry(new SolidColorBrush(panelBorderColor), null,
@@ -236,7 +298,7 @@ public static class FrameGenerator
         DrawStuds(dc, ToRect(spec.TypeBar), studGold, panelBorderColor);
 
         if (spec.Embellishments)
-            DrawEmbellishments(dc, inner, art, frame2Color, panelBorderColor);
+            DrawEmbellishments(dc, Inset(full, 32), art, frame2Color, panelBorderColor);
     }
 
     /// <summary>A flat, modern frame: solid slab, crisp thin edges, flat panels, no bevel or filigree.</summary>
@@ -302,12 +364,12 @@ public static class FrameGenerator
         dc.DrawGeometry(band, null, bandGeo);
         DrawTexture(dc, bandGeo);   // procedural stone-ish speckle on the border
 
-        // Double pinline (bright metallic + dark).
-        dc.DrawRoundedRectangle(null, FrozenPen(Lighten(frame2Color, 0.55), 4), Inset(full, 18), cardR - 9, cardR - 9);
-        dc.DrawRoundedRectangle(null, FrozenPen(Darken(panelBorderColor, 0.10), 2.5), Inset(full, 25), cardR - 13, cardR - 13);
+        // Double pinline (bright metallic + dark) — inboard of the thick black card border.
+        dc.DrawRoundedRectangle(null, FrozenPen(Lighten(frame2Color, 0.55), 4), Inset(full, 34), Math.Max(1, cardR - 18), Math.Max(1, cardR - 18));
+        dc.DrawRoundedRectangle(null, FrozenPen(Darken(panelBorderColor, 0.10), 2.5), Inset(full, 41), Math.Max(1, cardR - 22), Math.Max(1, cardR - 22));
 
         // Tapered gold accent pieces along each inner edge (thick at the corners, tapering to the middle).
-        TaperedEdges(dc, Inset(full, 18), gold, panelBorderColor);
+        TaperedEdges(dc, Inset(full, 34), gold, panelBorderColor);
 
         // Art window bevel with a bright inner keyline.
         var artOuter = Inset(art, -10);
@@ -336,8 +398,8 @@ public static class FrameGenerator
         // Title banner (light nameplate with a gold ornate outline + gems), keeps the title readable.
         DrawBanner(dc, ToRect(spec.TitleBar), panelBrush, panelBorderColor, gold);
 
-        // Bold corner scrollwork + big gems.
-        const double m = 22;
+        // Bold corner scrollwork + big gems — inboard of the thick black card border.
+        const double m = 42;
         OrnateCorner(dc, gold, panelBorderColor, full.X + m, full.Y + m, 1, 1);
         OrnateCorner(dc, gold, panelBorderColor, full.Right - m, full.Y + m, -1, 1);
         OrnateCorner(dc, gold, panelBorderColor, full.X + m, full.Bottom - m, 1, -1);

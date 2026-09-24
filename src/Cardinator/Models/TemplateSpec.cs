@@ -62,7 +62,8 @@ public sealed class TemplateSpec
     public bool FullArt { get; set; }
 
     /// <summary>Frame design: "classic" (default), "clean" (flat/modern), "ornate" (heavy/decorative),
-    /// "faded" (frame melts into art), "borderless" (floating panels) or "overlay" (cinematic band over art).</summary>
+    /// "faded" (frame melts into art), "borderless" (floating panels), "overlay" (cinematic band over
+    /// art) or "wave" (full frame + colorful scalloped wave crown across the top).</summary>
     public string FrameStyle { get; set; } = "classic";
 
     /// <summary>Draw ornamental filigree (corner scrolls, art-window curls, top ornament).</summary>
@@ -80,7 +81,7 @@ public sealed class TemplateSpec
     public Region ArtWindow { get; set; } = new() { X = 44, Y = 104, W = 662, H = 496 };
     public Region TypeBar { get; set; } = new() { X = 28, Y = 610, W = 694, H = 58 };
     public Region TextBox { get; set; } = new() { X = 44, Y = 678, W = 662, H = 300 };
-    public Region PtBox { get; set; } = new() { X = 556, Y = 942, W = 152, H = 66 };
+    public Region PtBox { get; set; } = new() { X = 578, Y = 928, W = 128, H = 74 };
     public Region CreditBar { get; set; } = new() { X = 48, Y = 988, W = 470, H = 38 };
 
     public FontSpec TitleFont { get; set; } = new() { Family = "Georgia", Size = 34, Bold = true, Align = "left" };
