@@ -1,0 +1,5 @@
+name,art,mana,type,rules,pt,template,artist
+Soldier,art/soldier.png,,Token Creature — Soldier,,1/1,Parchment,Cardinator Demo
+Angel,art/angel.png,,Token Creature — Angel,Flying,4/4,Gold Multicolor,Cardinator Demo
+Treasure,art/treasure.png,,Token Artifact — Treasure,"{T}, Sacrifice this artifact: Add one mana of any color.",,Slate Artifact,Cardinator Demo
+Emblem — Chronoshaper,art/emblem.png,,Emblem,"At the beginning of your upkeep, draw a card.",,Midnight,Cardinator Demo

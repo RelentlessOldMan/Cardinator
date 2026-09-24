@@ -1,0 +1,15 @@
+{
+  "name": "Nightfall Wanderer",
+  "manaCost": "{2}{U}{R}",
+  "typeLine": "Legendary Creature — Spirit Scout",
+  "rulesText": "Flying, haste\n{T}: Add {U} or {R}.",
+  "flavorText": "She walks the ridge between dusk and dawn.",
+  "power": "3",
+  "toughness": "4",
+  "setCode": "CST",
+  "collectorNumber": "42",
+  "rarity": "M",
+  "artist": "Cardinator Demo",
+  "artPath": "examples/06-print-ready/art/hero.png",
+  "templateName": "Ocean Blue"
+}

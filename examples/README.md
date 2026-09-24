@@ -10,8 +10,15 @@ your own.
 | [**02 · Proxy a real deck**](02-proxy-deck/) | Proxy real cards with your own art | a deck list of real names + art | text auto-filled from Scryfall + a print sheet |
 | [**03 · Full-art cards**](03-full-art/) | Text directly on the artwork | a CSV using the *Full Art* frame | full-art cards |
 | [**04 · Bring your own frame**](04-custom-frame/) | Use a frame you designed yourself | a transparent frame PNG | a new template + a card on it |
+| [**05 · Print & play**](05-print-and-play/) | Print your deck double-sided | (nothing) | a decorative card back for the reverse |
+| [**06 · Print-ready export**](06-print-ready/) | Send to a print service | a single card | a JPEG with bleed margin + 300 DPI |
+| [**07 · Tokens & emblems**](07-tokens-emblems/) | The extras a deck needs | a CSV with blank mana/PT | tokens and emblems, laid out right |
 
 Single card in a hurry? [`card.json`](card.json) renders with `--render` (see below).
+
+**Bonus — a whole set from a Scryfall search** (art comes from Scryfall, so outputs aren't checked
+in here): `Cardinator.exe --search "t:dragon c:r" out sheet max=9` fetches matching cards *with
+their art* and lays them out on a print sheet. Great for instant themed sets.
 
 ## How to run any example
 
