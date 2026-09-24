@@ -66,8 +66,80 @@ public static class FrameGenerator
         {
             case "clean": DrawCleanFrame(dc, spec); break;
             case "ornate": DrawOrnateFrame(dc, spec); break;
+            case "borderless": DrawBorderlessFrame(dc, spec); break;
+            case "faded": DrawFadedFrame(dc, spec); break;
             default: DrawClassicFrame(dc, spec); break;
         }
+    }
+
+    /// <summary>Borderless: no frame — just translucent floating panels over the full-bleed art.</summary>
+    private static void DrawBorderlessFrame(DrawingContext dc, TemplateSpec spec)
+    {
+        double panelR = Math.Max(8, spec.PanelRadius);
+        var shadow = new SolidColorBrush(Color.FromArgb(95, 0, 0, 0));
+        var fill = new SolidColorBrush(Color.FromArgb(180, 14, 16, 22));
+        var edge = new Pen(new SolidColorBrush(Color.FromArgb(120, 235, 238, 245)), 1.2);
+
+        var title = ToRect(spec.TitleBar);
+        var type = ToRect(spec.TypeBar);
+        var text = ToRect(spec.TextBox);
+        var lower = new Rect(Math.Min(type.X, text.X), type.Y,
+            Math.Max(type.Width, text.Width), text.Bottom - type.Y);
+
+        foreach (var rect in new[] { title, lower })
+        {
+            dc.DrawRoundedRectangle(shadow, null, new Rect(rect.X + 3, rect.Y + 5, rect.Width, rect.Height), panelR, panelR);
+            dc.DrawRoundedRectangle(fill, edge, rect, panelR, panelR);
+        }
+        // P/T box is drawn per-card by the renderer (creatures only).
+    }
+
+    /// <summary>Faded: classic panels, but the frame melts into the art with soft gradient edges.</summary>
+    private static void DrawFadedFrame(DrawingContext dc, TemplateSpec spec)
+    {
+        double W = spec.CanvasWidth, H = spec.CanvasHeight;
+        var c = spec.Colors;
+        var borderColor = TemplateSpec.ParseColor(c.Border);
+        var frameColor = TemplateSpec.ParseColor(c.Frame);
+        var frame2Color = TemplateSpec.ParseColor(c.Frame2);
+        var panelColor = TemplateSpec.ParseColor(c.Panel);
+        var panelBorderColor = TemplateSpec.ParseColor(c.PanelBorder);
+
+        var full = new Rect(0, 0, W, H);
+        var inner = Inset(full, 14);
+        var art = ToRect(spec.ArtWindow);
+        double cardR = spec.CornerRadius, panelR = spec.PanelRadius;
+
+        dc.DrawGeometry(new SolidColorBrush(borderColor), null, Exclude(RoundedGeom(full, cardR), RoundedGeom(inner, cardR - 6)));
+        dc.DrawGeometry(new SolidColorBrush(frameColor), null,
+            Exclude(RoundedGeom(inner, cardR - 6), new RectangleGeometry(art, panelR, panelR)));
+
+        // Soft gradient bands that fade the frame into the art on all four sides (no hard keyline).
+        var into = Color.FromArgb(0, frameColor.R, frameColor.G, frameColor.B);
+        double fadeW = 26;
+        SoftEdge(dc, new Rect(art.X, art.Y, art.Width, fadeW), frameColor, into, 90);              // top
+        SoftEdge(dc, new Rect(art.X, art.Bottom - fadeW, art.Width, fadeW), frameColor, into, 270); // bottom
+        SoftEdge(dc, new Rect(art.X, art.Y, fadeW, art.Height), frameColor, into, 0);               // left
+        SoftEdge(dc, new Rect(art.Right - fadeW, art.Y, fadeW, art.Height), frameColor, into, 180);  // right
+
+        DrawPanel(dc, new SolidColorBrush(panelColor), new Pen(new SolidColorBrush(panelBorderColor), 2), panelColor, spec.TitleBar, panelR);
+        DrawPanel(dc, new SolidColorBrush(panelColor), new Pen(new SolidColorBrush(panelBorderColor), 2), panelColor, spec.TypeBar, panelR);
+        DrawPanel(dc, new SolidColorBrush(panelColor), new Pen(new SolidColorBrush(panelBorderColor), 2), panelColor, spec.TextBox, panelR);
+    }
+
+    private static void SoftEdge(DrawingContext dc, Rect rect, Color solid, Color transparent, double angleDeg)
+    {
+        Point start, end;
+        switch (angleDeg)
+        {
+            case 90: start = new Point(0.5, 0); end = new Point(0.5, 1); break;   // top: solid at top → clear at bottom
+            case 270: start = new Point(0.5, 1); end = new Point(0.5, 0); break;  // bottom
+            case 0: start = new Point(0, 0.5); end = new Point(1, 0.5); break;    // left
+            default: start = new Point(1, 0.5); end = new Point(0, 0.5); break;   // right
+        }
+        var g = new LinearGradientBrush(solid, transparent, start, end);
+        g.Freeze();
+        dc.DrawRectangle(g, null, rect);
     }
 
     /// <summary>The default MTG-style frame: gradient border, beveled art window and panels, filigree.</summary>
@@ -176,8 +248,9 @@ public static class FrameGenerator
         band.GradientStops.Add(new GradientStop(frameColor, 0.5));
         band.GradientStops.Add(new GradientStop(Lighten(frame2Color, 0.22), 1));
         band.Freeze();
-        dc.DrawGeometry(band, null,
-            Exclude(RoundedGeom(Inset(full, 11), cardR - 5), new RectangleGeometry(art, panelR, panelR)));
+        var bandGeo = Exclude(RoundedGeom(Inset(full, 11), cardR - 5), new RectangleGeometry(art, panelR, panelR));
+        dc.DrawGeometry(band, null, bandGeo);
+        DrawTexture(dc, bandGeo);   // procedural stone-ish speckle on the border
 
         // Double pinline (bright metallic + dark).
         dc.DrawRoundedRectangle(null, FrozenPen(Lighten(frame2Color, 0.55), 3), Inset(full, 17), cardR - 9, cardR - 9);
@@ -216,6 +289,22 @@ public static class FrameGenerator
         OrnateCorner(dc, gold, panelBorderColor, full.Right - m, full.Y + m, -1, 1);
         OrnateCorner(dc, gold, panelBorderColor, full.X + m, full.Bottom - m, 1, -1);
         OrnateCorner(dc, gold, panelBorderColor, full.Right - m, full.Bottom - m, -1, -1);
+    }
+
+    /// <summary>Scatters tiny light/dark specks (deterministic) to fake a rough, stone-like texture.</summary>
+    private static void DrawTexture(DrawingContext dc, Geometry clip)
+    {
+        dc.PushClip(clip);
+        var rnd = new Random(20260924);
+        for (int i = 0; i < 2200; i++)
+        {
+            double x = rnd.NextDouble() * 760, y = rnd.NextDouble() * 1060;
+            double s = 0.5 + rnd.NextDouble() * 2.4;
+            byte a = (byte)rnd.Next(8, 34);
+            var col = rnd.Next(2) == 0 ? Color.FromArgb(a, 255, 255, 255) : Color.FromArgb(a, 0, 0, 0);
+            dc.DrawEllipse(new SolidColorBrush(col), null, new Point(x, y), s, s);
+        }
+        dc.Pop();
     }
 
     private static Pen FrozenPen(Color color, double thickness)

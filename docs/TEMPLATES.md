@@ -31,7 +31,15 @@ can compare the styles). Pick one from the **Frame** dropdown, or duplicate one 
 <td align="center"><img src="images/frames/planeswalker.png" width="150"><br/><sub>Planeswalker</sub></td>
 <td align="center"><img src="images/frames/full-art.png" width="150"><br/><sub>Full Art</sub></td>
 </tr>
+<tr>
+<td align="center"><img src="images/frames/showcase.png" width="150"><br/><sub>Showcase (borderless)</sub></td>
+</tr>
 </table>
+
+Frames come in a few **styles** you can set per template (`frameStyle`): **classic** (gradient +
+bevel), **clean** (flat/modern), **ornate** (metallic band, banner, corner scrollwork + gems, stone
+texture), **faded** (edges melt into the art), and **borderless** (full-bleed art + floating
+panels). Legendary cards also get a leafy crown, and the P/T box only appears on creatures.
 
 *(Generate this grid yourself any time with `Cardinator.exe --frames <outDir>` — it renders one card
 on every frame you have installed, including your own imports.)*
@@ -41,8 +49,9 @@ on every frame you have installed, including your own imports.)*
 Start from a default and fiddle. Copy a folder under `CardinatorData/templates/`, **delete its
 `frame.png`** (so it regenerates), and edit `template.json`. The handy style knobs:
 
-- **`frameStyle`** — `"classic"` (gradient border + beveled panels), `"clean"` (flat, modern, no
-  bevel or filigree), or `"ornate"` (thicker border, double keyline, heavier filigree).
+- **`frameStyle`** — `"classic"` (gradient border + beveled panels), `"clean"` (flat/modern),
+  `"ornate"` (metallic band, banner, corner scrollwork + gems, stone texture), `"faded"` (edges
+  melt into the art), or `"borderless"` (full-bleed art + floating translucent panels).
 - **`colors`** — `border` / `frame` / `frame2` (the frame gradient) / `panel` / `panelBorder`.
 - **`embellishments`** — `true`/`false` to turn the ornamental filigree on or off.
 - **`cornerRadius`** / **`panelRadius`** — rounded vs. sharp corners for the card and the panels.
@@ -95,7 +104,7 @@ name falls back to a default — so a small typo won't take the app down.
   "canvasWidth": 750,            // logical canvas (keep 750 x 1050 for a normal card)
   "canvasHeight": 1050,
   "fullArt": false,             // true = art fills the whole card, text sits on it (see below)
-  "frameStyle": "classic",      // "classic" (gradient + bevel), "clean" (flat/modern), "ornate" (heavy)
+  "frameStyle": "classic",      // classic | clean | ornate | faded | borderless
   "embellishments": true,       // ornamental corner scrolls / art-window curls / top ornament
   "cornerRadius": 30,           // card-edge rounding (0 = square corners)
   "panelRadius": 10,            // art window + text panel rounding

@@ -16,8 +16,9 @@ public static class BuiltInTemplates
         yield return Make("Planeswalker", "#6B4E8E", "#C9B3E0", "#E7DEF0", "#3E2E56", "classic");
         yield return Make("Midnight", "#23262E", "#4A5060", "#D9DDE6", "#12141A", "clean");
         yield return Make("Parchment", "#C9B88C", "#EBDDB4", "#F3ECD8", "#8A784A", "ornate");
-        yield return Make("Sunset Orange", "#C46A24", "#F0BC7E", "#F5E4CE", "#7E4012", "classic");
+        yield return Make("Sunset Orange", "#C46A24", "#F0BC7E", "#F5E4CE", "#7E4012", "faded");
         yield return MakeFullArt();
+        yield return MakeShowcase();
     }
 
     /// <summary>
@@ -46,6 +47,29 @@ public static class BuiltInTemplates
         FlavorFont = new FontSpec { Family = "Georgia", Size = 23, Italic = true, Align = "left", Color = "#ECECEC", Shadow = true },
         PtFont = new FontSpec { Family = "Georgia", Size = 32, Bold = true, Align = "center", Color = "#FFFFFF", Shadow = true },
         CreditFont = new FontSpec { Family = "Segoe UI", Size = 15, Italic = true, Align = "left", Color = "#E8E8E8", Shadow = true },
+        ManaSymbolSize = 40,
+        RulesSymbolSize = 26,
+    };
+
+    /// <summary>Borderless "showcase": full-bleed art with translucent floating panels for the text.</summary>
+    private static TemplateSpec MakeShowcase() => new()
+    {
+        Name = "Showcase",
+        CanvasWidth = 750,
+        CanvasHeight = 1050,
+        FrameStyle = "borderless",
+        Colors = new FrameColors { Border = "#0A0A0A", Frame = "#2A2E38", Frame2 = "#5A6172", Panel = "#12141B", PanelBorder = "#0A0B10" },
+        TitleBar = new Region { X = 40, Y = 36, W = 670, H = 62 },
+        ArtWindow = new Region { X = 0, Y = 0, W = 750, H = 1050 },
+        TypeBar = new Region { X = 40, Y = 748, W = 670, H = 50 },
+        TextBox = new Region { X = 40, Y = 800, W = 670, H = 206 },
+        PtBox = new Region { X = 602, Y = 966, W = 116, H = 60 },
+        TitleFont = new FontSpec { Family = "Georgia", Size = 34, Bold = true, Align = "left", Color = "#FFFFFF", Shadow = true },
+        TypeFont = new FontSpec { Family = "Georgia", Size = 23, Bold = true, Align = "left", Color = "#FFFFFF", Shadow = true },
+        RulesFont = new FontSpec { Family = "Georgia", Size = 23, Align = "left", Color = "#F2F3F6", Shadow = true },
+        FlavorFont = new FontSpec { Family = "Georgia", Size = 22, Italic = true, Align = "left", Color = "#D8DBE2", Shadow = true },
+        PtFont = new FontSpec { Family = "Georgia", Size = 32, Bold = true, Align = "center", Color = "#FFFFFF", Shadow = true },
+        CreditFont = new FontSpec { Family = "Segoe UI", Size = 15, Italic = true, Align = "left", Color = "#D8DBE2", Shadow = true },
         ManaSymbolSize = 40,
         RulesSymbolSize = 26,
     };

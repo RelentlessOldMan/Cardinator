@@ -52,17 +52,19 @@ public sealed class CardRenderer
         var spec = template.Spec;
         double W = spec.CanvasWidth, H = spec.CanvasHeight;
 
-        // Full-art cards let the art cover the whole card; framed cards clip it to the art window.
-        var artRegion = spec.FullArt ? new Region { X = 0, Y = 0, W = W, H = H } : spec.ArtWindow;
+        // Full-art and borderless let the art cover the whole card; framed styles clip to the window.
+        bool fullBleed = spec.FullArt || IsBorderless(spec);
+        var artRegion = fullBleed ? new Region { X = 0, Y = 0, W = W, H = H } : spec.ArtWindow;
         DrawArt(dc, card, artRegion, previewHints);
 
-        // Frame overlay (art shows through its transparent window).
+        // Frame overlay (art shows through its transparent window / floating panels).
         dc.DrawImage(template.FrameImage, new Rect(0, 0, W, H));
 
         // On full-art cards, lay subtle scrims behind the text so it stays readable on any art.
         if (spec.FullArt) DrawScrims(dc, spec);
 
         DrawTitleAndMana(dc, card, spec);
+        DrawLegendaryCrown(dc, card, spec);
         DrawTypeLine(dc, card, spec);
 
         if (card.IsPlaneswalker)
@@ -340,11 +342,67 @@ public sealed class CardRenderer
         DrawGlyphRun(dc, ft, new Point(x, y), font);
     }
 
+    /// <summary>An organic leafy/scroll crown along the top of the title bar — for Legendary cards only.</summary>
+    private static void DrawLegendaryCrown(DrawingContext dc, CardModel card, TemplateSpec spec)
+    {
+        if (spec.FullArt || IsBorderless(spec)) return;   // art-forward styles skip the crown
+        if (string.IsNullOrEmpty(card.TypeLine) ||
+            !card.TypeLine.Contains("Legendary", StringComparison.OrdinalIgnoreCase)) return;
+
+        var bar = ToRect(spec.TitleBar);
+        var gold = LightenC(TemplateSpec.ParseColor(spec.Colors.Frame2), 0.30);
+        var edge = new Pen(new SolidColorBrush(TemplateSpec.ParseColor(spec.Colors.PanelBorder)), 1.0);
+        var fill = new SolidColorBrush(gold);
+        double baseY = bar.Y + 2, cx = (bar.X + bar.Right) / 2;
+
+        // A gentle gold arc hugging the top of the title, then a row of small leaves + center gem.
+        dc.DrawLine(new Pen(new SolidColorBrush(gold), 2), new Point(bar.X + 14, baseY), new Point(bar.Right - 14, baseY));
+
+        const int n = 11;
+        double startX = bar.X + 24, span = bar.Width - 48, step = span / (n - 1);
+        for (int i = 0; i < n; i++)
+        {
+            double x = startX + i * step;
+            double h = (i % 2 == 0) ? 10 : 15;
+            var g = new StreamGeometry();
+            using (var s = g.Open())
+            {
+                s.BeginFigure(new Point(x, baseY), true, true);
+                s.BezierTo(new Point(x - 6, baseY - h * 0.5), new Point(x - 3, baseY - h), new Point(x, baseY - h), true, false);
+                s.BezierTo(new Point(x + 3, baseY - h), new Point(x + 6, baseY - h * 0.5), new Point(x, baseY), true, false);
+            }
+            g.Freeze();
+            dc.DrawGeometry(fill, edge, g);
+        }
+        // Center flourish (small diamond gem).
+        var gem = new StreamGeometry();
+        using (var s = gem.Open())
+        {
+            s.BeginFigure(new Point(cx, baseY - 18), true, true);
+            s.LineTo(new Point(cx + 7, baseY - 9), true, false);
+            s.LineTo(new Point(cx, baseY), true, false);
+            s.LineTo(new Point(cx - 7, baseY - 9), true, false);
+        }
+        gem.Freeze();
+        dc.DrawGeometry(fill, edge, gem);
+    }
+
+    private static Color LightenC(Color c, double a)
+    {
+        byte L(byte v) => (byte)Math.Clamp(v + (255 - v) * a, 0, 255);
+        return Color.FromRgb(L(c.R), L(c.G), L(c.B));
+    }
+
     /// <summary>Draws the power/toughness box (panel + shadow + text) — only called for creatures.</summary>
+    private static bool IsBorderless(TemplateSpec spec)
+        => string.Equals(spec.FrameStyle, "borderless", StringComparison.OrdinalIgnoreCase);
+
     private static void DrawPtBox(DrawingContext dc, CardModel card, TemplateSpec spec)
     {
         var rect = ToRect(spec.PtBox);
-        var panelColor = TemplateSpec.ParseColor(spec.Colors.Panel);
+        var panelColor = IsBorderless(spec)
+            ? Color.FromArgb(180, 14, 16, 22)   // translucent dark to match floating panels
+            : TemplateSpec.ParseColor(spec.Colors.Panel);
         var borderColor = TemplateSpec.ParseColor(spec.Colors.PanelBorder);
         double r = spec.PanelRadius;
 
