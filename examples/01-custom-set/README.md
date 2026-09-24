@@ -28,6 +28,13 @@ Sunspire Edict,art/sunspire.png,{1}{W},Instant,Destroy target attacking or block
 "Chronoshaper, Timeless",art/chrono.png,{3}{U},Legendary Planeswalker — Chronoshaper,"+1: Draw a card.\n-2: Tap target permanent.\n-6: Take an extra turn after this one.",,,4,Planeswalker,M,Cardinator Demo
 ```
 
+## In the app
+
+Import list / CSV… → `cards.csv` loads the whole set. Here it is with the planeswalker selected —
+note the loyalty box and ability badges laid out automatically:
+
+![Cardinator with the custom set loaded](output/app-set.png)
+
 ## Run it
 
 **App:** Import list / CSV… → `cards.csv`, then **Print sheet…** / **Export all…**

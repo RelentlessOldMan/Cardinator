@@ -507,17 +507,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnHelp(object sender, RoutedEventArgs e)
         => new HelpWindow(App.Version) { Owner = this }.ShowDialog();
 
-    private void OnImportFrame(object sender, RoutedEventArgs e)
+    private async void OnImportFrame(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFileDialog
-        {
-            Title = "Choose a frame image (transparent PNG where the art shows through)",
-            Filter = "Images|*.png;*.webp;*.gif;*.bmp|All files|*.*",
-        };
-        if (dlg.ShowDialog() != true) return;
+        // Offer a URL first; leaving it blank falls back to picking a local file.
+        var url = InputDialog.Ask(this, "Import a frame",
+            "Paste a link to a frame image (transparent PNG), or leave blank to pick a file on your PC.");
         try
         {
-            var name = TemplateImporter.CreateFromFile(Path.GetFileNameWithoutExtension(dlg.FileName), dlg.FileName);
+            string name;
+            if (url != null)
+            {
+                if (!ImageIntake.IsHttpUrl(url)) { Status = "That doesn't look like a web link."; return; }
+                Status = "Downloading frame…";
+                name = await TemplateImporter.CreateFromUrlAsync("", url);
+            }
+            else
+            {
+                var dlg = new OpenFileDialog
+                {
+                    Title = "Choose a frame image (transparent PNG where the art shows through)",
+                    Filter = "Images|*.png;*.webp;*.gif;*.bmp|All files|*.*",
+                };
+                if (dlg.ShowDialog() != true) return;
+                name = TemplateImporter.CreateFromFile(Path.GetFileNameWithoutExtension(dlg.FileName), dlg.FileName);
+            }
             RefreshTemplates(name);
             Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
         }
@@ -889,8 +902,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    /// <summary>Set for off-screen/headless rendering so closing never shows the save prompt.</summary>
+    public bool SuppressClosePrompt { get; set; }
+
     private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        if (SuppressClosePrompt) return;
         if (!ConfirmDiscardIfDirty()) e.Cancel = true;
     }
 

@@ -1,13 +1,16 @@
 # Examples
 
-Worked, ready-to-run examples. **Each folder has its input files, our own placeholder art, the exact
-command to run, and the rendered output checked in** — so you can see the whole flow before trying
-your own.
+Worked, ready-to-run examples. **Each folder has its input files, our own art, the exact command to
+run, and the rendered output (plus app screenshots) checked in** — so you can see the whole flow
+before trying your own.
+
+> ⭐ **Most people want [02 · Real Magic cards with your own custom art](02-proxy-deck/)** — a whole
+> deck of real cards, in your artwork, text pulled from Scryfall. That's the headline use case.
 
 | Example | Use case | You provide | You get |
 |---------|----------|-------------|---------|
+| [**02 · Real cards, custom art** ⭐](02-proxy-deck/) | Real Magic cards in your own artwork | a deck list of real names + art | real text from Scryfall on your art + a print sheet |
 | [**01 · Custom set**](01-custom-set/) | Design your own set from a spreadsheet | a CSV of invented cards + art | every card rendered + a print sheet |
-| [**02 · Proxy a real deck**](02-proxy-deck/) | Proxy real cards with your own art | a deck list of real names + art | text auto-filled from Scryfall + a print sheet |
 | [**03 · Full-art cards**](03-full-art/) | Text directly on the artwork | a CSV using the *Full Art* frame | full-art cards |
 | [**04 · Bring your own frame**](04-custom-frame/) | Use a frame you designed yourself | a transparent frame PNG | a new template + a card on it |
 | [**05 · Print & play**](05-print-and-play/) | Print your deck double-sided | (nothing) | a decorative card back for the reverse |

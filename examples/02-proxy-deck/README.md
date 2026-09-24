@@ -1,23 +1,23 @@
-# Example 02 · Proxy a real deck with your own art
+# Example 02 · Real Magic cards with your own custom art ⭐
 
-**"Here's my deck list and here's my art — make me the cards."** You give a list of real card
-names; Cardinator looks each one up on Scryfall for the correct text and mana symbols, and drops in
-the artwork you provide.
+**The headline use case.** You have a deck of **real Magic cards**, and you want the whole deck in
+**your own custom artwork**. Give Cardinator a list of the real card names + your art files; it pulls
+each card's real rules text and mana symbols from **Scryfall** and composites them onto your art.
 
-This is a mono-red aggro core: six real cards, our own placeholder art.
+This example is a mono-red aggro core — six real cards, each with our own art.
 
 ## What's here
 
 ```
 02-proxy-deck/
-  deck.csv           <- real card names + your art + a frame
-  art/               <- our placeholder artwork (swap in your own)
-  output/            <- the rendered result (checked in)
+  deck.csv           <- real card names + your art file + a frame
+  art/               <- our custom artwork (swap in your own)
+  output/            <- the rendered cards + print sheet + an app screenshot (checked in)
 ```
 
 ## The input — `deck.csv`
 
-Just the name, the art file, and a frame. Everything else is filled from Scryfall.
+Just the name, your art file, and a frame. Everything else comes from Scryfall.
 
 ```csv
 name,art,template
@@ -29,14 +29,18 @@ Skewer the Critics,art/skewer.png,Crimson Red
 Eidolon of the Great Revel,art/eidolon.png,Crimson Red
 ```
 
-> Prefer to name-drop even faster? A plain `.txt` with one card name per line works too — you can
-> add art afterward with **Match art folder…**.
+## Do it in the app
 
-## Run it
+1. **Import list / CSV…** → pick `deck.csv`. Cardinator adds all six cards and looks each one up on
+   Scryfall, filling in the real text and mana symbols. Your art (from the `art/` paths) loads with
+   them. Here's the app with the deck loaded and *Lightning Bolt* selected — real text from Scryfall,
+   your custom art in the preview:
 
-**App:** Import list / CSV… → `deck.csv` (it looks the cards up automatically), then **Print sheet…**
+   ![Cardinator with the deck loaded](output/app-deck.png)
 
-**Command line** (from the repo root; needs internet for the lookups):
+2. **Print sheet…** (or **Export all…**) to render the whole deck.
+
+Prefer the command line? From the repo root:
 
 ```powershell
 Cardinator.exe --batch examples/02-proxy-deck/deck.csv examples/02-proxy-deck/output examples/02-proxy-deck
@@ -45,8 +49,7 @@ Cardinator.exe --sheet examples/02-proxy-deck/deck.csv examples/02-proxy-deck/ou
 
 ## The output
 
-Real rules text and mana symbols from Scryfall, your art, on the frame you picked — a printable
-3×3 sheet ready to cut (`output/sheet_page_01.png`):
+The finished deck — real cards, your art — on a printable 3×3 sheet (`output/sheet_page_01.png`):
 
 ![Proxy deck — print sheet](output/sheet_page_01.png)
 
