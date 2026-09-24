@@ -9,7 +9,7 @@ This example is a mono-red aggro core — six real cards, each with our own art.
 ## What's here
 
 ```
-02-proxy-deck/
+01-real-cards-custom-art/
   deck.csv           <- real card names + your art file + a frame
   art/               <- our custom artwork (swap in your own)
   output/            <- the rendered cards + print sheet + an app screenshot (checked in)
@@ -43,8 +43,8 @@ Eidolon of the Great Revel,art/eidolon.png,Crimson Red
 Prefer the command line? From the repo root:
 
 ```powershell
-Cardinator.exe --batch examples/02-proxy-deck/deck.csv examples/02-proxy-deck/output examples/02-proxy-deck
-Cardinator.exe --sheet examples/02-proxy-deck/deck.csv examples/02-proxy-deck/output examples/02-proxy-deck
+Cardinator.exe --batch examples/01-real-cards-custom-art/deck.csv examples/01-real-cards-custom-art/output examples/01-real-cards-custom-art
+Cardinator.exe --sheet examples/01-real-cards-custom-art/deck.csv examples/01-real-cards-custom-art/output examples/01-real-cards-custom-art
 ```
 
 ## The output

@@ -7,7 +7,7 @@ correctly.
 ## What's here
 
 ```
-07-tokens-emblems/
+05-tokens-emblems/
   cards.csv          <- two creature tokens, a Treasure, and an emblem
   art/               <- our placeholder artwork
   output/            <- the rendered result (checked in)
@@ -28,7 +28,7 @@ Emblem — Chronoshaper,art/emblem.png,,Emblem,"At the beginning of your upkeep,
 ## Run it
 
 ```powershell
-Cardinator.exe --batch examples/07-tokens-emblems/cards.csv examples/07-tokens-emblems/output examples/07-tokens-emblems
+Cardinator.exe --batch examples/05-tokens-emblems/cards.csv examples/05-tokens-emblems/output examples/05-tokens-emblems
 ```
 
 ## The output

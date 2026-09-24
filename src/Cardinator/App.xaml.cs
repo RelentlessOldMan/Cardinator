@@ -147,7 +147,7 @@ public partial class App : Application
             var shot = main.SelectedCard;
             if (shot != null)
             {
-                shot.ArtPath = "examples/01-custom-set/art/emberwing.png";
+                shot.ArtPath = "examples/01-real-cards-custom-art/art/swiftspear.png";
                 main.SelectedCard = null;
                 main.SelectedCard = shot;   // re-select to re-render the preview synchronously
             }

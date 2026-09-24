@@ -43,10 +43,10 @@ automatically (planeswalker, saga, adventure, artifact), each on a different bui
   <img src="docs/images/card-fullart.png"       width="230" alt="Full-art card, text on the artwork">
 </p>
 
-*(Everything shown is drawn by Cardinator — frames, the generic mana pips, loyalty badges, saga
-chapters, the adventure sub-box, rarity pip and footer. The last card is **full-art** (text
-directly on the artwork). All cards use invented names/text and placeholder scenery; when you look
-a real card up in the app, Cardinator fetches its authentic mana symbols and art from Scryfall.)*
+*(Six original cards on six different frames — authentic Scryfall mana symbols, loyalty badges, saga
+chapters, the adventure sub-box, rarity pip and footer, all drawn by Cardinator. The last is
+**full-art** (text on the artwork). Art here is our own placeholder scenery; in the app you drop in
+your own or pull a card's real art from Scryfall.)*
 
 **10 built-in frames** (Gold, Crimson, Ocean, Forest, Slate, Midnight, Parchment, Sunset,
 Planeswalker, Full Art) — with ornamental filigree you can toggle and tweak.
@@ -93,7 +93,7 @@ Cardinator works on a **project** (the list on the left). Import a whole batch, 
 Scryfall, and export everything:
 
 - **Import list / CSV…** — a list of names, `Name | art.png` lines, or a CSV/TSV with a header row
-  (columns matched by friendly names in any order). See the [example CSV](examples/cards.csv).
+  (columns matched by friendly names in any order). See the [example deck](examples/01-real-cards-custom-art/deck.csv).
 - **Match art folder…** — attach a folder of images to cards by filename.
 - **Look up missing** — fetch any card that still has only a name.
 - **Export all…** — render every card to PNGs (background progress bar).
@@ -111,18 +111,18 @@ output are all checked in.** Click a thumbnail for that example's guide.
 
 <table>
 <tr>
-<td align="center" width="25%"><a href="examples/01-custom-set/"><img src="examples/01-custom-set/output/sheet_page_01.png" width="150" alt="Custom set"></a><br/><a href="examples/01-custom-set/"><b>Custom set</b></a><br/><sub>your own cards from a CSV</sub></td>
-<td align="center" width="25%"><a href="examples/02-proxy-deck/"><img src="examples/02-proxy-deck/output/sheet_page_01.png" width="150" alt="Real cards, custom art"></a><br/><a href="examples/02-proxy-deck/"><b>Real cards, custom art ⭐</b></a><br/><sub>a whole deck in your art</sub></td>
-<td align="center" width="25%"><a href="examples/03-full-art/"><img src="examples/03-full-art/output/001_nightfall-wanderer.png" width="150" alt="Full-art"></a><br/><a href="examples/03-full-art/"><b>Full-art</b></a><br/><sub>text on the artwork</sub></td>
-<td align="center" width="25%"><a href="examples/04-custom-frame/"><img src="examples/04-custom-frame/output/warden.png" width="150" alt="Custom frame"></a><br/><a href="examples/04-custom-frame/"><b>Custom frame</b></a><br/><sub>bring your own frame PNG</sub></td>
+<td align="center" width="33%"><a href="examples/01-real-cards-custom-art/"><img src="examples/01-real-cards-custom-art/output/001_lightning-bolt.png" width="185" alt="Real cards, custom art"></a><br/><a href="examples/01-real-cards-custom-art/"><b>⭐ Real cards, custom art</b></a><br/><sub>a whole deck in your art</sub></td>
+<td align="center" width="33%"><a href="examples/02-custom-set/"><img src="examples/02-custom-set/output/001_aria-stormcaller.png" width="185" alt="Custom set"></a><br/><a href="examples/02-custom-set/"><b>Custom set</b></a><br/><sub>your own cards from a CSV</sub></td>
+<td align="center" width="33%"><a href="examples/03-full-art/"><img src="examples/03-full-art/output/001_nightfall-wanderer.png" width="185" alt="Full-art"></a><br/><a href="examples/03-full-art/"><b>Full-art</b></a><br/><sub>text on the artwork</sub></td>
 </tr>
 <tr>
-<td align="center" width="25%"><a href="examples/05-print-and-play/"><img src="examples/05-print-and-play/output/card-back.png" width="150" alt="Print and play"></a><br/><a href="examples/05-print-and-play/"><b>Print &amp; play</b></a><br/><sub>a matching card back</sub></td>
-<td align="center" width="25%"><a href="examples/06-print-ready/"><img src="examples/06-print-ready/output/print-ready.jpg" width="150" alt="Print-ready export"></a><br/><a href="examples/06-print-ready/"><b>Print-ready</b></a><br/><sub>bleed + 300 DPI for print shops</sub></td>
-<td align="center" width="25%"><a href="examples/07-tokens-emblems/"><img src="examples/07-tokens-emblems/output/002_angel.png" width="150" alt="Tokens and emblems"></a><br/><a href="examples/07-tokens-emblems/"><b>Tokens &amp; emblems</b></a><br/><sub>the deck's extras</sub></td>
-<td align="center" width="25%"><a href="examples/"><br/><b>All examples →</b><br/><sub>+ a Scryfall-search set</sub></a></td>
+<td align="center" width="33%"><a href="examples/04-custom-frame/"><img src="examples/04-custom-frame/output/warden.png" width="185" alt="Custom frame"></a><br/><a href="examples/04-custom-frame/"><b>Custom frame</b></a><br/><sub>bring your own frame PNG</sub></td>
+<td align="center" width="33%"><a href="examples/05-tokens-emblems/"><img src="examples/05-tokens-emblems/output/002_angel.png" width="185" alt="Tokens and emblems"></a><br/><a href="examples/05-tokens-emblems/"><b>Tokens &amp; emblems</b></a><br/><sub>the deck's extras</sub></td>
+<td align="center" width="33%"><a href="examples/06-printing/"><img src="examples/06-printing/output/card-back.png" width="185" alt="Printing"></a><br/><a href="examples/06-printing/"><b>Printing</b></a><br/><sub>card back + bleed export</sub></td>
 </tr>
 </table>
+
+<p align="center"><b><a href="examples/">All examples →</a></b> · or generate a whole set from a <code>--search</code></p>
 
 ---
 
