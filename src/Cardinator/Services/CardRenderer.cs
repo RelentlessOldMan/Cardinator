@@ -23,7 +23,11 @@ public sealed class CardRenderer
 
     public CardRenderer(SymbolService symbols) => _symbols = symbols;
 
-    public BitmapSource RenderToBitmap(CardModel card, Template template, int supersample = 1)
+    /// <param name="previewHints">
+    /// When true (the live preview), an empty art window shows a subtle "add art" placeholder.
+    /// Always false for exports, so a saved PNG never has hint text baked in.
+    /// </param>
+    public BitmapSource RenderToBitmap(CardModel card, Template template, int supersample = 1, bool previewHints = false)
     {
         var spec = template.Spec;
         int w = spec.CanvasWidth * supersample;
@@ -33,7 +37,7 @@ public sealed class CardRenderer
         using (var dc = visual.RenderOpen())
         {
             dc.PushTransform(new ScaleTransform(supersample, supersample));
-            Draw(dc, card, template);
+            Draw(dc, card, template, previewHints);
             dc.Pop();
         }
 
@@ -43,14 +47,14 @@ public sealed class CardRenderer
         return rtb;
     }
 
-    private void Draw(DrawingContext dc, CardModel card, Template template)
+    private void Draw(DrawingContext dc, CardModel card, Template template, bool previewHints)
     {
         var spec = template.Spec;
         double W = spec.CanvasWidth, H = spec.CanvasHeight;
 
         // Full-art cards let the art cover the whole card; framed cards clip it to the art window.
         var artRegion = spec.FullArt ? new Region { X = 0, Y = 0, W = W, H = H } : spec.ArtWindow;
-        DrawArt(dc, card, artRegion);
+        DrawArt(dc, card, artRegion, previewHints);
 
         // Frame overlay (art shows through its transparent window).
         dc.DrawImage(template.FrameImage, new Rect(0, 0, W, H));
@@ -166,20 +170,23 @@ public sealed class CardRenderer
 
     // --- art ----------------------------------------------------------------
 
-    private void DrawArt(DrawingContext dc, CardModel card, Region win)
+    private void DrawArt(DrawingContext dc, CardModel card, Region win, bool previewHints)
     {
         var rect = ToRect(win);
         dc.DrawRectangle(Brushes.White, null, rect);   // backing so window is never empty
 
-        if (string.IsNullOrWhiteSpace(card.ArtPath)) return;
-        string artPath;
-        try { artPath = Path.GetFullPath(card.ArtPath); } catch { return; }
-
-        var img = LoadArt(artPath);
-        if (img == null) return;
+        BitmapImage? img = null;
+        if (!string.IsNullOrWhiteSpace(card.ArtPath))
+        {
+            try { img = LoadArt(Path.GetFullPath(card.ArtPath)); } catch { img = null; }
+        }
+        if (img == null || img.PixelWidth <= 0 || img.PixelHeight <= 0)
+        {
+            if (previewHints) DrawArtPlaceholder(dc, rect);   // preview only — never in exports
+            return;
+        }
 
         double iw = img.PixelWidth, ih = img.PixelHeight;
-        if (iw <= 0 || ih <= 0) return;
 
         double cover = Math.Max(rect.Width / iw, rect.Height / ih);
         double scale = cover * Math.Max(0.1, card.ArtScale);
@@ -190,6 +197,23 @@ public sealed class CardRenderer
         dc.PushClip(new RectangleGeometry(rect));
         dc.DrawImage(img, new Rect(x, y, dw, dh));
         dc.Pop();
+    }
+
+    /// <summary>A soft empty-state hint drawn in the art window in the live preview only.</summary>
+    private static void DrawArtPlaceholder(DrawingContext dc, Rect rect)
+    {
+        dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xEC, 0xED, 0xF0)), null, rect);
+        var ft = new FormattedText(
+            "Add art — Change art…, paste, or drag an image in",
+            CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            20, new SolidColorBrush(Color.FromRgb(0xA6, 0xAA, 0xB2)), 1.0)
+        {
+            MaxTextWidth = Math.Max(10, rect.Width - 60),
+            TextAlignment = TextAlignment.Center,
+            Trimming = TextTrimming.CharacterEllipsis,
+        };
+        dc.DrawText(ft, new Point(rect.X + (rect.Width - ft.Width) / 2, rect.Y + (rect.Height - ft.Height) / 2));
     }
 
     /// <summary>Loads (and caches) the decoded art image, keyed by path + file stamp.</summary>

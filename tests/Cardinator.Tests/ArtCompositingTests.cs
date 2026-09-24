@@ -81,6 +81,26 @@ public class ArtCompositingTests
         });
 
     [Fact]
+    public void EmptyArt_ShowsPlaceholder_InPreviewOnly_NotInExport()
+        => RunSta(() =>
+        {
+            var template = new TemplateService().LoadAll().First(t => !t.Spec.FullArt);
+            var card = new CardModel { Name = "No Art Yet", TemplateName = template.Name };
+            var renderer = new CardRenderer(new SymbolService());
+
+            // Sample inside the art window but above the centred hint text.
+            int x = (int)(template.Spec.ArtWindow.X + 30), y = (int)(template.Spec.ArtWindow.Y + 40);
+
+            var export = Sample(renderer.RenderToBitmap(card, template, 1, previewHints: false), x, y);
+            var preview = Sample(renderer.RenderToBitmap(card, template, 1, previewHints: true), x, y);
+
+            Assert.True(export.r >= 250 && export.g >= 250 && export.b >= 250,
+                $"export art window should stay white (no hint baked in), got {export}");
+            Assert.True(preview.r is >= 225 and < 250,
+                $"preview should show the soft placeholder fill, got {preview}");
+        });
+
+    [Fact]
     public void MissingArtFile_DoesNotCrash_AndStillRendersFrame()
         => RunSta(() =>
         {
