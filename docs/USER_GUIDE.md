@@ -94,7 +94,7 @@ by card, or import a whole batch.
   - a plain **list of names**, one per line (each looked up on Scryfall);
   - `Name | C:\art\thing.png` per line (name + art);
   - a **CSV/TSV with a header row**, columns matched by friendly names in any order. See the
-    [example CSV](../examples/cards.csv) and its [column reference](../examples/README.md).
+    [example CSV](../examples/02-custom-set/cards.csv) and its [column reference](../examples/README.md).
 - **Scryfall search…** — type a Scryfall query (e.g. `t:dragon c:r`, `set:dom`) and Cardinator
   imports up to 60 matching cards **with their real art** in one go — a fast way to build a themed
   set. (Also on the command line via `--search`.)

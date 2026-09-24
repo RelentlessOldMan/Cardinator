@@ -77,7 +77,7 @@ src/Cardinator/
 tests/Cardinator.Tests/    xUnit tests (137), incl. golden-image regression baselines
 docs/images, golden/       Rendered gallery + committed golden baselines
 docs/                      This documentation + rendered gallery images
-examples/                  Worked examples (inputs + outputs): custom set, proxy deck, full-art, custom frame
+examples/                  Worked examples (inputs + outputs): real-cards/custom-art, custom set, full-art, custom frame, tokens, printing
 ```
 
 ## How a card is rendered

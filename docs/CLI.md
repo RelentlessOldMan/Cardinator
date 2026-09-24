@@ -106,7 +106,7 @@ The whole many-cards pipeline: parse a name list / CSV, fill blank fields from S
 match art from `artDir` by filename, and render every card to a PNG.
 
 ```powershell
-Cardinator.exe --batch examples/cards.csv out
+Cardinator.exe --batch examples/02-custom-set/cards.csv out examples/02-custom-set
 Cardinator.exe --batch names.txt out C:\myart      # also match art from a folder
 ```
 
@@ -116,15 +116,15 @@ Same input as `--batch`, but composes **printable 3×3 sheet pages** (real card 
 cut marks) instead of individual cards — one PNG per page. Add `a4` for A4 paper (default Letter).
 
 ```powershell
-Cardinator.exe --sheet examples/cards.csv sheets
-Cardinator.exe --sheet examples/cards.csv sheets C:\myart a4
+Cardinator.exe --sheet examples/01-real-cards-custom-art/deck.csv sheets examples/01-real-cards-custom-art
+Cardinator.exe --sheet examples/02-custom-set/cards.csv sheets examples/02-custom-set a4
 ```
 
 ---
 
 ## Notes
 
-- Input list/CSV format is described in [`examples/README.md`](../examples/cards.csv) and the
+- Input list/CSV format is described in [`examples/README.md`](../examples/README.md) and the
   [User Guide](USER_GUIDE.md#4-making-many-cards-at-once).
 - Scryfall calls are throttled (~100 ms apart) and time out gracefully; offline runs still render
   with drawn mana pips and any fields you supplied.

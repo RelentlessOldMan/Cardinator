@@ -8,7 +8,7 @@ planeswalker) on different frames — all original, all rendered from one CSV.
 ## What's here
 
 ```
-01-custom-set/
+02-custom-set/
   cards.csv          <- the set: one row per card
   art/               <- our placeholder artwork (swap in your own)
   output/            <- the rendered result (checked in)
@@ -42,8 +42,8 @@ note the loyalty box and ability badges laid out automatically:
 **Command line** (from the repo root):
 
 ```powershell
-Cardinator.exe --batch examples/01-custom-set/cards.csv examples/01-custom-set/output examples/01-custom-set
-Cardinator.exe --sheet examples/01-custom-set/cards.csv examples/01-custom-set/output examples/01-custom-set
+Cardinator.exe --batch examples/02-custom-set/cards.csv examples/02-custom-set/output examples/02-custom-set
+Cardinator.exe --sheet examples/02-custom-set/cards.csv examples/02-custom-set/output examples/02-custom-set
 ```
 
 ## The output
