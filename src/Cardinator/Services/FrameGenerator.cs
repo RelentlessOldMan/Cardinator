@@ -62,7 +62,17 @@ public static class FrameGenerator
     private static void Draw(DrawingContext dc, TemplateSpec spec)
     {
         if (spec.FullArt) { DrawFullArtFrame(dc, spec); return; }
+        switch ((spec.FrameStyle ?? "classic").Trim().ToLowerInvariant())
+        {
+            case "clean": DrawCleanFrame(dc, spec); break;
+            case "ornate": DrawClassicFrame(dc, spec, ornate: true); break;
+            default: DrawClassicFrame(dc, spec, ornate: false); break;
+        }
+    }
 
+    /// <summary>The default MTG-style frame: gradient border, beveled art window and panels, filigree.</summary>
+    private static void DrawClassicFrame(DrawingContext dc, TemplateSpec spec, bool ornate)
+    {
         double W = spec.CanvasWidth, H = spec.CanvasHeight;
         var c = spec.Colors;
 
@@ -79,7 +89,7 @@ public static class FrameGenerator
         var frameBrush = new LinearGradientBrush(frame2Color, frameColor, new Point(0, 0), new Point(0.4, 1));
 
         var full = new Rect(0, 0, W, H);
-        var inner = Inset(full, 14);
+        var inner = Inset(full, ornate ? 20 : 14);
         var art = ToRect(spec.ArtWindow);
 
         double cardR = spec.CornerRadius, panelR = spec.PanelRadius;
@@ -94,6 +104,11 @@ public static class FrameGenerator
         // 2b. Inner keyline just inside the frame edge for a double-border look.
         dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Darken(panelBorderColor, 0.10)), 2),
             Inset(inner, 6), cardR - 12, cardR - 12);
+
+        // 2c. Ornate: a second, bright metallic keyline for a richer border.
+        if (ornate)
+            dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Lighten(frame2Color, 0.4)), 2.5),
+                Inset(inner, 2), cardR - 8, cardR - 8);
 
         // 3. Art window bevel: dark ring + light highlight + inner shadow line.
         var artOuter = Inset(art, -8);
@@ -110,9 +125,37 @@ public static class FrameGenerator
         DrawPanel(dc, panel, panelPen, panelColor, spec.TextBox, panelR);
         DrawPanel(dc, panel, panelPen, panelColor, spec.PtBox, panelR);
 
-        // 5. Ornamental filigree — corner scrolls, art-window curls, a top-center ornament.
-        if (spec.Embellishments)
+        // 5. Ornamental filigree (always on for ornate).
+        if (ornate || spec.Embellishments)
             DrawEmbellishments(dc, inner, art, frame2Color, panelBorderColor);
+    }
+
+    /// <summary>A flat, modern frame: solid slab, crisp thin edges, flat panels, no bevel or filigree.</summary>
+    private static void DrawCleanFrame(DrawingContext dc, TemplateSpec spec)
+    {
+        double W = spec.CanvasWidth, H = spec.CanvasHeight;
+        var c = spec.Colors;
+        var borderColor = TemplateSpec.ParseColor(c.Border);
+        var frameColor = TemplateSpec.ParseColor(c.Frame);
+        var panelColor = TemplateSpec.ParseColor(c.Panel);
+        var panelBorderColor = TemplateSpec.ParseColor(c.PanelBorder);
+
+        var full = new Rect(0, 0, W, H);
+        var art = ToRect(spec.ArtWindow);
+        double cardR = spec.CornerRadius, panelR = spec.PanelRadius;
+
+        // Flat frame slab with the art window punched out.
+        dc.DrawGeometry(new SolidColorBrush(frameColor), null,
+            Exclude(RoundedGeom(full, cardR), new RectangleGeometry(art, panelR, panelR)));
+        // Crisp thin outer edge.
+        dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(borderColor), 6), Inset(full, 3), cardR, cardR);
+        // Simple art-window keyline (no bevel).
+        dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(panelBorderColor), 3), art, panelR, panelR);
+        // Flat panels: solid fill + thin border, no gradient/highlight/filigree.
+        var pen = new Pen(new SolidColorBrush(panelBorderColor), 1.5);
+        var fill = new SolidColorBrush(panelColor);
+        foreach (var r in new[] { spec.TitleBar, spec.TypeBar, spec.TextBox, spec.PtBox })
+            dc.DrawRoundedRectangle(fill, pen, ToRect(r), panelR, panelR);
     }
 
     // --- ornamental embellishments -----------------------------------------

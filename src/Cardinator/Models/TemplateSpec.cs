@@ -61,6 +61,9 @@ public sealed class TemplateSpec
     /// </summary>
     public bool FullArt { get; set; }
 
+    /// <summary>Frame design: "classic" (default), "clean" (flat/modern) or "ornate" (heavy/decorative).</summary>
+    public string FrameStyle { get; set; } = "classic";
+
     /// <summary>Draw ornamental filigree (corner scrolls, art-window curls, top ornament).</summary>
     public bool Embellishments { get; set; } = true;
 
@@ -139,6 +142,7 @@ public sealed class TemplateSpec
         if (RulesSymbolSize <= 0) RulesSymbolSize = d.RulesSymbolSize;
         if (CornerRadius < 0) CornerRadius = d.CornerRadius;
         if (PanelRadius < 0) PanelRadius = d.PanelRadius;
+        if (string.IsNullOrWhiteSpace(FrameStyle)) FrameStyle = d.FrameStyle;
     }
 
     /// <summary>Parses a hex/named color, falling back to black if the string is invalid.</summary>

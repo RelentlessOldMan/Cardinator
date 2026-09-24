@@ -41,6 +41,8 @@ on every frame you have installed, including your own imports.)*
 Start from a default and fiddle. Copy a folder under `CardinatorData/templates/`, **delete its
 `frame.png`** (so it regenerates), and edit `template.json`. The handy style knobs:
 
+- **`frameStyle`** — `"classic"` (gradient border + beveled panels), `"clean"` (flat, modern, no
+  bevel or filigree), or `"ornate"` (thicker border, double keyline, heavier filigree).
 - **`colors`** — `border` / `frame` / `frame2` (the frame gradient) / `panel` / `panelBorder`.
 - **`embellishments`** — `true`/`false` to turn the ornamental filigree on or off.
 - **`cornerRadius`** / **`panelRadius`** — rounded vs. sharp corners for the card and the panels.
@@ -93,6 +95,7 @@ name falls back to a default — so a small typo won't take the app down.
   "canvasWidth": 750,            // logical canvas (keep 750 x 1050 for a normal card)
   "canvasHeight": 1050,
   "fullArt": false,             // true = art fills the whole card, text sits on it (see below)
+  "frameStyle": "classic",      // "classic" (gradient + bevel), "clean" (flat/modern), "ornate" (heavy)
   "embellishments": true,       // ornamental corner scrolls / art-window curls / top ornament
   "cornerRadius": 30,           // card-edge rounding (0 = square corners)
   "panelRadius": 10,            // art window + text panel rounding

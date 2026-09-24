@@ -111,13 +111,13 @@ output are all checked in.** Click a thumbnail for that example's guide.
 
 <table>
 <tr>
-<td align="center" width="33%"><a href="examples/01-real-cards-custom-art/"><img src="examples/01-real-cards-custom-art/output/001_lightning-bolt.png" width="185" alt="Real cards, custom art"></a><br/><a href="examples/01-real-cards-custom-art/"><b>⭐ Real cards, custom art</b></a><br/><sub>a whole deck in your art</sub></td>
+<td align="center" width="33%"><a href="examples/01-real-cards-custom-art/"><img src="examples/01-real-cards-custom-art/output/001_lightning-bolt.png" width="185" alt="Real cards, custom art"></a><br/><a href="examples/01-real-cards-custom-art/"><b>⭐ Real cards</b></a><br/><sub>a whole deck in your art</sub></td>
 <td align="center" width="33%"><a href="examples/02-custom-set/"><img src="examples/02-custom-set/output/001_aria-stormcaller.png" width="185" alt="Custom set"></a><br/><a href="examples/02-custom-set/"><b>Custom set</b></a><br/><sub>your own cards from a CSV</sub></td>
 <td align="center" width="33%"><a href="examples/03-full-art/"><img src="examples/03-full-art/output/001_nightfall-wanderer.png" width="185" alt="Full-art"></a><br/><a href="examples/03-full-art/"><b>Full-art</b></a><br/><sub>text on the artwork</sub></td>
 </tr>
 <tr>
 <td align="center" width="33%"><a href="examples/04-custom-frame/"><img src="examples/04-custom-frame/output/warden.png" width="185" alt="Custom frame"></a><br/><a href="examples/04-custom-frame/"><b>Custom frame</b></a><br/><sub>bring your own frame PNG</sub></td>
-<td align="center" width="33%"><a href="examples/05-tokens-emblems/"><img src="examples/05-tokens-emblems/output/002_angel.png" width="185" alt="Tokens and emblems"></a><br/><a href="examples/05-tokens-emblems/"><b>Tokens &amp; emblems</b></a><br/><sub>the deck's extras</sub></td>
+<td align="center" width="33%"><a href="examples/05-tokens-emblems/"><img src="examples/05-tokens-emblems/output/002_angel.png" width="185" alt="Tokens and emblems"></a><br/><a href="examples/05-tokens-emblems/"><b>Tokens</b></a><br/><sub>the deck's extras</sub></td>
 <td align="center" width="33%"><a href="examples/06-printing/"><img src="examples/06-printing/output/card-back.png" width="185" alt="Printing"></a><br/><a href="examples/06-printing/"><b>Printing</b></a><br/><sub>card back + bleed export</sub></td>
 </tr>
 </table>
