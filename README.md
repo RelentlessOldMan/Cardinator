@@ -100,6 +100,28 @@ Details → **[User Guide: making many cards](docs/USER_GUIDE.md#4-making-many-c
 
 ---
 
+## Browse the examples
+
+Every example is a ready-to-run folder — **inputs, our own art, the exact command, and the rendered
+output are all checked in.** Click a thumbnail for that example's guide.
+
+<table>
+<tr>
+<td align="center" width="25%"><a href="examples/01-custom-set/"><img src="examples/01-custom-set/output/sheet_page_01.png" width="150" alt="Custom set"></a><br/><a href="examples/01-custom-set/"><b>Custom set</b></a><br/><sub>your own cards from a CSV</sub></td>
+<td align="center" width="25%"><a href="examples/02-proxy-deck/"><img src="examples/02-proxy-deck/output/sheet_page_01.png" width="150" alt="Proxy a real deck"></a><br/><a href="examples/02-proxy-deck/"><b>Proxy a real deck</b></a><br/><sub>real names + your art</sub></td>
+<td align="center" width="25%"><a href="examples/03-full-art/"><img src="examples/03-full-art/output/001_nightfall-wanderer.png" width="150" alt="Full-art"></a><br/><a href="examples/03-full-art/"><b>Full-art</b></a><br/><sub>text on the artwork</sub></td>
+<td align="center" width="25%"><a href="examples/04-custom-frame/"><img src="examples/04-custom-frame/output/warden.png" width="150" alt="Custom frame"></a><br/><a href="examples/04-custom-frame/"><b>Custom frame</b></a><br/><sub>bring your own frame PNG</sub></td>
+</tr>
+<tr>
+<td align="center" width="25%"><a href="examples/05-print-and-play/"><img src="examples/05-print-and-play/output/card-back.png" width="150" alt="Print and play"></a><br/><a href="examples/05-print-and-play/"><b>Print &amp; play</b></a><br/><sub>a matching card back</sub></td>
+<td align="center" width="25%"><a href="examples/06-print-ready/"><img src="examples/06-print-ready/output/print-ready.jpg" width="150" alt="Print-ready export"></a><br/><a href="examples/06-print-ready/"><b>Print-ready</b></a><br/><sub>bleed + 300 DPI for print shops</sub></td>
+<td align="center" width="25%"><a href="examples/07-tokens-emblems/"><img src="examples/07-tokens-emblems/output/002_angel.png" width="150" alt="Tokens and emblems"></a><br/><a href="examples/07-tokens-emblems/"><b>Tokens &amp; emblems</b></a><br/><sub>the deck's extras</sub></td>
+<td align="center" width="25%"><a href="examples/"><br/><b>All examples →</b><br/><sub>+ a Scryfall-search set</sub></a></td>
+</tr>
+</table>
+
+---
+
 ## Documentation
 
 | Doc | What's in it |
