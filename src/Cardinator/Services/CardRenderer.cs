@@ -79,7 +79,7 @@ public sealed class CardRenderer
         if (card.IsPlaneswalker && !string.IsNullOrWhiteSpace(card.Loyalty))
             DrawLoyalty(dc, card, spec);
         else if (card.HasPowerToughness)
-            DrawSingleLine(dc, $"{card.Power}/{card.Toughness}", spec.PtBox, spec.PtFont, padX: 4);
+            DrawPtBox(dc, card, spec);   // creatures only — the box is drawn here, not baked into the frame
 
         DrawFooter(dc, card, spec);
     }
@@ -338,6 +338,25 @@ public sealed class CardRenderer
         };
         double y = rect.Y + (rect.Height - ft.Height) / 2;
         DrawGlyphRun(dc, ft, new Point(x, y), font);
+    }
+
+    /// <summary>Draws the power/toughness box (panel + shadow + text) — only called for creatures.</summary>
+    private static void DrawPtBox(DrawingContext dc, CardModel card, TemplateSpec spec)
+    {
+        var rect = ToRect(spec.PtBox);
+        var panelColor = TemplateSpec.ParseColor(spec.Colors.Panel);
+        var borderColor = TemplateSpec.ParseColor(spec.Colors.PanelBorder);
+        double r = spec.PanelRadius;
+
+        // Drop shadow for a 3D lift.
+        dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(80, 0, 0, 0)), null,
+            new Rect(rect.X + 4, rect.Y + 5, rect.Width, rect.Height), r, r);
+        // Panel + border + a subtle top highlight.
+        dc.DrawRoundedRectangle(new SolidColorBrush(panelColor), new Pen(new SolidColorBrush(borderColor), 2), rect, r, r);
+        dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)), 1.4),
+            new Point(rect.X + r, rect.Y + 2.5), new Point(rect.Right - r, rect.Y + 2.5));
+
+        DrawSingleLine(dc, $"{card.Power}/{card.Toughness}", spec.PtBox, spec.PtFont, padX: 4);
     }
 
     // --- text box: rules + flavor, inline symbols, word wrap, auto-shrink ---

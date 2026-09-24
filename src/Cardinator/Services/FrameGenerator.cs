@@ -111,7 +111,12 @@ public static class FrameGenerator
         DrawPanel(dc, panel, panelPen, panelColor, spec.TitleBar, panelR);
         DrawPanel(dc, panel, panelPen, panelColor, spec.TypeBar, panelR);
         DrawPanel(dc, panel, panelPen, panelColor, spec.TextBox, panelR);
-        DrawPanel(dc, panel, panelPen, panelColor, spec.PtBox, panelR);
+        // P/T box is drawn per-card by the renderer (creatures only), not baked into the frame.
+
+        // Little 3D rivet studs at the title/type corners.
+        var studGold = Lighten(frame2Color, 0.35);
+        DrawStuds(dc, ToRect(spec.TitleBar), studGold, panelBorderColor);
+        DrawStuds(dc, ToRect(spec.TypeBar), studGold, panelBorderColor);
 
         if (spec.Embellishments)
             DrawEmbellishments(dc, inner, art, frame2Color, panelBorderColor);
@@ -141,7 +146,7 @@ public static class FrameGenerator
         // Flat panels: solid fill + thin border, no gradient/highlight/filigree.
         var pen = new Pen(new SolidColorBrush(panelBorderColor), 1.5);
         var fill = new SolidColorBrush(panelColor);
-        foreach (var r in new[] { spec.TitleBar, spec.TypeBar, spec.TextBox, spec.PtBox })
+        foreach (var r in new[] { spec.TitleBar, spec.TypeBar, spec.TextBox })   // no P/T box (drawn per-card)
             dc.DrawRoundedRectangle(fill, pen, ToRect(r), panelR, panelR);
     }
 
@@ -188,16 +193,19 @@ public static class FrameGenerator
         var panelBrush = new LinearGradientBrush(Lighten(panelColor, 0.10), panelColor, new Point(0, 0), new Point(0, 1));
         panelBrush.Freeze();
         var pPen = FrozenPen(panelBorderColor, 2);
-        foreach (var r in new[] { spec.TypeBar, spec.TextBox, spec.PtBox })
+        foreach (var r in new[] { spec.TypeBar, spec.TextBox })   // no P/T box (drawn per-card)
         {
             var rect = ToRect(r);
+            dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(80, 0, 0, 0)), null,
+                new Rect(rect.X + 3, rect.Y + 5, rect.Width, rect.Height), panelR, panelR);   // drop shadow
             dc.DrawRoundedRectangle(panelBrush, pPen, rect, panelR, panelR);
             dc.DrawLine(FrozenPen(gold, 1.5), new Point(rect.X + panelR, rect.Y + 2.5), new Point(rect.Right - panelR, rect.Y + 2.5));
         }
 
-        // Filigree divider under the type line.
+        // Filigree divider under the type line, and rivet studs on the type bar.
         var tb = ToRect(spec.TypeBar);
         FiligreeDivider(dc, gold, panelBorderColor, tb.X + 18, tb.Bottom + 5, tb.Right - 18);
+        DrawStuds(dc, tb, gold, panelBorderColor);
 
         // Title banner (light nameplate with a gold ornate outline + gems), keeps the title readable.
         DrawBanner(dc, ToRect(spec.TitleBar), panelBrush, panelBorderColor, gold);
@@ -392,10 +400,28 @@ public static class FrameGenerator
     private static void DrawPanel(DrawingContext dc, Brush fill, Pen pen, Color panelColor, Region r, double radius)
     {
         var rect = ToRect(r);
+        // Drop shadow gives the panel a raised, 3D look.
+        dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(70, 0, 0, 0)), null,
+            new Rect(rect.X + 3, rect.Y + 5, rect.Width, rect.Height), radius, radius);
         dc.DrawRoundedRectangle(fill, pen, rect, radius, radius);
         // subtle top highlight
         dc.DrawLine(new Pen(new SolidColorBrush(Lighten(panelColor, 0.5)), 1.2),
             new Point(rect.X + radius, rect.Y + 2.5), new Point(rect.Right - radius, rect.Y + 2.5));
+    }
+
+    /// <summary>Little 3D "rivet" studs at a panel's corners — bits that stick out for style.</summary>
+    private static void DrawStuds(DrawingContext dc, Rect rect, Color studColor, Color edge)
+    {
+        foreach (var p in new[]
+        {
+            new Point(rect.X, rect.Y), new Point(rect.Right, rect.Y),
+            new Point(rect.X, rect.Bottom), new Point(rect.Right, rect.Bottom),
+        })
+        {
+            dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(90, 0, 0, 0)), null, new Point(p.X + 1.5, p.Y + 2.5), 6, 6);
+            dc.DrawEllipse(new SolidColorBrush(studColor), new Pen(new SolidColorBrush(edge), 1.2), p, 6, 6);
+            dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), null, new Point(p.X - 1.6, p.Y - 1.8), 1.8, 1.8);
+        }
     }
 
     private static Color Lighten(Color c, double amount)
