@@ -109,6 +109,105 @@ public static class FrameGenerator
         DrawPanel(dc, panel, panelPen, panelColor, spec.TypeBar, panelR);
         DrawPanel(dc, panel, panelPen, panelColor, spec.TextBox, panelR);
         DrawPanel(dc, panel, panelPen, panelColor, spec.PtBox, panelR);
+
+        // 5. Ornamental filigree — corner scrolls, art-window curls, a top-center ornament.
+        DrawEmbellishments(dc, inner, art, frame2Color, panelBorderColor);
+    }
+
+    // --- ornamental embellishments -----------------------------------------
+
+    private static void DrawEmbellishments(DrawingContext dc, Rect inner, Rect art, Color frame2, Color panelBorder)
+    {
+        var light = new Pen(new SolidColorBrush(Lighten(frame2, 0.45)), 2.0)
+        { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+        light.Freeze();
+        var stud = new SolidColorBrush(Lighten(frame2, 0.22)); stud.Freeze();
+        var studEdge = new Pen(new SolidColorBrush(panelBorder), 1.2); studEdge.Freeze();
+
+        double m = 13;
+        double lx = inner.X + m, ty = inner.Y + m, rx = inner.Right - m, by = inner.Bottom - m;
+        CornerScroll(dc, light, stud, studEdge, lx, ty, 1, 1);
+        CornerScroll(dc, light, stud, studEdge, rx, ty, -1, 1);
+        CornerScroll(dc, light, stud, studEdge, lx, by, 1, -1);
+        CornerScroll(dc, light, stud, studEdge, rx, by, -1, -1);
+
+        WindowCurl(dc, light, art.X + 3, art.Y + 3, 1, 1);
+        WindowCurl(dc, light, art.Right - 3, art.Y + 3, -1, 1);
+        WindowCurl(dc, light, art.X + 3, art.Bottom - 3, 1, -1);
+        WindowCurl(dc, light, art.Right - 3, art.Bottom - 3, -1, -1);
+
+        TopOrnament(dc, light, stud, studEdge, (inner.X + inner.Right) / 2, inner.Y + 9);
+    }
+
+    private static void CornerScroll(DrawingContext dc, Pen pen, Brush stud, Pen studEdge, double cx, double cy, int sx, int sy)
+    {
+        dc.PushTransform(LocalTransform(cx, cy, sx, sy));
+        var g = new StreamGeometry();
+        using (var c = g.Open())
+        {
+            // An L-bracket hugging the corner, with a small outward curl at the top arm.
+            c.BeginFigure(new Point(36, 0), false, false);
+            c.BezierTo(new Point(15, 0), new Point(0, 3), new Point(0, 20), true, false);
+            c.LineTo(new Point(0, 36), true, false);
+            c.BeginFigure(new Point(36, 0), false, false);
+            c.BezierTo(new Point(42, -3), new Point(41, 9), new Point(31, 8), true, false);
+        }
+        g.Freeze();
+        dc.DrawGeometry(null, pen, g);
+        dc.DrawGeometry(stud, studEdge, Diamond(0, 0, 6));
+        dc.Pop();
+    }
+
+    private static void WindowCurl(DrawingContext dc, Pen pen, double cx, double cy, int sx, int sy)
+    {
+        dc.PushTransform(LocalTransform(cx, cy, sx, sy));
+        var g = new StreamGeometry();
+        using (var c = g.Open())
+        {
+            c.BeginFigure(new Point(0, 20), false, false);
+            c.BezierTo(new Point(0, 7), new Point(7, 0), new Point(20, 0), true, false);
+        }
+        g.Freeze();
+        dc.DrawGeometry(null, pen, g);
+        dc.Pop();
+    }
+
+    private static void TopOrnament(DrawingContext dc, Pen pen, Brush stud, Pen studEdge, double cx, double cy)
+    {
+        dc.DrawGeometry(stud, studEdge, Diamond(cx, cy + 3, 7));
+        var g = new StreamGeometry();
+        using (var c = g.Open())
+        {
+            c.BeginFigure(new Point(cx - 11, cy + 3), false, false);
+            c.BezierTo(new Point(cx - 26, cy + 1), new Point(cx - 34, cy + 6), new Point(cx - 42, cy + 1), true, false);
+            c.BeginFigure(new Point(cx + 11, cy + 3), false, false);
+            c.BezierTo(new Point(cx + 26, cy + 1), new Point(cx + 34, cy + 6), new Point(cx + 42, cy + 1), true, false);
+        }
+        g.Freeze();
+        dc.DrawGeometry(null, pen, g);
+    }
+
+    private static Transform LocalTransform(double cx, double cy, int sx, int sy)
+    {
+        var g = new TransformGroup();
+        g.Children.Add(new ScaleTransform(sx, sy));
+        g.Children.Add(new TranslateTransform(cx, cy));
+        g.Freeze();
+        return g;
+    }
+
+    private static Geometry Diamond(double x, double y, double r)
+    {
+        var g = new StreamGeometry();
+        using (var c = g.Open())
+        {
+            c.BeginFigure(new Point(x, y - r), true, true);
+            c.LineTo(new Point(x + r, y), true, false);
+            c.LineTo(new Point(x, y + r), true, false);
+            c.LineTo(new Point(x - r, y), true, false);
+        }
+        g.Freeze();
+        return g;
     }
 
     /// <summary>Full-art frame: just a clean edge + thin keyline, leaving the art fully visible.</summary>
