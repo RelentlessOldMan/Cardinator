@@ -61,6 +61,15 @@ public sealed class TemplateSpec
     /// </summary>
     public bool FullArt { get; set; }
 
+    /// <summary>Draw ornamental filigree (corner scrolls, art-window curls, top ornament).</summary>
+    public bool Embellishments { get; set; } = true;
+
+    /// <summary>Card-edge corner radius (0 = square corners).</summary>
+    public double CornerRadius { get; set; } = 30;
+
+    /// <summary>Corner radius of the art window and the text panels.</summary>
+    public double PanelRadius { get; set; } = 10;
+
     public FrameColors Colors { get; set; } = new();
 
     public Region TitleBar { get; set; } = new() { X = 28, Y = 28, W = 694, H = 66 };
@@ -128,6 +137,8 @@ public sealed class TemplateSpec
         CreditFont ??= d.CreditFont;
         if (ManaSymbolSize <= 0) ManaSymbolSize = d.ManaSymbolSize;
         if (RulesSymbolSize <= 0) RulesSymbolSize = d.RulesSymbolSize;
+        if (CornerRadius < 0) CornerRadius = d.CornerRadius;
+        if (PanelRadius < 0) PanelRadius = d.PanelRadius;
     }
 
     /// <summary>Parses a hex/named color, falling back to black if the string is invalid.</summary>

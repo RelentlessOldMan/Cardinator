@@ -50,6 +50,32 @@ public class MoreTemplatesTests
             Assert.True(HasContent(bmp));
         });
 
+    [Fact]
+    public void FrameGenerator_HonorsStyleKnobs()
+    {
+        var spec = BuiltInTemplates.All().First(s => !s.FullArt);
+        var withEmb = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"frm-emb-{Guid.NewGuid():N}.png");
+        var noEmb = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"frm-plain-{Guid.NewGuid():N}.png");
+        try
+        {
+            spec.Embellishments = true; spec.CornerRadius = 30;
+            FrameGenerator.Generate(spec, withEmb);
+
+            spec.Embellishments = false; spec.CornerRadius = 0;
+            FrameGenerator.Generate(spec, noEmb);
+
+            var a = System.IO.File.ReadAllBytes(withEmb);
+            var b = System.IO.File.ReadAllBytes(noEmb);
+            Assert.True(a.Length > 0 && b.Length > 0);
+            Assert.False(a.AsSpan().SequenceEqual(b), "toggling embellishments/corners should change the frame");
+        }
+        finally
+        {
+            try { System.IO.File.Delete(withEmb); } catch { }
+            try { System.IO.File.Delete(noEmb); } catch { }
+        }
+    }
+
     private static bool HasContent(BitmapSource bmp)
     {
         int stride = bmp.PixelWidth * 4;

@@ -51,6 +51,13 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length > 1 && e.Args[0] == "--frames")
+        {
+            int code = SelfTest.RunFrames(e.Args[1], e.Args.Skip(2).Contains("nosym"));
+            Shutdown(code);
+            return;
+        }
+
         if (e.Args.Length > 1 && e.Args[0] == "--cardback")
         {
             int code = SelfTest.RunCardBack(e.Args[1], e.Args.Length > 2 ? e.Args[2] : null);
@@ -239,6 +246,8 @@ public partial class App : Application
                   Create a custom template from your own frame image (local file or URL).
               Cardinator.exe --cardback <out.png> ["Wordmark"]
                   Render the decorative card back (for double-sided printing).
+              Cardinator.exe --frames <outDir> [nosym]
+                  Render one sample card on every installed frame (a style showcase).
               Cardinator.exe --uishot <outDir>
                   Render the app's own windows to PNGs off-screen (documentation screenshots).
               Cardinator.exe --appshot <list.csv> <artDir> <out.png> ["name"]

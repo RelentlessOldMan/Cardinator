@@ -82,7 +82,7 @@ public static class FrameGenerator
         var inner = Inset(full, 14);
         var art = ToRect(spec.ArtWindow);
 
-        double cardR = 30, panelR = 10;
+        double cardR = spec.CornerRadius, panelR = spec.PanelRadius;
 
         // 1. Outer black edge as a ring (does not cover the art window).
         dc.DrawGeometry(border, null, Exclude(RoundedGeom(full, cardR), RoundedGeom(inner, cardR - 6)));
@@ -111,7 +111,8 @@ public static class FrameGenerator
         DrawPanel(dc, panel, panelPen, panelColor, spec.PtBox, panelR);
 
         // 5. Ornamental filigree — corner scrolls, art-window curls, a top-center ornament.
-        DrawEmbellishments(dc, inner, art, frame2Color, panelBorderColor);
+        if (spec.Embellishments)
+            DrawEmbellishments(dc, inner, art, frame2Color, panelBorderColor);
     }
 
     // --- ornamental embellishments -----------------------------------------
@@ -215,7 +216,7 @@ public static class FrameGenerator
     {
         double W = spec.CanvasWidth, H = spec.CanvasHeight;
         var full = new Rect(0, 0, W, H);
-        double cardR = 30;
+        double cardR = spec.CornerRadius;
 
         var borderColor = TemplateSpec.ParseColor(spec.Colors.Border);
         var frameColor = TemplateSpec.ParseColor(spec.Colors.Frame);
