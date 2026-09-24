@@ -99,7 +99,10 @@ public class CustomTemplateAndArtTests
         {
             var templates = new TemplateService().LoadAll();
             var full = templates.FirstOrDefault(t => t.Spec.FullArt);
-            var framed = templates.FirstOrDefault(t => !t.Spec.FullArt);
+            // A genuinely windowed frame — not full-art, and not the full-bleed styles (borderless/overlay).
+            var framed = templates.FirstOrDefault(t => !t.Spec.FullArt
+                && !string.Equals(t.Spec.FrameStyle, "borderless", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(t.Spec.FrameStyle, "overlay", StringComparison.OrdinalIgnoreCase));
             Assert.NotNull(full);
             Assert.NotNull(framed);
 
