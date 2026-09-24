@@ -34,6 +34,7 @@ can compare the styles). Pick one from the **Frame** dropdown, or duplicate one 
 <tr>
 <td align="center"><img src="images/frames/showcase.png" width="150"><br/><sub>Showcase (borderless)</sub></td>
 <td align="center"><img src="images/frames/cinematic.png" width="150"><br/><sub>Cinematic (overlay)</sub></td>
+<td align="center"><img src="images/frames/tidecaller.png" width="150"><br/><sub>Tidecaller (wave)</sub></td>
 </tr>
 </table>
 
@@ -41,7 +42,8 @@ Frames come in a few **styles** you can set per template (`frameStyle`): **class
 bevel), **clean** (flat/modern), **ornate** (metallic band, banner, corner scrollwork + gems, stone
 texture), **faded** (edges melt into the art), **borderless** (full-bleed art + floating panels), and
 **overlay** (full-bleed art with a cinematic band + gold trim carrying the text over the bottom of
-the art). Legendary cards also get a leafy crown, and the P/T box only appears on creatures.
+the art), and **wave** (a full frame plus a colorful scalloped wave crown flowing across the top).
+Legendary cards also get a leafy crown, and the P/T box only appears on creatures.
 
 *(Generate this grid yourself any time with `Cardinator.exe --frames <outDir>` — it renders one card
 on every frame you have installed, including your own imports.)*
@@ -53,8 +55,9 @@ Start from a default and fiddle. Copy a folder under `CardinatorData/templates/`
 
 - **`frameStyle`** — `"classic"` (gradient border + beveled panels), `"clean"` (flat/modern),
   `"ornate"` (metallic band, banner, corner scrollwork + gems, stone texture), `"faded"` (edges
-  melt into the art), `"borderless"` (full-bleed art + floating translucent panels), or `"overlay"`
-  (full-bleed art with a cinematic band + gold trim carrying the text over the bottom of the art).
+  melt into the art), `"borderless"` (full-bleed art + floating translucent panels), `"overlay"`
+  (full-bleed art with a cinematic band + gold trim carrying the text over the bottom of the art),
+  or `"wave"` (a full frame plus a colorful scalloped wave crown flowing across the top).
 - **`colors`** — `border` / `frame` / `frame2` (the frame gradient) / `panel` / `panelBorder`.
 - **`embellishments`** — `true`/`false` to turn the ornamental filigree on or off.
 - **`cornerRadius`** / **`panelRadius`** — rounded vs. sharp corners for the card and the panels.
@@ -107,7 +110,7 @@ name falls back to a default — so a small typo won't take the app down.
   "canvasWidth": 750,            // logical canvas (keep 750 x 1050 for a normal card)
   "canvasHeight": 1050,
   "fullArt": false,             // true = art fills the whole card, text sits on it (see below)
-  "frameStyle": "classic",      // classic | clean | ornate | faded | borderless | overlay
+  "frameStyle": "classic",      // classic | clean | ornate | faded | borderless | overlay | wave
   "embellishments": true,       // ornamental corner scrolls / art-window curls / top ornament
   "cornerRadius": 30,           // card-edge rounding (0 = square corners)
   "panelRadius": 10,            // art window + text panel rounding

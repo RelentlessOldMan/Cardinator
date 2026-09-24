@@ -102,8 +102,9 @@ public sealed class CardRenderer
     /// <summary>The chunky black card edge every real card has — drawn last, over all styles.</summary>
     private static void DrawOuterBorder(DrawingContext dc, double W, double H, double cardR, TemplateSpec spec)
     {
-        // Art-forward styles keep a slightly slimmer edge so the art still dominates.
-        double t = ArtText(spec) ? 13 : 17;
+        // Thickness measured off real cards: the black edge is ~3.9% of card width (~29px at 750px).
+        // Art-forward styles keep a hair slimmer edge so the art still dominates.
+        double t = ArtText(spec) ? 24 : 28;
         var pen = new Pen(new SolidColorBrush(Color.FromRgb(0x08, 0x08, 0x0A)), t);
         pen.Freeze();
         var rect = new Rect(t / 2, t / 2, W - t, H - t);
@@ -384,7 +385,7 @@ public sealed class CardRenderer
     /// <summary>An organic leafy/scroll crown along the top of the title bar — for Legendary cards only.</summary>
     private static void DrawLegendaryCrown(DrawingContext dc, CardModel card, TemplateSpec spec)
     {
-        if (ArtText(spec)) return;   // art-forward styles skip the crown
+        if (ArtText(spec) || IsWave(spec)) return;   // art-forward + wave styles have their own crown
         if (string.IsNullOrEmpty(card.TypeLine) ||
             !card.TypeLine.Contains("Legendary", StringComparison.OrdinalIgnoreCase)) return;
 
@@ -439,6 +440,9 @@ public sealed class CardRenderer
     private static bool IsOverlay(TemplateSpec spec)
         => string.Equals(spec.FrameStyle, "overlay", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsWave(TemplateSpec spec)
+        => string.Equals(spec.FrameStyle, "wave", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Styles where the art fills the whole card and text sits on top of it.</summary>
     private static bool ArtText(TemplateSpec spec) => spec.FullArt || IsBorderless(spec) || IsOverlay(spec);
 
@@ -446,51 +450,54 @@ public sealed class CardRenderer
     {
         var rect = ToRect(spec.PtBox);
         bool onArt = ArtText(spec);
-        var panelColor = onArt
-            ? Color.FromArgb(215, 18, 20, 26)   // translucent dark to match floating panels
-            : TemplateSpec.ParseColor(spec.Colors.Panel);
         var borderColor = TemplateSpec.ParseColor(spec.Colors.PanelBorder);
-        var gold = LightenC(TemplateSpec.ParseColor(spec.Colors.Frame2), 0.30);
         double r = Math.Max(7, spec.PanelRadius);
 
-        // Drop shadow on the bottom-LEFT (light reads from the upper-right).
-        dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)), null,
-            new Rect(rect.X - 5, rect.Y + 6, rect.Width, rect.Height), r, r);
+        // Subtle drop shadow (bottom-left) so the box lifts off the frame without floating.
+        dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(105, 0, 0, 0)), null,
+            new Rect(rect.X - 3, rect.Y + 5, rect.Width, rect.Height), r, r);
 
-        // A metallic "seat" ring so the box reads as pressed INTO the frame, not slapped on top.
-        var seat = Inset(rect, -6);
-        var seatFill = new LinearGradientBrush(LightenC(gold, 0.25), Darken(gold, 0.15), new Point(0, 0), new Point(0, 1));
-        seatFill.Freeze();
-        dc.DrawRoundedRectangle(seatFill, new Pen(new SolidColorBrush(borderColor), 3), seat, r + 3, r + 3);
-
-        // Panel: vertical gradient fill + a bold border.
-        var fill = new LinearGradientBrush(LightenC(panelColor, 0.16), panelColor, new Point(0, 0), new Point(0, 1));
+        // The box is part of the FRAME: on framed cards it's the metallic frame color (a gold box on a
+        // gold card), so it belongs to the border rather than looking slapped on. On art-forward cards
+        // there's no frame metal, so use a translucent dark plate with a bright edge instead.
+        Brush fill;
+        Pen border;
+        if (onArt)
+        {
+            var g = LightenC(TemplateSpec.ParseColor(spec.Colors.Frame2), 0.20);
+            fill = new SolidColorBrush(Color.FromArgb(220, 16, 18, 24));
+            border = new Pen(new SolidColorBrush(g), 3);
+        }
+        else
+        {
+            var frame = TemplateSpec.ParseColor(spec.Colors.Frame);
+            var frame2 = TemplateSpec.ParseColor(spec.Colors.Frame2);
+            fill = new LinearGradientBrush(LightenC(frame2, 0.10), frame, new Point(0, 0), new Point(0, 1));
+            border = new Pen(new SolidColorBrush(borderColor), 3);
+        }
         fill.Freeze();
-        dc.DrawRoundedRectangle(fill, new Pen(new SolidColorBrush(borderColor), 3), rect, r, r);
-        // Top bevel highlight + bottom shade.
-        dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)), 1.8),
-            new Point(rect.X + r, rect.Y + 3.5), new Point(rect.Right - r, rect.Y + 3.5));
-        dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(90, 0, 0, 0)), 1.4),
+        border.Freeze();
+        dc.DrawRoundedRectangle(fill, border, rect, r, r);
+        // Bevel: bright top edge + dark bottom edge, both hugging the rounded corners.
+        dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), 1.6),
+            new Point(rect.X + r, rect.Y + 3), new Point(rect.Right - r, rect.Y + 3));
+        dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(95, 0, 0, 0)), 1.4),
             new Point(rect.X + r, rect.Bottom - 3), new Point(rect.Right - r, rect.Bottom - 3));
 
         DrawCentered(dc, $"{card.Power}/{card.Toughness}", rect, spec.PtFont);
     }
 
-    /// <summary>Draws text centered on both axes within a box (nudged up slightly to sit optically centered).</summary>
+    /// <summary>Draws text centered on both axes using its true ink bounds (so it sits optically
+    /// centered, not offset by the font's line-height padding).</summary>
     private static void DrawCentered(DrawingContext dc, string text, Rect rect, FontSpec font)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
         var ft = FitText(text, font, font.Size, 12, rect.Width - 14, brush);
-        double x = rect.X + (rect.Width - ft.Width) / 2;
-        double y = rect.Y + (rect.Height - ft.Height) / 2 - 1;   // optical nudge; glyph box sits a hair low
+        var bounds = ft.BuildGeometry(new Point(0, 0)).Bounds;   // actual ink extents
+        double x = rect.X + rect.Width / 2 - (bounds.X + bounds.Width / 2);
+        double y = rect.Y + rect.Height / 2 - (bounds.Y + bounds.Height / 2);
         DrawGlyphRun(dc, ft, new Point(x, y), font);
-    }
-
-    private static Color Darken(Color c, double a)
-    {
-        byte D(byte v) => (byte)Math.Clamp(v * (1 - a), 0, 255);
-        return Color.FromRgb(D(c.R), D(c.G), D(c.B));
     }
 
     // --- text box: rules + flavor, inline symbols, word wrap, auto-shrink ---

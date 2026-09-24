@@ -29,30 +29,16 @@ Simple by design: type a name, pick a frame, drop in art, export. Everything els
 
 ## Gallery
 
-Real Cardinator output — original cards across the different frame **styles**: ornate, clean,
-classic, faded, borderless, full-art, and the cinematic **overlay** (full-bleed art with the text
-laid over the bottom). Everything below — frames, mana symbols, loyalty badges, saga chapters, the
-adventure sub-box, rarity pips, P/T box and footer — is drawn by Cardinator.
+Cardinator draws cards across a range of frame **styles** — ornate, clean, classic, faded,
+borderless, full-art, the cinematic **overlay** (full-bleed art with the text over the bottom), and
+the flowing **wave** crown. Every part — frames, mana symbols, loyalty badges, saga chapters, the
+adventure sub-box, rarity pips, the P/T box and footer — is drawn by the app.
 
-<p>
-  <img src="docs/images/gallery/cinematic-legend.png"     width="230" alt="Cinematic overlay creature">
-  <img src="docs/images/gallery/gold-legend.png"          width="230" alt="Ornate legendary creature">
-  <img src="docs/images/gallery/showcase-creature.png"    width="230" alt="Borderless creature">
-</p>
-<p>
-  <img src="docs/images/gallery/planeswalker-classic.png" width="230" alt="Classic planeswalker">
-  <img src="docs/images/gallery/forest-saga.png"          width="230" alt="Classic saga">
-  <img src="docs/images/gallery/fullart-legend.png"       width="230" alt="Full-art creature">
-</p>
+### **[→ See the full gallery: 13 cards across every style](docs/GALLERY.md)**
 
-**[See the full gallery — 12 cards across every style →](docs/GALLERY.md)**
-
-*(Art here is our own placeholder scenery; in the app you drop in your own or pull a card's real art
-from Scryfall.)*
-
-**11 built-in frames** (Gold, Crimson, Ocean, Forest, Slate, Midnight, Parchment, Sunset,
-Planeswalker, Full Art, Showcase) plus the **Cinematic** overlay — with ornamental filigree you can
-toggle and tweak. **[See them all →](docs/TEMPLATES.md#the-built-in-frames)**
+**12 built-in frames** (Gold, Crimson, Ocean, Forest, Slate, Midnight, Parchment, Sunset,
+Planeswalker, Full Art, Showcase, Cinematic) plus the **Tidecaller** wave frame — with ornamental
+filigree you can toggle and tweak. **[See them all →](docs/TEMPLATES.md#the-built-in-frames)**
 
 ---
 

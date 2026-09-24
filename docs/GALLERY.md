@@ -1,6 +1,6 @@
 # Gallery
 
-A wider tour of what Cardinator draws — original cards spanning every **frame style** and every
+A tour of what Cardinator draws — 13 original cards spanning every **frame style** and every
 special **layout** it lays out automatically. All art here is our own placeholder scenery; in the app
 you drop in your own image or pull a card's real artwork from Scryfall. Frames, mana symbols, loyalty
 badges, saga chapters, the adventure sub-box, rarity pips, the P/T box and the footer are all drawn
@@ -8,6 +8,17 @@ by Cardinator.
 
 Set a card's look with **`frameStyle`** (plus `fullArt`) in its template — see
 [Making your own frames](TEMPLATES.md).
+
+---
+
+## Wave — flowing colorful crown (`wave`)
+
+A full frame plus a colorful scalloped **wave crown** flowing across the top of the card (over the
+frame, above the title) — a showcase/extended treatment with the flowing, colorful edge.
+
+<p>
+  <img src="images/gallery/tidecaller-wave.png" width="300" alt="Wave-crown legendary creature">
+</p>
 
 ---
 
