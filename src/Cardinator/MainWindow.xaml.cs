@@ -121,7 +121,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         set { _exportProgress = value; OnPropertyChanged(); }
     }
 
-    public string ProjectSummary => $"{_projectName} — {Cards.Count} card(s)";
+    public string ProjectSummary => $"{_projectName} — {Cards.Count} {(Cards.Count == 1 ? "card" : "cards")}";
 
     public string WindowTitle => (_dirty ? "● " : "") + _projectName + " — Cardinator";
 
