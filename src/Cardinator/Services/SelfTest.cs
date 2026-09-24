@@ -288,6 +288,45 @@ public static class SelfTest
         }
     }
 
+    /// <summary>Renders one sample card on every built-in frame (for a docs showcase). Returns 0.</summary>
+    public static int RunFrames(string outDir, bool noSym)
+    {
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var templates = new TemplateService().LoadAll();
+            var symbols = new SymbolService();
+            var card = new Cardinator.Models.CardModel
+            {
+                Name = "Frame Sample", ManaCost = "{2}{R}{W}", TypeLine = "Legendary Creature — Knight",
+                RulesText = "First strike, vigilance\n{T}: Draw a card, then discard a card.",
+                FlavorText = "One card, every frame.", Power = "3", Toughness = "3",
+                SetCode = "CST", CollectorNumber = "1", Rarity = "M", Artist = "Cardinator Demo",
+                ArtPath = "examples/01-custom-set/art/aria.png",
+            };
+            if (!noSym)
+                Task.Run(() => symbols.PrimeAsync(ManaText.SymbolTokens(card.ManaCost, card.RulesText)))
+                    .GetAwaiter().GetResult();
+
+            var renderer = new CardRenderer(symbols);
+            foreach (var t in templates)
+            {
+                card.TemplateName = t.Name;
+                var bmp = renderer.RenderToBitmap(card, t, supersample: 1);
+                var path = Path.Combine(outDir, Slug(t.Name) + ".png");
+                CardExporter.SavePng(bmp, path);
+                Console.WriteLine($"Wrote {path} ({t.Name})");
+            }
+            Console.WriteLine($"Rendered {templates.Count} frame(s) to {outDir}.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Frames FAILED: " + ex);
+            return 1;
+        }
+    }
+
     /// <summary>Renders the decorative card back to a PNG. Returns 0 on success.</summary>
     public static int RunCardBack(string outPath, string? wordmark)
     {

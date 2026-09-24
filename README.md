@@ -48,6 +48,10 @@ chapters, the adventure sub-box, rarity pip and footer. The last card is **full-
 directly on the artwork). All cards use invented names/text and placeholder scenery; when you look
 a real card up in the app, Cardinator fetches its authentic mana symbols and art from Scryfall.)*
 
+**10 built-in frames** (Gold, Crimson, Ocean, Forest, Slate, Midnight, Parchment, Sunset,
+Planeswalker, Full Art) — with ornamental filigree you can toggle and tweak.
+**[See them all →](docs/TEMPLATES.md#the-built-in-frames)**
+
 ---
 
 ## Get it running
