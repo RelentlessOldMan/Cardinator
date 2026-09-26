@@ -58,7 +58,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _selectedTemplate = Templates.FirstOrDefault();
 
         Cards = new();
-        Cards.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(ProjectSummary)); MarkDirty(); QueueUndoCommit(); };
+        Cards.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(ProjectSummary));
+            OnPropertyChanged(nameof(HasCards));
+            OnPropertyChanged(nameof(CanExport));
+            MarkDirty();
+            QueueUndoCommit();
+        };
 
         _loading = true;
         var first = SampleCards.All(DefaultTemplateName).First().Clone();
@@ -99,6 +106,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public bool HasSelection => _selectedCard != null;
 
+    /// <summary>True when the project has at least one card (gates batch/export actions).</summary>
+    public bool HasCards => Cards.Count > 0;
+
+    /// <summary>True when there are cards to export and no export is already running.</summary>
+    public bool CanExport => Cards.Count > 0 && !_isExporting;
+
     public Template? SelectedTemplate
     {
         get => _selectedTemplate;
@@ -126,7 +139,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public bool IsExporting
     {
         get => _isExporting;
-        set { _isExporting = value; OnPropertyChanged(); }
+        set { _isExporting = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanExport)); }
     }
 
     public double ExportProgress
@@ -310,21 +323,42 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         MarkDirty();
         CommitHistory();
+        // Re-sync the frame dropdown + preview to the selected card, whose frame may have changed.
+        if (_selectedCard != null)
+        {
+            var t = Templates.FirstOrDefault(x => x.Name == _selectedCard.TemplateName);
+            if (t != null) SelectedTemplate = t;   // updates the dropdown and re-renders
+        }
         RenderPreview();
         Status = $"Applied changes to {Cards.Count} card(s).";
     }
 
+    /// <summary>Moves every selected card up/down as a block (multi-select aware).</summary>
     private void MoveSelected(int delta)
     {
-        if (_selectedCard == null) return;
-        int i = Cards.IndexOf(_selectedCard);
-        int j = i + delta;
-        if (i < 0 || j < 0 || j >= Cards.Count) return;
-        Cards.Move(i, j);
-        CardList.SelectedItem = _selectedCard;   // keep the moved card selected/highlighted
+        var sel = CardList.SelectedItems.Cast<CardModel>().ToList();
+        if (sel.Count == 0 && _selectedCard != null) sel.Add(_selectedCard);
+        if (sel.Count == 0) return;
+
+        var idx = sel.Select(c => Cards.IndexOf(c)).Where(i => i >= 0).OrderBy(i => i).ToList();
+        if (idx.Count == 0) return;
+
+        if (delta < 0)
+        {
+            if (idx[0] == 0) return;                                  // topmost already at the top
+            foreach (var i in idx) Cards.Move(i, i - 1);
+        }
+        else
+        {
+            if (idx[^1] == Cards.Count - 1) return;                  // bottommost already at the bottom
+            foreach (var i in Enumerable.Reverse(idx)) Cards.Move(i, i + 1);
+        }
+
+        CardList.SelectedItems.Clear();                              // keep the moved cards selected
+        foreach (var c in sel) CardList.SelectedItems.Add(c);
         MarkDirty();
         CommitHistory();
-        Status = "Reordered cards.";
+        Status = sel.Count > 1 ? $"Moved {sel.Count} cards." : "Reordered cards.";
     }
 
     private void UpdateUndoRedo()
@@ -413,11 +447,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnDeleteCard(object sender, RoutedEventArgs e)
     {
-        if (_selectedCard == null) return;
-        int idx = Cards.IndexOf(_selectedCard);
-        Cards.Remove(_selectedCard);
-        SelectedCard = Cards.Count == 0 ? null : Cards[Math.Min(idx, Cards.Count - 1)];
-        Status = "Deleted card.";
+        // Delete every selected card (multi-select aware), keeping a sensible selection afterwards.
+        var sel = CardList.SelectedItems.Cast<CardModel>().ToList();
+        if (sel.Count == 0 && _selectedCard != null) sel.Add(_selectedCard);
+        if (sel.Count == 0) return;
+
+        int firstIdx = sel.Select(c => Cards.IndexOf(c)).Where(i => i >= 0).DefaultIfEmpty(0).Min();
+        foreach (var c in sel) Cards.Remove(c);
+        SelectedCard = Cards.Count == 0 ? null : Cards[Math.Min(firstIdx, Cards.Count - 1)];
+        Status = sel.Count > 1 ? $"Deleted {sel.Count} cards." : "Deleted card.";
     }
 
     private void OnNewProject(object sender, RoutedEventArgs e)
@@ -752,13 +790,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void OnImportFrame(object sender, RoutedEventArgs e)
     {
-        // Offer a URL first; leaving it blank falls back to picking a local file.
-        var url = InputDialog.Ask(this, "Import a frame",
-            "Paste a link to a frame image (transparent PNG), or leave blank to pick a file on your PC.");
+        // Offer a URL first; leaving it blank (and clicking OK) falls back to picking a local file.
+        // Cancelling the prompt aborts entirely (it must NOT fall through to the file picker).
+        var prompt = new InputDialog("Import a frame",
+            "Paste a link to a frame image (transparent PNG), or leave blank to pick a file on your PC.")
+        { Owner = this };
+        if (prompt.ShowDialog() != true) return;   // cancelled
+        var url = prompt.Value;                     // trimmed; "" means "use the file picker"
         try
         {
             string name;
-            if (url != null)
+            if (url.Length > 0)
             {
                 if (!ImageIntake.IsHttpUrl(url)) { Status = "That doesn't look like a web link."; return; }
                 Status = "Downloading frame…";
