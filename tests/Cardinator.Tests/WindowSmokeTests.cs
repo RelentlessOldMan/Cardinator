@@ -58,6 +58,16 @@ public class WindowSmokeTests
         });
 
     [Fact]
+    public void ScryfallSearchWindow_Constructs_AndBindsResults()
+        => OnAppThread(() =>
+        {
+            var w = new Cardinator.ScryfallSearchWindow(new ScryfallClient());
+            w.Results.Add(new Cardinator.ScryfallSearchWindow.ResultItem(new CardModel { Name = "X", TypeLine = "Creature", Rarity = "R", SetCode = "TST" }));
+            Assert.NotNull(w.Content);
+            Assert.Single(w.Results);
+        });
+
+    [Fact]
     public void MainWindow_UndoRedo_RevertsAndReappliesEdit()
         => OnAppThread(() =>
         {
