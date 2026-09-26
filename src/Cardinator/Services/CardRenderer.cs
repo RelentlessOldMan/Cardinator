@@ -49,7 +49,9 @@ public sealed class CardRenderer
 
     private void Draw(DrawingContext dc, CardModel card, Template template, bool previewHints)
     {
-        var spec = template.Spec;
+        // When the royal sub-border is on, all regions are inset to make room for it — use the same inset
+        // spec the frame generator baked frame.png from, so text/P·T/footer line up with the panels.
+        var spec = template.Spec.WithSubBorderApplied();
         double W = spec.CanvasWidth, H = spec.CanvasHeight;
         double cardR = Math.Max(4, spec.CornerRadius);
 
@@ -76,7 +78,7 @@ public sealed class CardRenderer
         DrawTypeLine(dc, card, spec);
 
         if (card.IsPlaneswalker)
-            DrawBadgedRows(dc, ParseAbilities(card.RulesText), spec);
+            DrawBadgedRows(dc, ParseAbilities(card.RulesText), spec, loyaltyShields: true);
         else if (card.IsSaga)
             DrawBadgedRows(dc, ParseChapters(card.RulesText), spec);
         else if (card.IsClass)
@@ -84,32 +86,44 @@ public sealed class CardRenderer
         else if (card.IsAdventure)
             DrawAdventure(dc, card, spec);
         else
-            DrawTextBox(dc, card.RulesText, card.FlavorText, spec.TextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize);
+            DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize);
 
         if (card.IsPlaneswalker && !string.IsNullOrWhiteSpace(card.Loyalty))
             DrawLoyalty(dc, card, spec);
         else if (card.HasPowerToughness)
             DrawPtBox(dc, card, spec);   // creatures only — the box is drawn here, not baked into the frame
 
-        DrawFooter(dc, card, spec);
+        // Footer placement: "frame" draws it on the colored card (inside the clip, before the border);
+        // "border" draws it on the black rim (after the border); "none" skips it.
+        var footerPlacement = (spec.FrameStyle == null ? "frame" : spec.FooterPlacement ?? "frame").Trim().ToLowerInvariant();
+        if (footerPlacement == "frame")
+            DrawFooter(dc, card, spec, onBorder: false);
 
         dc.Pop();   // end rounded-card clip
 
-        // A single, consistent thick black outer border on top of every style — the real-card edge.
+        // A single, consistent thick black outer border on top of every style — the real-card edge, even
+        // thickness all the way around.
         DrawOuterBorder(dc, W, H, cardR, spec);
+
+        if (footerPlacement == "border")
+            DrawFooter(dc, card, spec, onBorder: true);
     }
 
     /// <summary>The chunky black card edge every real card has — drawn last, over all styles.</summary>
     private static void DrawOuterBorder(DrawingContext dc, double W, double H, double cardR, TemplateSpec spec)
     {
-        // Thickness measured off real cards: the black edge is ~3.9% of card width (~29px at 750px).
-        // Art-forward styles keep a hair slimmer edge so the art still dominates.
-        double t = ArtText(spec) ? 24 : 28;
-        var pen = new Pen(new SolidColorBrush(Color.FromRgb(0x08, 0x08, 0x0A)), t);
-        pen.Freeze();
-        var rect = new Rect(t / 2, t / 2, W - t, H - t);
-        double r = Math.Max(1, cardR - t / 2);
-        dc.DrawRoundedRectangle(null, pen, rect, r, r);
+        // Template-driven thickness (custom-editable). Drawn as a filled ring between two rounded
+        // rects. For EVEN thickness around the corners, the inner corner must share the outer corner's
+        // center — which means innerRadius = cardR - t exactly (both arcs centered at (cardR, cardR)).
+        double t = Math.Max(0, spec.BorderThickness);
+        if (t <= 0) return;
+        double innerR = Math.Max(0, cardR - t);
+        var outer = new RectangleGeometry(new Rect(0, 0, W, H), cardR, cardR);
+        var inner = new RectangleGeometry(
+            new Rect(t, t, Math.Max(0, W - 2 * t), Math.Max(0, H - 2 * t)), innerR, innerR);
+        var ring = new CombinedGeometry(GeometryCombineMode.Exclude, outer, inner);
+        ring.Freeze();
+        dc.DrawGeometry(new SolidColorBrush(Color.FromRgb(0x08, 0x08, 0x0A)), null, ring);
     }
 
     // --- type line + rarity pip --------------------------------------------
@@ -131,15 +145,47 @@ public sealed class CardRenderer
 
         if (hasRarity)
         {
-            var (fill, text) = RarityStyle(card.Rarity);
             var box = new Rect(bar.Right - pad - pipD, bar.Y + (bar.Height - pipD) / 2, pipD, pipD);
-            dc.DrawEllipse(new SolidColorBrush(fill), new Pen(new SolidColorBrush(Color.FromRgb(0x20, 0x20, 0x20)), 1.5),
-                new Point(box.X + pipD / 2, box.Y + pipD / 2), pipD / 2, pipD / 2);
-            var glyphBrush = new SolidColorBrush(text);
-            var ft = MakeText(card.Rarity.ToUpperInvariant()[..1],
-                new FontSpec { Family = "Segoe UI", Bold = true }, pipD * 0.62, glyphBrush);
-            dc.DrawText(ft, new Point(box.X + (pipD - ft.Width) / 2, box.Y + (pipD - ft.Height) / 2));
+            var custom = TryLoadSetSymbol(card.SetSymbolPath);
+            if (custom != null)
+                dc.DrawImage(custom, box);   // custom set icon (whole set shares it)
+            else
+            {
+                var (fill, _) = RarityStyle(card.Rarity);
+                DrawSetSymbol(dc, box, fill, card.SetCode);
+            }
         }
+    }
+
+    // Small cache for custom set-symbol images (keyed by path + file stamp), so batch renders don't
+    // re-decode the same icon for every card. Static and shared across renderers on multiple STA threads
+    // (live preview + export), so it must be concurrent-safe.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long stamp, BitmapSource img)> _setSymbolCache = new();
+
+    private static BitmapSource? TryLoadSetSymbol(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        try
+        {
+            var full = Path.GetFullPath(path);
+            if (!File.Exists(full)) return null;
+            var fi = new FileInfo(full);
+            long stamp = fi.LastWriteTimeUtc.Ticks ^ fi.Length;
+            if (_setSymbolCache.TryGetValue(full, out var e) && e.stamp == stamp) return e.img;
+
+            var bytes = File.ReadAllBytes(full);
+            var img = new BitmapImage();
+            img.BeginInit();
+            img.CacheOption = BitmapCacheOption.OnLoad;
+            img.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            img.StreamSource = new MemoryStream(bytes);
+            img.EndInit();
+            img.Freeze();
+            if (_setSymbolCache.Count > 32) _setSymbolCache.Clear();   // simple bound; a set shares one icon
+            _setSymbolCache[full] = (stamp, img);
+            return img;
+        }
+        catch { return null; }
     }
 
     private static (Color fill, Color text) RarityStyle(string rarity) => rarity.ToUpperInvariant() switch
@@ -150,15 +196,119 @@ public sealed class CardRenderer
         _ => (Color.FromRgb(0x1C, 0x1C, 0x1C), Colors.White),   // common
     };
 
+    /// <summary>Draws a faceted, beveled "set symbol" emblem colored by rarity. The silhouette varies
+    /// by set code (gem / compass star / shield / rosette) so different sets look distinct.</summary>
+    private static void DrawSetSymbol(DrawingContext dc, Rect box, Color color, string? seed)
+    {
+        double d = Math.Min(box.Width, box.Height);
+        double cx = box.X + box.Width / 2, cy = box.Y + box.Height / 2;
+        double R = d * 0.5;
+
+        static Color Dk(Color c, double a) =>
+            Color.FromRgb((byte)(c.R * (1 - a)), (byte)(c.G * (1 - a)), (byte)(c.B * (1 - a)));
+
+        var fill = new LinearGradientBrush(LightenC(color, 0.55), Dk(color, 0.20), new Point(0.3, 0), new Point(0.65, 1));
+        fill.Freeze();
+        var edge = new Pen(new SolidColorBrush(Dk(color, 0.55)), Math.Max(1.0, d * 0.07));
+        edge.Freeze();
+        var facetPen = new Pen(new SolidColorBrush(Color.FromArgb(105, 0, 0, 0)), Math.Max(0.7, d * 0.03));
+        facetPen.Freeze();
+
+        int shape = 0;
+        if (!string.IsNullOrEmpty(seed)) { int h = 0; foreach (var ch in seed) h = h * 31 + ch; shape = Math.Abs(h) % 4; }
+
+        var facets = new List<(Point, Point)>();
+        var geo = new StreamGeometry();
+        using (var s = geo.Open())
+        {
+            switch (shape)
+            {
+                case 0:   // faceted brilliant gem
+                {
+                    double w = R * 0.9, h = R;
+                    Point tl = new(cx - w * 0.5, cy - h * 0.62), tr = new(cx + w * 0.5, cy - h * 0.62);
+                    Point rr = new(cx + w, cy - h * 0.02), bb = new(cx, cy + h), ll = new(cx - w, cy - h * 0.02);
+                    s.BeginFigure(tl, true, true);
+                    s.LineTo(tr, true, false); s.LineTo(rr, true, false); s.LineTo(bb, true, false); s.LineTo(ll, true, false);
+                    facets.Add((ll, rr)); facets.Add((tl, bb)); facets.Add((tr, bb)); facets.Add((new(cx, cy - h * 0.62), bb));
+                    break;
+                }
+                case 1:   // 4-point compass star
+                {
+                    double a = R, b = R * 0.34;
+                    s.BeginFigure(new(cx, cy - a), true, true);
+                    s.LineTo(new(cx + b, cy - b), true, false); s.LineTo(new(cx + a, cy), true, false);
+                    s.LineTo(new(cx + b, cy + b), true, false); s.LineTo(new(cx, cy + a), true, false);
+                    s.LineTo(new(cx - b, cy + b), true, false); s.LineTo(new(cx - a, cy), true, false);
+                    s.LineTo(new(cx - b, cy - b), true, false);
+                    facets.Add((new(cx, cy - a), new(cx, cy + a))); facets.Add((new(cx - a, cy), new(cx + a, cy)));
+                    break;
+                }
+                case 2:   // shield / crest
+                {
+                    double w = R * 0.82;
+                    s.BeginFigure(new(cx - w, cy - R * 0.8), true, true);
+                    s.LineTo(new(cx + w, cy - R * 0.8), true, false);
+                    s.LineTo(new(cx + w, cy + R * 0.15), true, false);
+                    s.QuadraticBezierTo(new(cx + w, cy + R * 0.72), new(cx, cy + R), true, false);
+                    s.QuadraticBezierTo(new(cx - w, cy + R * 0.72), new(cx - w, cy + R * 0.15), true, false);
+                    facets.Add((new(cx, cy - R * 0.8), new(cx, cy + R * 0.92)));
+                    break;
+                }
+                default:  // hexagon rosette
+                {
+                    for (int i = 0; i < 6; i++)
+                    {
+                        double ang = Math.PI / 6 + i * Math.PI / 3;
+                        var p = new Point(cx + R * Math.Cos(ang), cy + R * Math.Sin(ang));
+                        if (i == 0) s.BeginFigure(p, true, true); else s.LineTo(p, true, false);
+                    }
+                    facets.Add((new(cx, cy - R), new(cx, cy + R)));
+                    break;
+                }
+            }
+        }
+        geo.Freeze();
+        dc.DrawGeometry(fill, edge, geo);
+        foreach (var (a, bpt) in facets) dc.DrawLine(facetPen, a, bpt);
+
+        // Sparkle highlight, upper-left.
+        var hi = new Pen(new SolidColorBrush(Color.FromArgb(175, 255, 255, 255)), Math.Max(0.9, d * 0.06));
+        hi.Freeze();
+        dc.DrawLine(hi, new Point(cx - R * 0.4, cy - R * 0.42), new Point(cx - R * 0.05, cy - R * 0.55));
+    }
+
     // --- footer (collector / rarity / set / artist) ------------------------
 
-    private static void DrawFooter(DrawingContext dc, CardModel card, TemplateSpec spec)
+    private static void DrawFooter(DrawingContext dc, CardModel card, TemplateSpec spec, bool onBorder)
     {
+        // "border" placement: a single tidy row sitting on the black bottom border (the border size is
+        // NOT changed — the text just rides on the existing rim in light ink).
+        if (onBorder)
+        {
+            double t = Math.Max(0, spec.BorderThickness);
+            if (t <= 8) return;
+            double bw = spec.CanvasWidth, bh = spec.CanvasHeight;
+            var line = string.Join("   ", new[] { BuildCollectorLine(card), BuildCreditLine(card) }.Where(s => s.Length > 0));
+            if (line.Length == 0) return;
+            var bfont = new FontSpec
+            {
+                Family = spec.CreditFont.Family, Size = Math.Min(spec.CreditFont.Size, t - 12),
+                Italic = spec.CreditFont.Italic, Align = "left", Color = "#ECECEC",
+            };
+            var bbrush = new SolidColorBrush(TemplateSpec.ParseColor(bfont.Color));
+            var band = new Rect(t + 12, bh - t, bw - 2 * (t + 12), t);
+            var bft = FitText(line, bfont, bfont.Size, 7, band.Width, bbrush);
+            dc.DrawText(bft, new Point(band.X, band.Y + (band.Height - bft.Height) / 2));
+            return;
+        }
+
         var bar = ToRect(spec.CreditBar);
 
         // Pick a footer color that reads against whatever it sits on. On framed styles it sits on the
         // frame color; if that's dark, switch to a light, shadowed footer so it never disappears.
         var font = spec.CreditFont;
+        // Pick a color that reads against the frame the footer sits on.
         if (!ArtText(spec))
         {
             var bg = TemplateSpec.ParseColor(spec.Colors.Frame);
@@ -172,8 +322,7 @@ public sealed class CardRenderer
         }
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
 
-        // Two tidy tiny lines (collector, then artist) — kept small so they sit fully on the card
-        // face and never spill onto the black border. Real cards print these very small.
+        // Two tidy tiny lines (collector, then artist), kept small on the card face.
         var lines = new[] { BuildCollectorLine(card), BuildCreditLine(card) }
             .Where(s => s.Length > 0).ToList();
         if (lines.Count == 0) return;
@@ -295,13 +444,13 @@ public sealed class CardRenderer
         scrim.Freeze();
         const double r = 10, grow = 4;
 
-        void Panel(Region region)
-        {
-            var box = Inset(ToRect(region), -grow);
-            dc.DrawRoundedRectangle(scrim, null, box, r, r);
-        }
+        // Title is a full-width color row that runs right up under the black border: it spans from the
+        // very top edge (0,0) across the full width, so the border (drawn later, on top) overlaps it
+        // uniformly on the top and both sides with no sliver of art peeking through above the scrim.
+        var titleBar = ToRect(spec.TitleBar);
+        dc.DrawRectangle(scrim, null,
+            new Rect(0, 0, spec.CanvasWidth, titleBar.Bottom + grow));
 
-        Panel(spec.TitleBar);
         // One panel spanning the type line down through the rules box.
         var type = ToRect(spec.TypeBar);
         var text = ToRect(spec.TextBox);
@@ -347,15 +496,25 @@ public sealed class CardRenderer
         double manaX = bar.Right - pad - manaWidth;
         double symY = bar.Y + (bar.Height - symSize) / 2;
         double cx = manaX;
+        var pipShadow = new SolidColorBrush(Color.FromArgb(90, 0, 0, 0));
+        pipShadow.Freeze();
         foreach (var t in manaTokens)
         {
             var sym = _symbols.GetSymbol(t.Value);
-            if (sym != null) dc.DrawImage(sym, new Rect(cx, symY, symSize, symSize));
+            if (sym != null)
+            {
+                // subtle drop shadow under each pip — down-LEFT, matching every panel (light from top-right)
+                dc.DrawEllipse(pipShadow, null,
+                    new Point(cx + symSize / 2 - 1.2, symY + symSize / 2 + 2.0), symSize * 0.48, symSize * 0.48);
+                dc.DrawImage(sym, new Rect(cx, symY, symSize, symSize));
+            }
             cx += symSize + symGap;
         }
 
-        // Title, left-aligned, auto-shrunk to fit remaining width.
-        double titleMaxW = (manaWidth > 0 ? manaX - 8 : bar.Right - pad) - (bar.X + pad);
+        // Title, left-aligned, auto-shrunk to fit remaining width. Keep a clear gap before the mana
+        // symbols so the name never crowds them (the title only ever shrinks, never grows past default).
+        double titleManaGap = 22;
+        double titleMaxW = (manaWidth > 0 ? manaX - titleManaGap : bar.Right - pad) - (bar.X + pad);
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(spec.TitleFont.Color));
         var ft = FitText(card.Name, spec.TitleFont, spec.TitleFont.Size, 16, titleMaxW, brush);
         double ty = bar.Y + (bar.Height - ft.Height) / 2;
@@ -386,6 +545,9 @@ public sealed class CardRenderer
     private static void DrawLegendaryCrown(DrawingContext dc, CardModel card, TemplateSpec spec)
     {
         if (ArtText(spec) || IsWave(spec)) return;   // art-forward + wave styles have their own crown
+        if (!string.Equals(spec.TopEmblem, "none", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(spec.TopEmblem)) return;   // a baked topper replaces the auto-crown
+        if (!spec.LegendaryCrown || string.Equals(spec.CrownStyle, "none", StringComparison.OrdinalIgnoreCase)) return;
         if (string.IsNullOrEmpty(card.TypeLine) ||
             !card.TypeLine.Contains("Legendary", StringComparison.OrdinalIgnoreCase)) return;
 
@@ -395,8 +557,24 @@ public sealed class CardRenderer
         var fill = new SolidColorBrush(gold);
         double baseY = bar.Y + 2, cx = (bar.X + bar.Right) / 2;
 
-        // A gentle gold arc hugging the top of the title, then a row of small leaves + center gem.
+        // A gentle gold arc hugging the top of the title.
         dc.DrawLine(new Pen(new SolidColorBrush(gold), 2), new Point(bar.X + 14, baseY), new Point(bar.Right - 14, baseY));
+
+        // "arc" style stops at the arc + a center gem; "leaves" adds the leafy row.
+        if (string.Equals(spec.CrownStyle, "arc", StringComparison.OrdinalIgnoreCase))
+        {
+            var g2 = new StreamGeometry();
+            using (var s = g2.Open())
+            {
+                s.BeginFigure(new Point(cx, baseY - 16), true, true);
+                s.LineTo(new Point(cx + 7, baseY - 8), true, false);
+                s.LineTo(new Point(cx, baseY), true, false);
+                s.LineTo(new Point(cx - 7, baseY - 8), true, false);
+            }
+            g2.Freeze();
+            dc.DrawGeometry(fill, edge, g2);
+            return;
+        }
 
         const int n = 11;
         double startX = bar.X + 24, span = bar.Width - 48, step = span / (n - 1);
@@ -443,15 +621,65 @@ public sealed class CardRenderer
     private static bool IsWave(TemplateSpec spec)
         => string.Equals(spec.FrameStyle, "wave", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>True when the art window is (nearly) the whole card — a full-bleed layout regardless of style.</summary>
+    private static bool IsFullBleedWindow(TemplateSpec spec) =>
+        spec.ArtWindow != null && spec.ArtWindow.W >= spec.CanvasWidth * 0.92 && spec.ArtWindow.H >= spec.CanvasHeight * 0.92;
+
     /// <summary>Styles where the art fills the whole card and text sits on top of it.</summary>
-    private static bool ArtText(TemplateSpec spec) => spec.FullArt || IsBorderless(spec) || IsOverlay(spec);
+    private static bool ArtText(TemplateSpec spec) => spec.FullArt || IsBorderless(spec) || IsOverlay(spec) || IsFullBleedWindow(spec);
+
+    private static bool IsComposable(TemplateSpec spec) =>
+        string.Equals(spec.FrameStyle, "modern", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(spec.FrameStyle, "composable", StringComparison.OrdinalIgnoreCase);
+
+    private static Color DarkenC(Color c, double a)
+    {
+        byte D(byte v) => (byte)Math.Clamp(v * (1 - a), 0, 255);
+        return Color.FromRgb(D(c.R), D(c.G), D(c.B));
+    }
+
+    /// <summary>Where the P/T (or loyalty) box sits. On framed cards it nests in the bottom-right of the
+    /// description panel with a small even margin from the panel's right + bottom edges; on art-forward
+    /// cards it keeps the template's placement (it floats over the art). Size comes from the template.</summary>
+    private static Rect PtRect(TemplateSpec spec)
+    {
+        var rect = ToRect(spec.PtBox);
+        if (ArtText(spec)) return rect;
+        const double margin = 8;
+        var tb = ToRect(spec.EffectiveTextBox);
+        return new Rect(tb.Right - margin - rect.Width, tb.Bottom - margin - rect.Height, rect.Width, rect.Height);
+    }
 
     private static void DrawPtBox(DrawingContext dc, CardModel card, TemplateSpec spec)
     {
-        var rect = ToRect(spec.PtBox);
+        var rect = PtRect(spec);
         bool onArt = ArtText(spec);
         var borderColor = TemplateSpec.ParseColor(spec.Colors.PanelBorder);
         double r = Math.Max(7, spec.PanelRadius);
+
+        // Modern style: a thick 3D beveled box that matches the nameplates — a raised frame-colored band
+        // (bright top, dark bottom) around a recessed text area, with an inner bevel.
+        if (IsComposable(spec))
+        {
+            var frame2m = TemplateSpec.ParseColor(spec.Colors.Frame2);
+            var panelm = TemplateSpec.ParseColor(spec.Colors.Panel);
+            var dkm = DarkenC(borderColor, 0.05);
+            dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(90, 0, 0, 0)), null,
+                new Rect(rect.X - 2, rect.Y + 4, rect.Width, rect.Height), r, r);
+            var bandm = new LinearGradientBrush(LightenC(frame2m, 0.42), DarkenC(frame2m, 0.22), new Point(0, 0), new Point(0, 1));
+            bandm.Freeze();
+            dc.DrawRoundedRectangle(bandm, new Pen(new SolidColorBrush(dkm), 3.5), rect, r, r);
+            dc.DrawLine(new Pen(new SolidColorBrush(LightenC(frame2m, 0.62)), 2), new Point(rect.X + r, rect.Y + 3), new Point(rect.Right - r, rect.Y + 3));
+            dc.DrawLine(new Pen(new SolidColorBrush(DarkenC(frame2m, 0.38)), 1.6), new Point(rect.X + r, rect.Bottom - 3), new Point(rect.Right - r, rect.Bottom - 3));
+            var innerm = Inset(rect, 7);
+            double irm = Math.Max(3, r - 4);
+            var innerFillm = new LinearGradientBrush(DarkenC(panelm, 0.06), LightenC(panelm, 0.05), new Point(0, 0), new Point(0, 1));
+            innerFillm.Freeze();
+            dc.DrawRoundedRectangle(innerFillm, new Pen(new SolidColorBrush(DarkenC(frame2m, 0.28)), 1.4), innerm, irm, irm);
+            dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(60, 0, 0, 0)), 1), new Point(innerm.X + 3, innerm.Y + 1.5), new Point(innerm.Right - 3, innerm.Y + 1.5));
+            DrawCentered(dc, $"{card.Power}/{card.Toughness}", innerm, spec.PtFont);
+            return;
+        }
 
         // Subtle drop shadow (bottom-left) so the box lifts off the frame without floating.
         dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(105, 0, 0, 0)), null,
@@ -483,6 +711,20 @@ public sealed class CardRenderer
             new Point(rect.X + r, rect.Y + 3), new Point(rect.Right - r, rect.Y + 3));
         dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(95, 0, 0, 0)), 1.4),
             new Point(rect.X + r, rect.Bottom - 3), new Point(rect.Right - r, rect.Bottom - 3));
+
+        // Optional inner bevel: an inset rim lit from the upper-left (light top-left → dark bottom-right).
+        if (spec.PtBevel)
+        {
+            var innerRect = Inset(rect, 5);
+            double ir = Math.Max(3, r - 5);
+            var bevel = new LinearGradientBrush(
+                Color.FromArgb(180, 255, 255, 255), Color.FromArgb(160, 0, 0, 0),
+                new Point(1, 0), new Point(0, 1));   // light top-right -> dark bottom-left (matches shadows)
+            bevel.Freeze();
+            var bevelPen = new Pen(bevel, 2.4);
+            bevelPen.Freeze();
+            dc.DrawRoundedRectangle(null, bevelPen, innerRect, ir, ir);
+        }
 
         DrawCentered(dc, $"{card.Power}/{card.Toughness}", rect, spec.PtFont);
     }
@@ -650,7 +892,7 @@ public sealed class CardRenderer
     private sealed class PwLayout
     {
         public List<Placed> Placed { get; } = new();
-        public List<(Rect rect, FormattedText cost)> Badges { get; } = new();
+        public List<(Rect rect, FormattedText cost, string text)> Badges { get; } = new();
         public List<double> Dividers { get; } = new();
         public double Height { get; set; }
     }
@@ -717,27 +959,39 @@ public sealed class CardRenderer
         return rows;
     }
 
-    private void DrawBadgedRows(DrawingContext dc, List<(string? cost, string text)> rows, TemplateSpec spec)
+    private void DrawBadgedRows(DrawingContext dc, List<(string? cost, string text)> rows, TemplateSpec spec, bool loyaltyShields = false)
     {
         if (rows.Count == 0) return;
 
         double pad = 18;
-        var box = new Rect(spec.TextBox.X + pad, spec.TextBox.Y + pad,
-            Math.Max(0, spec.TextBox.W - 2 * pad), Math.Max(0, spec.TextBox.H - 2 * pad));
+        var tb0 = spec.EffectiveTextBox;
+        var box = new Rect(tb0.X + pad, tb0.Y + pad,
+            Math.Max(0, tb0.W - 2 * pad), Math.Max(0, tb0.H - 2 * pad));
 
         PwLayout? best = null;
         for (double size = spec.RulesFont.Size; size >= 11; size -= 1)
         {
-            best = LayoutPw(rows, box, spec.RulesFont, size, spec.RulesSymbolSize * (size / spec.RulesFont.Size));
+            best = LayoutPw(rows, box, spec.RulesFont, size, spec.RulesSymbolSize * (size / spec.RulesFont.Size), loyaltyShields);
             if (best.Height <= box.Height) break;
         }
         if (best == null) return;
 
-        var badgeFill = new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x26));
-        foreach (var (rect, costFt) in best.Badges)
+        var badgeFill = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+        var badgeEdge = new Pen(Brushes.White, 2);
+        foreach (var (rect, costFt, text) in best.Badges)
         {
-            dc.DrawRoundedRectangle(badgeFill, null, rect, rect.Height * 0.28, rect.Height * 0.28);
-            dc.DrawText(costFt, new Point(rect.X + (rect.Width - costFt.Width) / 2, rect.Y + (rect.Height - costFt.Height) / 2));
+            double nudge = 0;
+            if (loyaltyShields)
+            {
+                int dir = text.StartsWith('+') ? 1 : (text.StartsWith('−') || text.StartsWith('-')) ? -1 : 0;
+                dc.DrawGeometry(badgeFill, badgeEdge, LoyaltyShape(rect, dir));
+                nudge = dir > 0 ? rect.Height * 0.12 : dir < 0 ? -rect.Height * 0.10 : 0;
+            }
+            else
+            {
+                dc.DrawRoundedRectangle(badgeFill, null, rect, rect.Height * 0.28, rect.Height * 0.28);
+            }
+            dc.DrawText(costFt, new Point(rect.X + (rect.Width - costFt.Width) / 2, rect.Y + (rect.Height - costFt.Height) / 2 + nudge));
         }
         foreach (var p in best.Placed)
         {
@@ -749,12 +1003,12 @@ public sealed class CardRenderer
             dc.DrawLine(dividerPen, new Point(box.X, d), new Point(box.Right, d));
     }
 
-    private PwLayout LayoutPw(List<(string? cost, string text)> rows, Rect box, FontSpec font, double fontSize, double symSize)
+    private PwLayout LayoutPw(List<(string? cost, string text)> rows, Rect box, FontSpec font, double fontSize, double symSize, bool loyaltyShields = false)
     {
         var L = new PwLayout();
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
         double lineHeight = fontSize * 1.34;
-        double badgeH = fontSize * 1.25;
+        double badgeH = loyaltyShields ? fontSize * 1.7 : fontSize * 1.25;   // shields are taller (pointed)
         double gap = fontSize * 0.5;
         double spaceWidth = MakeText(" ", font, fontSize, brush).WidthIncludingTrailingWhitespace;
         var badgeFont = new FontSpec { Family = "Segoe UI", Bold = true };
@@ -768,7 +1022,7 @@ public sealed class CardRenderer
             if (cost != null)
             {
                 costFt = MakeText(cost, badgeFont, fontSize * 0.95, Brushes.White);
-                badgeW = costFt.Width + fontSize * 0.9;
+                badgeW = loyaltyShields ? Math.Max(costFt.Width + fontSize * 0.9, badgeH * 1.05) : costFt.Width + fontSize * 0.9;
             }
 
             double startX = box.X + (cost != null ? badgeW + gap : 0);
@@ -786,7 +1040,7 @@ public sealed class CardRenderer
             }
 
             if (cost != null)
-                L.Badges.Add((new Rect(box.X, y + (lineHeight - badgeH) / 2, badgeW, badgeH), costFt!));
+                L.Badges.Add((new Rect(box.X, y + (lineHeight - badgeH) / 2, badgeW, badgeH), costFt!, cost!));
 
             double rowBottom = Math.Max(lineY + lineHeight, y + badgeH);
             y = rowBottom + fontSize * 0.4;
@@ -799,18 +1053,71 @@ public sealed class CardRenderer
 
     private static void DrawLoyalty(DrawingContext dc, CardModel card, TemplateSpec spec)
     {
-        var box = ToRect(spec.PtBox);
-        dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            new Pen(Brushes.White, 2.5), box, 10, 10);
+        // The starting-loyalty badge is a touch more compact than the P/T box, anchored to the same
+        // bottom-right corner so it still nests in the description panel.
+        var full = PtRect(spec);
+        double w = full.Width * 0.80, h = full.Height * 0.90;
+        var box = new Rect(full.Right - w, full.Bottom - h, w, h);
+
+        // Starting loyalty sits in a downward-pointing shield (matching the ability shields).
+        dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)), null, LoyaltyShape(new Rect(box.X - 3, box.Y + 4, box.Width, box.Height), -1));
+        dc.DrawGeometry(new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)), new Pen(Brushes.White, 2.5), LoyaltyShape(box, -1));
+
+        // Center the number on its true ink bounds within the shield's flat body (above the point), so it
+        // sits optically centered rather than floating high off the font's line-box padding.
+        double sh = box.Height * 0.30;   // matches LoyaltyShape's point-height fraction
         var ft = MakeText(card.Loyalty, new FontSpec { Family = "Georgia", Bold = true }, spec.PtFont.Size, Brushes.White);
-        dc.DrawText(ft, new Point(box.X + (box.Width - ft.Width) / 2, box.Y + (box.Height - ft.Height) / 2));
+        var bounds = ft.BuildGeometry(new Point(0, 0)).Bounds;
+        double x = box.X + box.Width / 2 - (bounds.X + bounds.Width / 2);
+        double y = box.Y + (box.Height - sh) / 2 + box.Height * 0.07 - (bounds.Y + bounds.Height / 2);
+        dc.DrawText(ft, new Point(x, y));
+    }
+
+    /// <summary>A loyalty badge silhouette: dir +1 = point up (activated), -1 = point down (cost / start),
+    /// 0 = a flat hexagon (neutral). Fills the given rect.</summary>
+    private static Geometry LoyaltyShape(Rect r, int dir)
+    {
+        double cx = r.X + r.Width / 2;
+        double sh = r.Height * 0.30;   // point height
+        var g = new StreamGeometry();
+        using (var s = g.Open())
+        {
+            if (dir > 0)   // point up
+            {
+                s.BeginFigure(new Point(cx, r.Y), true, true);
+                s.LineTo(new Point(r.Right, r.Y + sh), true, false);
+                s.LineTo(new Point(r.Right, r.Bottom), true, false);
+                s.LineTo(new Point(r.X, r.Bottom), true, false);
+                s.LineTo(new Point(r.X, r.Y + sh), true, false);
+            }
+            else if (dir < 0)   // point down
+            {
+                s.BeginFigure(new Point(r.X, r.Y), true, true);
+                s.LineTo(new Point(r.Right, r.Y), true, false);
+                s.LineTo(new Point(r.Right, r.Bottom - sh), true, false);
+                s.LineTo(new Point(cx, r.Bottom), true, false);
+                s.LineTo(new Point(r.X, r.Bottom - sh), true, false);
+            }
+            else   // neutral flat hexagon (points left/right)
+            {
+                double cy = r.Y + r.Height / 2, w = r.Width * 0.26;
+                s.BeginFigure(new Point(r.X, cy), true, true);
+                s.LineTo(new Point(r.X + w, r.Y), true, false);
+                s.LineTo(new Point(r.Right - w, r.Y), true, false);
+                s.LineTo(new Point(r.Right, cy), true, false);
+                s.LineTo(new Point(r.Right - w, r.Bottom), true, false);
+                s.LineTo(new Point(r.X + w, r.Bottom), true, false);
+            }
+        }
+        g.Freeze();
+        return g;
     }
 
     // --- adventure (creature + spell sub-box) -------------------------------
 
     private void DrawAdventure(DrawingContext dc, CardModel card, TemplateSpec spec)
     {
-        var tb = ToRect(spec.TextBox);
+        var tb = ToRect(spec.EffectiveTextBox);
         double advH = tb.Height * 0.44;
         var advRect = new Rect(tb.X + 10, tb.Y + 8, tb.Width - 20, advH - 14);
 
@@ -854,7 +1161,7 @@ public sealed class CardRenderer
         DrawTextBox(dc, card.AdventureText, "", advTextRegion, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize * 0.9);
 
         // creature rules below the sub-box
-        var rulesRegion = new Region { X = spec.TextBox.X, Y = tb.Y + advH, W = spec.TextBox.W, H = Math.Max(0, tb.Height - advH) };
+        var rulesRegion = new Region { X = tb.X, Y = tb.Y + advH, W = tb.Width, H = Math.Max(0, tb.Height - advH) };
         DrawTextBox(dc, card.RulesText, card.FlavorText, rulesRegion, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize);
     }
 

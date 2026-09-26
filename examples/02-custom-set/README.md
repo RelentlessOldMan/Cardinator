@@ -1,4 +1,4 @@
-# Example 01 · Build a custom set from a spreadsheet
+# Example 02 · Build a custom set from a spreadsheet
 
 **The everyday flow: list the cards you want, point at your art, get a finished set + a print sheet.**
 

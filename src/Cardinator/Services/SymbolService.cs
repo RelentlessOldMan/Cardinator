@@ -293,11 +293,26 @@ public sealed class SymbolService
 
     // --- token helpers ------------------------------------------------------
 
+    // Scryfall's canonical two-color hybrid order (guild order). Cards may type either order.
+    private static readonly HashSet<string> Guilds = new(StringComparer.Ordinal)
+        { "W/U", "U/B", "B/R", "R/G", "G/W", "W/B", "U/R", "B/G", "R/W", "G/U" };
+
     private static string Normalize(string token)
     {
         var s = token.Trim();
         if (s.StartsWith('{') && s.EndsWith('}')) s = s[1..^1];
-        return s.Trim().ToUpperInvariant();
+        s = s.Trim().ToUpperInvariant();
+        // Canonicalize a reversed two-color hybrid (e.g. "G/R" -> "R/G") so it matches Scryfall + the cache.
+        if (s.Contains('/'))
+        {
+            var parts = s.Split('/');
+            if (parts.Length == 2 && !Guilds.Contains(s))
+            {
+                var rev = parts[1] + "/" + parts[0];
+                if (Guilds.Contains(rev)) return rev;
+            }
+        }
+        return s;
     }
 
     private static string SafeFile(string inner)

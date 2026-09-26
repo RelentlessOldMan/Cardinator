@@ -32,6 +32,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool _dirty;
     private bool _loading;                 // suppress dirty-tracking while populating a project
 
+    // Undo/redo: full-project snapshots (serialized cards + selected index). A debounced commit coalesces
+    // rapid edits into one step; discrete changes (add/delete/import/lookup/art) are captured too because
+    // they trip either the card's PropertyChanged or the Cards collection change.
+    private readonly List<(string json, int sel)> _history = new();
+    private int _histIdx = -1;
+    private DispatcherTimer _undoTimer = null!;
+    private bool _restoring;
+    private static readonly System.Text.Json.JsonSerializerOptions SnapOpts =
+        new() { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+
     public MainWindow()
     {
         _renderer = new CardRenderer(_symbols);
@@ -41,11 +51,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _renderTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
         _renderTimer.Tick += (_, _) => { _renderTimer.Stop(); RenderPreview(); };
 
+        _undoTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(650) };
+        _undoTimer.Tick += (_, _) => { _undoTimer.Stop(); CommitHistory(); };
+
         Templates = new(_templates.LoadAll());
         _selectedTemplate = Templates.FirstOrDefault();
 
         Cards = new();
-        Cards.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(ProjectSummary)); MarkDirty(); };
+        Cards.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(ProjectSummary)); MarkDirty(); QueueUndoCommit(); };
 
         _loading = true;
         var first = SampleCards.All(DefaultTemplateName).First().Clone();
@@ -53,6 +66,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SelectedCard = first;
         _loading = false;
         Dirty = false;
+        SeedHistory();
 
         // Download authentic Scryfall symbols in the background; re-render as they arrive.
         _symbols.Updated += () => Dispatcher.Invoke(RenderPreview);
@@ -121,6 +135,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         set { _exportProgress = value; OnPropertyChanged(); }
     }
 
+    private string _validationSummary = "";
+    /// <summary>A one-line health line for the selected card (e.g. "✓ No issues" or "⚠ 1 error · 2 warnings").</summary>
+    public string ValidationSummary
+    {
+        get => _validationSummary;
+        private set { _validationSummary = value; OnPropertyChanged(); }
+    }
+
+    private string _validationDetails = "";
+    /// <summary>The bulleted list of warnings/errors for the selected card (empty when it's clean).</summary>
+    public string ValidationDetails
+    {
+        get => _validationDetails;
+        private set { _validationDetails = value; OnPropertyChanged(); }
+    }
+
+    private bool _hasValidationIssues;
+    /// <summary>Whether to show the detail list (there's at least one warning or error).</summary>
+    public bool HasValidationIssues
+    {
+        get => _hasValidationIssues;
+        private set { _hasValidationIssues = value; OnPropertyChanged(); }
+    }
+
     public string ProjectSummary => $"{_projectName} — {Cards.Count} {(Cards.Count == 1 ? "card" : "cards")}";
 
     public string WindowTitle => (_dirty ? "● " : "") + _projectName + " — Cardinator";
@@ -143,11 +181,153 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         MarkDirty();
         _renderTimer.Stop();
         _renderTimer.Start();   // debounce rapid edits (typing, slider drags)
+        QueueUndoCommit();
+    }
+
+    // --- undo / redo --------------------------------------------------------
+
+    /// <summary>Whether there's a prior state to step back to.</summary>
+    public bool CanUndo => _histIdx > 0;
+    /// <summary>Whether there's a forward state to redo.</summary>
+    public bool CanRedo => _histIdx >= 0 && _histIdx < _history.Count - 1;
+
+    private void SeedHistory()
+    {
+        _history.Clear();
+        _history.Add((SnapshotJson(), SelectedIndex()));
+        _histIdx = 0;
+        UpdateUndoRedo();
+    }
+
+    private int SelectedIndex() => _selectedCard != null ? Cards.IndexOf(_selectedCard) : -1;
+    private string SnapshotJson() => System.Text.Json.JsonSerializer.Serialize(Cards.ToList(), SnapOpts);
+
+    /// <summary>Restart the debounce so a burst of edits becomes a single undo step.</summary>
+    private void QueueUndoCommit()
+    {
+        if (_restoring || _loading) return;
+        _undoTimer.Stop();
+        _undoTimer.Start();
+    }
+
+    /// <summary>Capture the current project state as a new history entry (no-op if nothing changed).</summary>
+    internal void CommitHistory()
+    {
+        if (_restoring || _loading) return;
+        _undoTimer.Stop();
+        var json = SnapshotJson();
+        int sel = SelectedIndex();
+        if (_histIdx >= 0 && _history[_histIdx].json == json && _history[_histIdx].sel == sel) return;
+        if (_histIdx < _history.Count - 1)
+            _history.RemoveRange(_histIdx + 1, _history.Count - _histIdx - 1);   // drop the redo tail
+        _history.Add((json, sel));
+        _histIdx = _history.Count - 1;
+        const int cap = 60;
+        while (_history.Count > cap) { _history.RemoveAt(0); _histIdx--; }
+        UpdateUndoRedo();
+    }
+
+    private void RestoreSnapshot((string json, int sel) snap)
+    {
+        _restoring = true;
+        try
+        {
+            var cards = System.Text.Json.JsonSerializer.Deserialize<List<CardModel>>(snap.json, SnapOpts) ?? new();
+            if (_selectedCard != null) _selectedCard.PropertyChanged -= OnCardChanged;
+            Cards.Clear();
+            foreach (var c in cards) Cards.Add(c);
+            _selectedCard = null;
+            SelectedCard = (snap.sel >= 0 && snap.sel < Cards.Count) ? Cards[snap.sel] : Cards.FirstOrDefault();
+        }
+        finally { _restoring = false; }
+        OnPropertyChanged(nameof(ProjectSummary));
+        MarkDirty();
+    }
+
+    public void Undo()
+    {
+        CommitHistory();               // flush any pending edit so it can be redone
+        if (_histIdx <= 0) return;
+        _histIdx--;
+        RestoreSnapshot(_history[_histIdx]);
+        UpdateUndoRedo();
+        Status = "Undo.";
+    }
+
+    public void Redo()
+    {
+        CommitHistory();               // flush any pending edit first (a new edit correctly cancels redo)
+        if (_histIdx >= _history.Count - 1) return;
+        _histIdx++;
+        RestoreSnapshot(_history[_histIdx]);
+        UpdateUndoRedo();
+        Status = "Redo.";
+    }
+
+    private void OnUndo(object sender, RoutedEventArgs e) => Undo();
+    private void OnRedo(object sender, RoutedEventArgs e) => Redo();
+
+    private void OnMoveUp(object sender, RoutedEventArgs e) => MoveSelected(-1);
+    private void OnMoveDown(object sender, RoutedEventArgs e) => MoveSelected(+1);
+
+    /// <summary>Assigns collector numbers in list order: 001/N, 002/N, … (zero-padded to N's width).</summary>
+    private void OnNumberCards(object sender, RoutedEventArgs e)
+    {
+        int total = Cards.Count;
+        if (total == 0) { Status = "No cards to number."; return; }
+        int width = total.ToString().Length;
+        for (int i = 0; i < total; i++)
+            Cards[i].CollectorNumber = $"{(i + 1).ToString().PadLeft(width, '0')}/{total}";
+        MarkDirty();
+        CommitHistory();
+        RenderPreview();
+        Status = $"Numbered {total} card(s) (001/{total} style).";
+    }
+
+    /// <summary>Sets the same set code / artist / rarity / copyright / frame on every card at once.</summary>
+    private void OnBulkEdit(object sender, RoutedEventArgs e)
+    {
+        if (Cards.Count == 0) { Status = "No cards to edit."; return; }
+        var dlg = new BulkEditWindow(Templates.Select(t => t.Name)) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+
+        foreach (var c in Cards)
+        {
+            if (dlg.SetCode != null) c.SetCode = dlg.SetCode;
+            if (dlg.Artist != null) c.Artist = dlg.Artist;
+            if (dlg.Rarity != null) c.Rarity = dlg.Rarity;
+            if (dlg.Copyright != null) c.Copyright = dlg.Copyright;
+            if (dlg.TemplateName != null) c.TemplateName = dlg.TemplateName;
+            if (dlg.SetSymbolPath != null) c.SetSymbolPath = dlg.SetSymbolPath;
+        }
+        MarkDirty();
+        CommitHistory();
+        RenderPreview();
+        Status = $"Applied changes to {Cards.Count} card(s).";
+    }
+
+    private void MoveSelected(int delta)
+    {
+        if (_selectedCard == null) return;
+        int i = Cards.IndexOf(_selectedCard);
+        int j = i + delta;
+        if (i < 0 || j < 0 || j >= Cards.Count) return;
+        Cards.Move(i, j);
+        CardList.SelectedItem = _selectedCard;   // keep the moved card selected/highlighted
+        MarkDirty();
+        CommitHistory();
+        Status = "Reordered cards.";
+    }
+
+    private void UpdateUndoRedo()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
     }
 
     private void RenderPreview()
     {
-        if (_selectedCard == null) { PreviewImage = null; return; }
+        if (_selectedCard == null) { PreviewImage = null; UpdateValidation(); return; }
         var template = _selectedTemplate ?? Templates.FirstOrDefault();
         if (template == null) return;
         try
@@ -158,6 +338,43 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Status = "Preview error: " + ex.Message;
         }
+        UpdateValidation();
+    }
+
+    /// <summary>Runs the automated checks on the selected card and updates the CHECKS panel. Cheap
+    /// (no rendering), so it runs on every edit alongside the live preview — the friend sees problems
+    /// (missing art, bad symbols, overlaps, duplicate collector numbers) as they happen, not on export.</summary>
+    private void UpdateValidation()
+    {
+        var card = _selectedCard;
+        var template = _selectedTemplate ?? Templates.FirstOrDefault();
+        if (card == null || template == null)
+        {
+            ValidationSummary = ""; ValidationDetails = ""; HasValidationIssues = false;
+            return;
+        }
+
+        var issues = CardValidator.Validate(card, template.Spec, Cards);
+        int errors = issues.Count(i => i.Severity == IssueSeverity.Error);
+        int warns = issues.Count(i => i.Severity == IssueSeverity.Warning);
+
+        if (errors == 0 && warns == 0)
+        {
+            ValidationSummary = "✓ No issues";
+            ValidationDetails = "";
+            HasValidationIssues = false;
+            return;
+        }
+
+        var parts = new List<string>();
+        if (errors > 0) parts.Add($"{errors} error{(errors > 1 ? "s" : "")}");
+        if (warns > 0) parts.Add($"{warns} warning{(warns > 1 ? "s" : "")}");
+        ValidationSummary = "⚠ " + string.Join(" · ", parts);
+        ValidationDetails = string.Join("\n", issues
+            .Where(i => i.Severity != IssueSeverity.Info)
+            .OrderByDescending(i => i.Severity)
+            .Select(i => "• " + i.Message));
+        HasValidationIssues = true;
     }
 
     private void AddAndSelect(CardModel card)
@@ -209,6 +426,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(ProjectSummary));
         OnPropertyChanged(nameof(WindowTitle));
         Status = "Started a new project.";
+        SeedHistory();
     }
 
     private void OnOpenProject(object sender, RoutedEventArgs e)
@@ -242,6 +460,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OnPropertyChanged(nameof(ProjectSummary));
             OnPropertyChanged(nameof(WindowTitle));
             Status = $"Opened project with {Cards.Count} card(s).";
+            SeedHistory();
         }
         catch (Exception ex)
         {
@@ -463,6 +682,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async void OnExportSheet(object sender, RoutedEventArgs e)
     {
         if (Cards.Count == 0) { Status = "No cards to export."; return; }
+
+        // Offer double-sided (adds a mirrored back page after each front page for duplex printing).
+        var duplexAnswer = MessageBox.Show(this,
+            "Include card backs for double-sided printing?\n\nYes  — front + back pages (flip on the long edge)\nNo   — fronts only",
+            "Print sheet", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        if (duplexAnswer == MessageBoxResult.Cancel) return;
+        bool doubleSided = duplexAnswer == MessageBoxResult.Yes;
+
         var dlg = new OpenFolderDialog { Title = "Choose a folder for the printable sheet pages" };
         if (dlg.ShowDialog() != true) return;
 
@@ -482,11 +709,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             var paths = await RunStaAsync(() =>
             {
-                var pages = SheetExporter.Compose(cardsSnapshot, templatesSnapshot, symbols, PageSpec.Letter, strProgress);
+                var pages = doubleSided
+                    ? SheetExporter.ComposeDoubleSided(cardsSnapshot, templatesSnapshot, symbols, PageSpec.Letter, BackRenderer.Render(supersample: 1), strProgress)
+                    : SheetExporter.Compose(cardsSnapshot, templatesSnapshot, symbols, PageSpec.Letter, strProgress);
                 return SheetExporter.Save(pages, folder);
             });
             ExportProgress = 100;
-            Status = $"Saved {paths.Count} sheet page(s) (3x3) to {folder}.";
+            Status = doubleSided
+                ? $"Saved {paths.Count} page(s) — front+back, {folder}."
+                : $"Saved {paths.Count} sheet page(s) (3x3) to {folder}.";
         }
         catch (Exception ex)
         {
@@ -537,6 +768,27 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch (Exception ex)
         {
             Status = "Couldn't import frame: " + ex.Message;
+        }
+    }
+
+    /// <summary>Opens the frame-design editor for the selected template; regenerates + re-renders on Apply.</summary>
+    private void OnFrameDesign(object sender, RoutedEventArgs e)
+    {
+        var t = _selectedTemplate ?? Templates.FirstOrDefault();
+        if (t == null) { Status = "No frame selected to design."; return; }
+        try
+        {
+            var win = new FrameDesignWindow(t) { Owner = this };
+            if (win.ShowDialog() == true)
+            {
+                RefreshTemplates(win.AppliedTemplateName);
+                RenderPreview();
+                Status = $"Updated frame design for \"{win.AppliedTemplateName}\".";
+            }
+        }
+        catch (Exception ex)
+        {
+            Status = "Frame design failed: " + ex.Message;
         }
     }
 
@@ -890,7 +1142,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             e.Handled = true;
             return;
         }
-        if (System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.Control) return;
+        var mods = System.Windows.Input.Keyboard.Modifiers;
+        // Ctrl+Shift+Z is a common "redo" alias.
+        if (mods == (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift)
+            && e.Key == System.Windows.Input.Key.Z)
+        {
+            Redo(); e.Handled = true; return;
+        }
+        if (mods != System.Windows.Input.ModifierKeys.Control) return;
         switch (e.Key)
         {
             case System.Windows.Input.Key.N: OnNewProject(sender, e); e.Handled = true; break;
@@ -899,6 +1158,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             case System.Windows.Input.Key.E: OnExport(sender, e); e.Handled = true; break;
             case System.Windows.Input.Key.L: OnLookup(sender, e); e.Handled = true; break;
             case System.Windows.Input.Key.D: OnDuplicateCard(sender, e); e.Handled = true; break;
+            case System.Windows.Input.Key.Z: Undo(); e.Handled = true; break;
+            case System.Windows.Input.Key.Y: Redo(); e.Handled = true; break;
         }
     }
 

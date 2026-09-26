@@ -1,4 +1,5 @@
 using System.IO;
+using System.Windows;
 using System.Windows.Media.Imaging;
 using Cardinator.Models;
 using Cardinator.Services;
@@ -65,6 +66,55 @@ public class BatchSheetTests
             Assert.True(Math.Abs(pages[0].DpiX - 300) < 0.5);
             Assert.True(TestHelpers.HasContent(pages[0]));
         });
+
+    [Fact]
+    public void Sheet_DoubleSided_InterleavesFrontAndBackPages()
+        => TestHelpers.RunSta(() =>
+        {
+            var templates = new TemplateService().LoadAll();
+            var symbols = new SymbolService();
+            var cards = SampleSet(templates[0].Name);   // 3 cards -> 1 front page
+            var back = BackRenderer.Render(supersample: 1);
+
+            var pages = SheetExporter.ComposeDoubleSided(cards, templates, symbols, PageSpec.Letter, back);
+
+            Assert.Equal(2, pages.Count);                       // 1 front + 1 back
+            Assert.Equal(2550, pages[0].PixelWidth);
+            Assert.True(TestHelpers.HasContent(pages[0]));      // fronts
+            Assert.True(TestHelpers.HasContent(pages[1]));      // backs
+        });
+
+    [Fact]
+    public void Sheet_DoubleSided_MirrorsBackColumns()
+        => TestHelpers.RunSta(() =>
+        {
+            var templates = new TemplateService().LoadAll();
+            var symbols = new SymbolService();
+            // One card fills front slot 0 (top-LEFT). Its back must land in the top-RIGHT slot so a
+            // long-edge flip lines them up.
+            var cards = new List<CardModel> { new() { Name = "Solo", TypeLine = "Creature — Test", Power = "1", Toughness = "1", TemplateName = templates[0].Name } };
+            var back = BackRenderer.Render(supersample: 1);
+
+            var pages = SheetExporter.ComposeDoubleSided(cards, templates, symbols, PageSpec.Letter, back);
+            var backPage = pages[1];
+
+            // Cell centers: 3 cols, CardW=750, gridW=2250, marginX=150, marginY=75, CardH=1050.
+            var topLeft = PixelAt(backPage, 150 + 375, 75 + 525);
+            var topRight = PixelAt(backPage, 150 + 2 * 750 + 375, 75 + 525);
+
+            Assert.True(NearWhite(topLeft));    // front was left → back-left must be blank
+            Assert.False(NearWhite(topRight));  // back art mirrored to the right
+        });
+
+    private static byte[] PixelAt(BitmapSource bs, int x, int y)
+    {
+        var c = new CroppedBitmap(bs, new Int32Rect(x, y, 1, 1));
+        var p = new byte[4];
+        c.CopyPixels(p, 4, 0);
+        return p;   // BGRA
+    }
+
+    private static bool NearWhite(byte[] p) => p[0] > 240 && p[1] > 240 && p[2] > 240;
 
     [Fact]
     public void Sheet_Compose_A4_HasExpectedDimensions()

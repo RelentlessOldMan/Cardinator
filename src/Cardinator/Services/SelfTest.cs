@@ -1,4 +1,5 @@
 using System.IO;
+using Cardinator.Models;
 
 namespace Cardinator.Services;
 
@@ -229,6 +230,77 @@ public static class SelfTest
         }
     }
 
+    /// <summary>
+    /// Renders one card across every on/off permutation of the composable frame knobs (background,
+    /// connected panels, taper, faded edges, regal topper) so the combinations can be eyeballed.
+    /// </summary>
+    public static int RunPermute(string cardJsonPath, string outDir)
+    {
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var card = Cardinator.Models.CardModel.Load(cardJsonPath);
+            var templates = new TemplateService().LoadAll();
+            var baseTpl = templates.FirstOrDefault(t => t.Name == card.TemplateName) ?? templates[0];
+            var specPath = Path.Combine(Path.GetDirectoryName(baseTpl.FramePath)!, "template.json");
+
+            var symbols = new SymbolService();
+            Task.Run(() => symbols.PrimeAsync(ManaText.SymbolTokens(card.ManaCost, card.RulesText))).GetAwaiter().GetResult();
+            var renderer = new CardRenderer(symbols);
+
+            var knobs = new (string label, Action<Cardinator.Models.TemplateSpec, bool> set)[]
+            {
+                ("bg",    (s, v) => s.PanelBackground = v),
+                ("conn",  (s, v) => s.ConnectedPanels = v),
+                ("taper", (s, v) => s.BottomTaper = v),
+                ("faded", (s, v) => s.FadedEdges = v),
+                ("regal", (s, v) => s.TopEmblem = v ? "regal" : "none"),
+            };
+            int n = knobs.Length, total = 1 << n;
+            var tmpFrame = Path.Combine(Path.GetTempPath(), "cardinator-perm-frame.png");
+
+            for (int mask = 0; mask < total; mask++)
+            {
+                var spec = Cardinator.Models.TemplateSpec.Load(specPath);
+                spec.FrameStyle = "composable";
+                var parts = new List<string>();
+                for (int i = 0; i < n; i++)
+                {
+                    bool on = (mask & (1 << i)) != 0;
+                    knobs[i].set(spec, on);
+                    if (on) parts.Add(knobs[i].label);
+                }
+                FrameGenerator.Generate(spec, tmpFrame);
+                var img = LoadFrozen(tmpFrame);
+                var tpl = new Template { Name = spec.Name, Spec = spec, FramePath = tmpFrame, FrameImage = img };
+                var bmp = renderer.RenderToBitmap(card, tpl, 1);
+                var label = parts.Count == 0 ? "plain" : string.Join("+", parts);
+                CardExporter.Save(bmp, Path.Combine(outDir, $"perm_{mask:D2}_{label}.png"), 92);
+                Console.WriteLine($"{mask:D2}  {label}");
+            }
+            Console.WriteLine($"Wrote {total} permutations to {outDir}.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Permute FAILED: " + ex);
+            return 1;
+        }
+    }
+
+    private static System.Windows.Media.Imaging.BitmapImage LoadFrozen(string path)
+    {
+        var bytes = File.ReadAllBytes(path);
+        var img = new System.Windows.Media.Imaging.BitmapImage();
+        img.BeginInit();
+        img.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+        img.CreateOptions = System.Windows.Media.Imaging.BitmapCreateOptions.IgnoreColorProfile;
+        img.StreamSource = new MemoryStream(bytes);
+        img.EndInit();
+        img.Freeze();
+        return img;
+    }
+
     /// <summary>Reads an "name=value" integer option from the extra CLI args.</summary>
     private static int OptInt(string[] opts, string name, int fallback)
     {
@@ -367,6 +439,191 @@ public static class SelfTest
             return 1;
         }
     }
+
+    // ------------------------------------------------------------------ QA harness
+
+    private sealed record QaResult(string Label, string Template, System.Windows.Media.Imaging.BitmapSource Bmp,
+        List<ValidationIssue> Issues);
+
+    /// <summary>
+    /// Visual QA harness: renders a matrix of every card layout across the frames, runs the model-,
+    /// geometry- and pixel-level checks on each, and writes labelled contact sheets plus a findings
+    /// report. This is what replaces eyeballing every card by hand — regressions surface automatically.
+    /// </summary>
+    public static int RunQa(string outDir)
+    {
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var templates = new TemplateService().LoadAll();
+            if (templates.Count == 0) { Console.Error.WriteLine("QA: no templates."); return 2; }
+
+            var symbols = new SymbolService();
+            var renderer = new CardRenderer(symbols);
+
+            // Solid art so windows aren't blank (and the art-blank check has something to verify).
+            var artPath = Path.Combine(outDir, "_qa_art.png");
+            MakeSolidArt(artPath);
+
+            var layoutCards = QaLayoutCards(artPath);
+            var tokens = layoutCards.Select(c => c.card).SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)).Distinct().ToList();
+            Task.Run(() => symbols.PrimeAsync(tokens)).GetAwaiter().GetResult();
+
+            var all = new List<CardModel>();
+            all.AddRange(layoutCards.Select(c => c.card));
+
+            var layoutResults = new List<QaResult>();
+            foreach (var (card, tplName, label) in layoutCards)
+            {
+                var tpl = templates.FirstOrDefault(t => t.Name == tplName) ?? templates[0];
+                layoutResults.Add(RenderAndInspect(renderer, card, tpl, label, all));
+            }
+
+            // Frame coverage: one standard creature on every installed frame.
+            var frameResults = new List<QaResult>();
+            int fn = 100;
+            foreach (var tpl in templates)
+            {
+                var c = QaCreature(artPath);
+                c.CollectorNumber = (fn++).ToString();   // unique so the duplicate check stays quiet
+                c.TemplateName = tpl.Name;
+                frameResults.Add(RenderAndInspect(renderer, c, tpl, tpl.Name, all));
+            }
+
+            BuildContactSheet(layoutResults, Path.Combine(outDir, "qa-layouts.png"), "Layout coverage");
+            BuildContactSheet(frameResults, Path.Combine(outDir, "qa-frames.png"), "Frame coverage");
+
+            var report = new List<string> { "CARDINATOR QA REPORT", "====================", "" };
+            int errors = 0, warns = 0;
+            foreach (var r in layoutResults.Concat(frameResults))
+            {
+                foreach (var i in r.Issues)
+                {
+                    if (i.Severity == IssueSeverity.Error) errors++;
+                    else if (i.Severity == IssueSeverity.Warning) warns++;
+                }
+                if (r.Issues.Count > 0)
+                {
+                    report.Add($"{r.Label}  [{r.Template}]");
+                    foreach (var i in r.Issues.OrderByDescending(x => x.Severity))
+                        report.Add($"    {i}");
+                    report.Add("");
+                }
+            }
+            report.Insert(2, $"{layoutResults.Count + frameResults.Count} renders · {errors} error(s) · {warns} warning(s)");
+            report.Insert(3, "");
+            File.WriteAllText(Path.Combine(outDir, "QA-REPORT.txt"), string.Join("\n", report));
+
+            Console.WriteLine($"QA: {layoutResults.Count + frameResults.Count} renders, {errors} error(s), {warns} warning(s).");
+            Console.WriteLine($"Wrote qa-layouts.png, qa-frames.png, QA-REPORT.txt to {outDir}.");
+            return errors > 0 ? 3 : 0;
+        }
+        catch (Exception ex) { Console.Error.WriteLine("QA FAILED: " + ex); return 1; }
+    }
+
+    private static QaResult RenderAndInspect(CardRenderer renderer, CardModel card, Template tpl, string label, IReadOnlyCollection<CardModel> project)
+    {
+        card.TemplateName = tpl.Name;
+        var bmp = renderer.RenderToBitmap(card, tpl, supersample: 1);
+        bmp.Freeze();
+        var issues = new List<ValidationIssue>();
+        issues.AddRange(CardValidator.Validate(card, tpl.Spec, project));
+        issues.AddRange(RenderInspector.Inspect(bmp, card, tpl.Spec));
+        return new QaResult(label, tpl.Name, bmp, issues);
+    }
+
+    private static List<(CardModel card, string tplName, string label)> QaLayoutCards(string art)
+    {
+        int n = 0;
+        CardModel C(string name, string mana, string type, string rules, string art2 = "",
+            string pow = "", string tou = "", string loy = "", string flavor = "") => new()
+        {
+            Name = name, ManaCost = mana, TypeLine = type, RulesText = rules, FlavorText = flavor,
+            Power = pow, Toughness = tou, Loyalty = loy, ArtPath = art2,
+            SetCode = "QA", CollectorNumber = (++n).ToString(), Rarity = "R", Artist = "QA Harness",
+        };
+        return new()
+        {
+            (C("QA Creature", "{2}{G}", "Creature — Beast", "Trample\n{T}: Add {G}.", art, "3", "3", flavor: "A test of the wilds."), "Crimson Red", "Creature"),
+            (C("QA Legend", "{1}{W}{B}", "Legendary Creature — Human Knight", "First strike, vigilance.", art, "2", "4"), "Gold Multicolor", "Legendary creature"),
+            (C("QA Walker", "{3}{U}", "Legendary Planeswalker — Tester", "+1: Draw a card.\n-2: Return target creature to its owner's hand.\n-7: Take an extra turn.", art, loy: "4"), "Planeswalker", "Planeswalker"),
+            (C("QA Saga", "{2}{G}", "Enchantment — Saga", "I, II — Search your library for a Forest.\nIII — Create a 5/5 Wurm.", art), "Showcase", "Saga"),
+            (C("QA Class", "{1}{B}", "Enchantment — Class", "At the start, gain 1 life.\n{2}: Level 2\nEach opponent loses 1 life.", art), "Azure Modern", "Class"),
+            (C("QA Artifact", "{4}", "Legendary Artifact — Equipment", "Equipped creature gets +1/+1.\nEquip {2}", art, flavor: "Cold to the touch."), "Slate Artifact", "Artifact (no P/T)"),
+            (C("QA Instant", "{1}{R}", "Instant", "Deal 3 damage to any target.", art, flavor: "Fast and bright."), "Ocean Blue", "Instant"),
+            (C("QA Hybrid", "{2}{G/R}{G/R}", "Creature — Elemental", "({G/R} can be paid with either {G} or {R}.)", art, "4", "4"), "Forest Green", "Hybrid mana"),
+            (C("QA Full Art", "{W}{U}{B}{R}{G}", "Legendary Creature — Avatar", "This spell can't be countered.", art, "7", "7"), "Full Art", "Full-art legend"),
+        };
+    }
+
+    private static CardModel QaCreature(string art) => new()
+    {
+        Name = "QA Creature", ManaCost = "{2}{R}", TypeLine = "Creature — Beast",
+        RulesText = "Haste\nWhenever this attacks, it gets +1/+0.", FlavorText = "Every frame, one beast.",
+        Power = "3", Toughness = "2", ArtPath = art, SetCode = "QA", CollectorNumber = "1", Rarity = "R", Artist = "QA Harness",
+    };
+
+    private static void MakeSolidArt(string path)
+    {
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            var g = new System.Windows.Media.LinearGradientBrush(
+                System.Windows.Media.Color.FromRgb(0x3A, 0x55, 0x74),
+                System.Windows.Media.Color.FromRgb(0x8A, 0x5A, 0x3A),
+                new System.Windows.Point(0, 0), new System.Windows.Point(1, 1));
+            dc.DrawRectangle(g, null, new System.Windows.Rect(0, 0, 900, 900));
+            dc.DrawEllipse(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(140, 255, 240, 200)),
+                null, new System.Windows.Point(450, 380), 200, 200);
+        }
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(900, 900, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(visual);
+        CardExporter.SavePng(rtb, path);
+    }
+
+    private static void BuildContactSheet(List<QaResult> items, string path, string title)
+    {
+        if (items.Count == 0) return;
+        int cols = 4, rows = (items.Count + cols - 1) / cols;
+        double tw = 250, th = tw * 1050 / 750, lab = 40, gap = 12, pad = 16, headH = 34;
+        double W = pad * 2 + cols * tw + (cols - 1) * gap;
+        double H = pad * 2 + headH + rows * (th + lab) + (rows - 1) * gap;
+
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(24, 24, 28)), null, new System.Windows.Rect(0, 0, W, H));
+            dc.DrawText(Text(title + $"  —  {items.Count} renders", 20, System.Windows.Media.Colors.White, true), new System.Windows.Point(pad, 8));
+            for (int i = 0; i < items.Count; i++)
+            {
+                int r = i / cols, c = i % cols;
+                double x = pad + c * (tw + gap), y = pad + headH + r * (th + lab + gap);
+                dc.DrawImage(items[i].Bmp, new System.Windows.Rect(x, y, tw, th));
+                var worst = items[i].Issues.Count == 0 ? IssueSeverity.Info : items[i].Issues.Max(z => z.Severity);
+                var (bg, tag) = worst switch
+                {
+                    IssueSeverity.Error => (System.Windows.Media.Color.FromRgb(0xB0, 0x30, 0x28), "FAIL"),
+                    IssueSeverity.Warning => (System.Windows.Media.Color.FromRgb(0xB0, 0x8A, 0x20), "WARN"),
+                    _ => (System.Windows.Media.Color.FromRgb(0x2E, 0x7D, 0x46), "PASS"),
+                };
+                dc.DrawRectangle(new System.Windows.Media.SolidColorBrush(bg), null, new System.Windows.Rect(x, y + th, tw, lab));
+                int nE = items[i].Issues.Count(z => z.Severity == IssueSeverity.Error);
+                int nW = items[i].Issues.Count(z => z.Severity == IssueSeverity.Warning);
+                string sub = nE + nW == 0 ? "" : $"  ({nE}E {nW}W)";
+                dc.DrawText(Text($"{tag}{sub}", 13, System.Windows.Media.Colors.White, true), new System.Windows.Point(x + 6, y + th + 3));
+                dc.DrawText(Text(items[i].Label, 12, System.Windows.Media.Color.FromRgb(0xE8, 0xE8, 0xEE), false), new System.Windows.Point(x + 6, y + th + 20));
+            }
+        }
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap((int)W, (int)H, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(visual);
+        CardExporter.SavePng(rtb, path);
+    }
+
+    private static System.Windows.Media.FormattedText Text(string s, double size, System.Windows.Media.Color color, bool bold) =>
+        new(s, System.Globalization.CultureInfo.InvariantCulture, System.Windows.FlowDirection.LeftToRight,
+            new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily("Segoe UI"),
+                System.Windows.FontStyles.Normal, bold ? System.Windows.FontWeights.Bold : System.Windows.FontWeights.Normal, System.Windows.FontStretches.Normal),
+            size, new System.Windows.Media.SolidColorBrush(color), 1.0);
 
     private static string Slug(string s) => TextUtil.Slug(s);
 }

@@ -40,6 +40,31 @@ public class GoldenTests
             FlavorText = "The road remembers every traveler.",
             SetCode = "GLD", CollectorNumber = "2", Rarity = "M", Artist = "Golden Test",
         }};
+        yield return new object[] { "planeswalker", "Planeswalker", new CardModel
+        {
+            Name = "Golden Seer", ManaCost = "{3}{U}", TypeLine = "Legendary Planeswalker — Seer",
+            RulesText = "+1: Draw a card.\n-2: Return target creature to its owner's hand.\n-7: Take an extra turn.",
+            Loyalty = "4", SetCode = "GLD", CollectorNumber = "3", Rarity = "M", Artist = "Golden Test",
+        }};
+        yield return new object[] { "saga", "Showcase", new CardModel
+        {
+            Name = "Golden Chronicle", ManaCost = "{2}{G}", TypeLine = "Enchantment — Saga",
+            RulesText = "I, II — Search your library for a Forest.\nIII — Create a 5/5 Wurm.",
+            SetCode = "GLD", CollectorNumber = "4", Rarity = "R", Artist = "Golden Test",
+        }};
+        yield return new object[] { "modern-class", "Azure Modern", new CardModel
+        {
+            Name = "Golden Order", ManaCost = "{1}{B}", TypeLine = "Enchantment — Class",
+            RulesText = "At the start, gain 1 life.\n{2}: Level 2\nEach opponent loses 1 life.",
+            SetCode = "GLD", CollectorNumber = "5", Rarity = "R", Artist = "Golden Test",
+        }};
+        yield return new object[] { "ornate-legend", "Gold Multicolor", new CardModel
+        {
+            Name = "Golden Warden", ManaCost = "{2}{W}{B}", TypeLine = "Legendary Creature — Knight",
+            RulesText = "First strike, vigilance.\nWhenever Golden Warden attacks, draw a card.",
+            FlavorText = "Duty is its own reward.", Power = "4", Toughness = "5",
+            SetCode = "GLD", CollectorNumber = "6", Rarity = "R", Artist = "Golden Test",
+        }};
     }
 
     [Theory]

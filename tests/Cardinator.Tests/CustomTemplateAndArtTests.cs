@@ -99,10 +99,12 @@ public class CustomTemplateAndArtTests
         {
             var templates = new TemplateService().LoadAll();
             var full = templates.FirstOrDefault(t => t.Spec.FullArt);
-            // A genuinely windowed frame — not full-art, and not the full-bleed styles (borderless/overlay).
+            // A genuinely windowed frame — not full-art, and whose art window is clearly inset (excludes
+            // borderless/overlay and any full-bleed-window composable layout).
             var framed = templates.FirstOrDefault(t => !t.Spec.FullArt
                 && !string.Equals(t.Spec.FrameStyle, "borderless", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(t.Spec.FrameStyle, "overlay", StringComparison.OrdinalIgnoreCase));
+                && !string.Equals(t.Spec.FrameStyle, "overlay", StringComparison.OrdinalIgnoreCase)
+                && t.Spec.ArtWindow.W < t.Spec.CanvasWidth * 0.92);
             Assert.NotNull(full);
             Assert.NotNull(framed);
 
@@ -112,12 +114,12 @@ public class CustomTemplateAndArtTests
                 var card = new CardModel { Name = "Edge", ArtPath = artPath };
                 var renderer = new CardRenderer(new SymbolService());
 
-                // A point near the left edge, below the title: art on full-art, frame on framed.
+                // A point just inside the black border, below the title: art on full-art, frame on framed.
                 var fullBmp = renderer.RenderToBitmap(card, full!, 1);
                 var framedBmp = renderer.RenderToBitmap(card, framed!, 1);
 
-                Assert.True(IsMagenta(Sample(fullBmp, 30, 520)), "full-art should bleed art to the edge");
-                Assert.False(IsMagenta(Sample(framedBmp, 30, 520)), "framed art should be inside its window only");
+                Assert.True(IsMagenta(Sample(fullBmp, 52, 520)), "full-art should bleed art to the edge");
+                Assert.False(IsMagenta(Sample(framedBmp, 52, 520)), "framed art should be inside its window only");
             }
             finally { File.Delete(artPath); }
         });
