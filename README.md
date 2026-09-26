@@ -46,8 +46,10 @@ tweak. **[See them all →](docs/TEMPLATES.md#the-built-in-frames)**
 ## Get it running
 
 ### The easy way (finished exe)
-1. Copy `Cardinator.exe` anywhere (e.g. a Desktop folder) and double-click it.
-2. On first run it creates a **`CardinatorData`** folder next to the exe (templates, mana symbols,
+1. **[⬇ Download the latest `Cardinator.exe`](https://github.com/RelentlessOldMan/Cardinator/releases/latest)**
+   from the Releases page. It's a single self-contained file — no install, no .NET runtime needed.
+2. Copy it anywhere (e.g. a Desktop folder) and double-click it.
+3. On first run it creates a **`CardinatorData`** folder next to the exe (templates, mana symbols,
    saved projects, exported PNGs). Move the exe + that folder together to take everything with you.
 
 ### From source
