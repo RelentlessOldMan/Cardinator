@@ -52,6 +52,11 @@ tweak. **[See them all →](docs/TEMPLATES.md#the-built-in-frames)**
 3. On first run it creates a **`CardinatorData`** folder next to the exe (templates, mana symbols,
    saved projects, exported PNGs). Move the exe + that folder together to take everything with you.
 
+> **First-run Windows warning:** because the exe isn't code-signed, Windows SmartScreen may show
+> *"Windows protected your PC."* Click **More info → Run anyway** — nothing is being installed. (To
+> avoid it entirely, right-click `Cardinator.exe` → **Properties** → tick **Unblock** → **OK** before
+> launching.) This is the normal warning for any new, unsigned app.
+
 ### From source
 Requires the **.NET 8 SDK** (Windows).
 
