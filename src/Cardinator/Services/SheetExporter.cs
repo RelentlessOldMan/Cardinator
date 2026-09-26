@@ -41,8 +41,10 @@ public static class SheetExporter
         IProgress<string>? progress = null)
     {
         if (templates.Count == 0) throw new InvalidOperationException("No templates available to compose a sheet.");
+        if (page.Cols * CardW > page.Width || page.Rows * CardH > page.Height)
+            throw new InvalidOperationException($"{page.Cols}x{page.Rows} cards don't fit on a {page.Width}x{page.Height} page.");
         var renderer = new CardRenderer(symbols);
-        var byName = templates.ToDictionary(t => t.Name, t => t);
+        var byName = templates.GroupBy(t => t.Name).ToDictionary(g => g.Key, g => g.First());   // first wins; never throws on dup names
         var fallback = templates[0];
 
         double gridW = page.Cols * CardW, gridH = page.Rows * CardH;
@@ -102,8 +104,10 @@ public static class SheetExporter
         IProgress<string>? progress = null)
     {
         if (templates.Count == 0) throw new InvalidOperationException("No templates available to compose a sheet.");
+        if (page.Cols * CardW > page.Width || page.Rows * CardH > page.Height)
+            throw new InvalidOperationException($"{page.Cols}x{page.Rows} cards don't fit on a {page.Width}x{page.Height} page.");
         var renderer = new CardRenderer(symbols);
-        var byName = templates.ToDictionary(t => t.Name, t => t);
+        var byName = templates.GroupBy(t => t.Name).ToDictionary(g => g.Key, g => g.First());   // first wins; never throws on dup names
         var fallback = templates[0];
         double gridW = page.Cols * CardW, gridH = page.Rows * CardH;
         double marginX = (page.Width - gridW) / 2, marginY = (page.Height - gridH) / 2;

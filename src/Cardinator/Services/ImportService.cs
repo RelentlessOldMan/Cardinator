@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.RegularExpressions;
 using Cardinator.Models;
 
 namespace Cardinator.Services;
@@ -44,9 +45,12 @@ public static class ImportService
 
     public static List<ImportedCard> Parse(string content, string? artBaseDir, string defaultTemplate)
     {
+        content = (content ?? "").TrimStart('﻿');   // strip a UTF-8 BOM so line 0 isn't polluted
         var rawLines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
         var lines = rawLines
-            .Where(l => l.Trim().Length > 0 && !l.TrimStart().StartsWith('#'))
+            .Where(l => l.Trim().Length > 0
+                        && !l.TrimStart().StartsWith('#')
+                        && !l.TrimStart().StartsWith("//"))   // deck-list comment lines
             .ToList();
         if (lines.Count == 0) return new();
 
@@ -69,31 +73,61 @@ public static class ImportService
 
     // --- plain list ---------------------------------------------------------
 
+    // Deck-list helpers: a leading quantity ("4 " / "2x "), a trailing "(SET) 123" printing hint, and
+    // common section headers. Set codes are required to be uppercase so real names ending in "(...)"
+    // (e.g. reminder-style names) aren't mistaken for a hint.
+    private static readonly Regex QtyPrefix = new(@"^(\d{1,3})\s*[xX]?\s+(.+)$", RegexOptions.Compiled);
+    private static readonly Regex SetHint = new(@"\s*\(([A-Z0-9]{2,6})\)\s*(\d+)?\s*$", RegexOptions.Compiled);
+    private static readonly HashSet<string> SectionHeaders =
+        new(StringComparer.OrdinalIgnoreCase) { "deck", "sideboard", "commander", "maybeboard", "companion" };
+
     private static List<ImportedCard> ParsePlain(List<string> lines, string? artBaseDir, string defaultTemplate)
     {
         var result = new List<ImportedCard>();
-        foreach (var line in lines)
+        foreach (var raw in lines)
         {
-            string name = line.Trim();
-            string art = "";
+            string line = raw.Trim();
+            if (SectionHeaders.Contains(line)) continue;                 // "Deck" / "Sideboard" headers
+            if (line.StartsWith("SB:", StringComparison.OrdinalIgnoreCase)) line = line[3..].Trim();
 
             // Allow "Name | art" or "Name <TAB> art".
-            int sep = name.IndexOf('\t');
-            if (sep < 0) sep = name.IndexOf('|');
+            string art = "";
+            int sep = line.IndexOf('\t');
+            if (sep < 0) sep = line.IndexOf('|');
             if (sep >= 0)
             {
-                art = name[(sep + 1)..].Trim();
-                name = name[..sep].Trim();
+                art = line[(sep + 1)..].Trim();
+                line = line[..sep].Trim();
             }
 
-            if (name.Length == 0) continue;
-            var card = new CardModel
+            // Leading quantity: "4 Lightning Bolt" / "2x Counterspell" -> N copies.
+            int qty = 1;
+            var q = QtyPrefix.Match(line);
+            if (q.Success) { qty = Math.Clamp(int.Parse(q.Groups[1].Value), 1, 99); line = q.Groups[2].Value.Trim(); }
+
+            // Trailing printing hint: "Lightning Bolt (M10) 146".
+            string setCode = "", collector = "";
+            var h = SetHint.Match(line);
+            if (h.Success)
             {
-                Name = name,
-                ArtPath = ResolveArt(art, artBaseDir),
-                TemplateName = defaultTemplate,
-            };
-            result.Add(new ImportedCard(card, NeedsLookup: true));
+                setCode = h.Groups[1].Value;
+                collector = h.Groups[2].Success ? h.Groups[2].Value : "";
+                line = line[..h.Index].Trim();
+            }
+
+            if (line.Length == 0) continue;
+            for (int i = 0; i < qty; i++)
+            {
+                var card = new CardModel
+                {
+                    Name = line,
+                    ArtPath = ResolveArt(art, artBaseDir),
+                    SetCode = setCode,
+                    CollectorNumber = collector,
+                    TemplateName = defaultTemplate,
+                };
+                result.Add(new ImportedCard(card, NeedsLookup: true));
+            }
         }
         return result;
     }

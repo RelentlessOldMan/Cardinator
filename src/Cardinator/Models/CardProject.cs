@@ -43,7 +43,7 @@ public sealed class CardProject
 
     public void Save(string path)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(this, JsonOpts));
+        // Atomic write: a crash/disk-full while overwriting must never corrupt the user's whole project.
+        Cardinator.Services.IoUtil.AtomicWriteText(path, JsonSerializer.Serialize(this, JsonOpts));
     }
 }

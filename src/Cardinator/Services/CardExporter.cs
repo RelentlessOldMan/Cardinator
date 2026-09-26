@@ -44,9 +44,13 @@ public static class CardExporter
 
     private static void Save(BitmapEncoder encoder, string path)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        using var fs = File.Create(path);
-        encoder.Save(fs);
+        // Encode to a temp file then move into place, so a mid-encode failure (disk full, decode fault)
+        // during a big batch can't leave a truncated PNG/JPEG that clobbers a previously good export.
+        IoUtil.AtomicWrite(path, tmp =>
+        {
+            using var fs = File.Create(tmp);
+            encoder.Save(fs);
+        });
     }
 
     private static BitmapSource Flatten(BitmapSource src, Color bg)

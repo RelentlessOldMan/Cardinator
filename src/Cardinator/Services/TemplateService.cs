@@ -94,6 +94,14 @@ public sealed class TemplateService
     /// with mismatched text regions — the "everything slammed to the edges" class of bug.</summary>
     internal static void EnsureFrame(TemplateSpec spec, string framePath)
     {
+        // A user-imported frame image must never be overwritten by a spec-generated one. Keep it as-is;
+        // only fall back to a procedural frame if the file has gone missing entirely.
+        if (spec.CustomFrame)
+        {
+            if (!File.Exists(framePath)) FrameGenerator.Generate(spec, framePath);
+            return;
+        }
+
         var hashPath = framePath + ".hash";
         var want = spec.ContentHash();
         if (File.Exists(framePath) && File.Exists(hashPath))

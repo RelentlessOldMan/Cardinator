@@ -69,7 +69,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SeedHistory();
 
         // Download authentic Scryfall symbols in the background; re-render as they arrive.
-        _symbols.Updated += () => Dispatcher.Invoke(RenderPreview);
+        _symbols.Updated += OnSymbolsUpdated;
         _ = _symbols.PrimeAsync();
     }
 
@@ -175,6 +175,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string DefaultTemplateName => _selectedTemplate?.Name ?? Templates.FirstOrDefault()?.Name ?? "";
 
     // --- rendering ----------------------------------------------------------
+
+    /// <summary>Background symbol-prime finished — re-render, unless the window/dispatcher is shutting down
+    /// (a late callback from an in-flight prime must not throw on a dead dispatcher).</summary>
+    private void OnSymbolsUpdated()
+    {
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+        try { Dispatcher.BeginInvoke(new Action(RenderPreview)); } catch { /* shutting down */ }
+    }
 
     private void OnCardChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -641,11 +649,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void OnExportAll(object sender, RoutedEventArgs e)
     {
+        if (IsExporting) { Status = "An export is already running…"; return; }
         if (Cards.Count == 0) { Status = "No cards to export."; return; }
         var dlg = new OpenFolderDialog { Title = "Choose a folder to export all cards into" };
         if (dlg.ShowDialog() != true) return;
 
-        var cardsSnapshot = Cards.ToList();
+        // Deep-clone so edits made during the export can't tear reads on the render thread.
+        var cardsSnapshot = Cards.Select(c => c.Clone()).ToList();
         var templatesSnapshot = Templates.ToList();
         var symbols = _symbols;
         var folder = dlg.FolderName;
@@ -681,6 +691,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void OnExportSheet(object sender, RoutedEventArgs e)
     {
+        if (IsExporting) { Status = "An export is already running…"; return; }
         if (Cards.Count == 0) { Status = "No cards to export."; return; }
 
         // Offer double-sided (adds a mirrored back page after each front page for duplex printing).
@@ -693,7 +704,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var dlg = new OpenFolderDialog { Title = "Choose a folder for the printable sheet pages" };
         if (dlg.ShowDialog() != true) return;
 
-        var cardsSnapshot = Cards.ToList();
+        // Deep-clone so edits during the (background) compose can't tear reads on the render thread.
+        var cardsSnapshot = Cards.Select(c => c.Clone()).ToList();
         var templatesSnapshot = Templates.ToList();
         var symbols = _symbols;
         var folder = dlg.FolderName;

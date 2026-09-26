@@ -22,7 +22,7 @@ public static class TemplateImporter
         var dir = UniqueTemplateDir(TextUtil.Slug(displayName));
         Directory.CreateDirectory(dir);
 
-        var spec = new TemplateSpec { Name = displayName, FullArt = fullArt };
+        var spec = new TemplateSpec { Name = displayName, FullArt = fullArt, CustomFrame = true };
         if (fullArt)
         {
             // Sensible full-art defaults so text lands on the art with a shadow.
@@ -30,10 +30,10 @@ public static class TemplateImporter
             foreach (var fnt in new[] { spec.TitleFont, spec.TypeFont, spec.RulesFont, spec.FlavorFont, spec.PtFont, spec.CreditFont })
             { fnt.Color = "#FFFFFF"; fnt.Shadow = true; }
         }
+        // Write the user's frame first (atomically), then the spec — so a failure never leaves a spec
+        // pointing at a missing frame. CustomFrame=true tells the loader to keep this image as-is.
+        IoUtil.AtomicWriteBytes(Path.Combine(dir, "frame.png"), frameBytes);
         spec.Save(Path.Combine(dir, "template.json"));
-
-        // Keep the user's own frame image — TemplateService only regenerates when it can't load it.
-        File.WriteAllBytes(Path.Combine(dir, "frame.png"), frameBytes);
         return displayName;
     }
 

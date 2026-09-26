@@ -30,6 +30,9 @@ public sealed class CardRenderer
     public BitmapSource RenderToBitmap(CardModel card, Template template, int supersample = 1, bool previewHints = false)
     {
         var spec = template.Spec;
+        supersample = Math.Clamp(supersample, 1, 8);
+        if (spec.CanvasWidth < 1 || spec.CanvasHeight < 1)
+            throw new InvalidOperationException($"Template '{template.Name}' has an invalid canvas size ({spec.CanvasWidth}x{spec.CanvasHeight}).");
         int w = spec.CanvasWidth * supersample;
         int h = spec.CanvasHeight * supersample;
 
@@ -380,7 +383,7 @@ public sealed class CardRenderer
         double iw = img.PixelWidth, ih = img.PixelHeight;
 
         double cover = Math.Max(rect.Width / iw, rect.Height / ih);
-        double scale = cover * Math.Max(0.1, card.ArtScale);
+        double scale = cover * Math.Clamp(card.ArtScale, 0.1, 8);   // clamp both ends against extreme zoom
         double dw = iw * scale, dh = ih * scale;
         double x = rect.X + (rect.Width - dw) / 2 + card.ArtOffsetX * rect.Width;
         double y = rect.Y + (rect.Height - dh) / 2 + card.ArtOffsetY * rect.Height;
@@ -762,8 +765,11 @@ public sealed class CardRenderer
         var box = new Rect(region.X + pad, region.Y + pad,
             Math.Max(0, region.W - 2 * pad), Math.Max(0, region.H - 2 * pad));
 
+        // Shrink from the preferred size down to a floor, but always run at least once so a template with
+        // a small RulesFont.Size still renders its text instead of silently dropping it.
         TextLayout? best = null;
-        for (double size = rulesFont.Size; size >= 11; size -= 1)
+        double minSize = Math.Min(11, rulesFont.Size);
+        for (double size = Math.Max(minSize, rulesFont.Size); size >= minSize; size -= 1)
         {
             double scale = size / rulesFont.Size;
             best = LayoutContent(rules, flavor, box, rulesFont, size,
@@ -968,8 +974,10 @@ public sealed class CardRenderer
         var box = new Rect(tb0.X + pad, tb0.Y + pad,
             Math.Max(0, tb0.W - 2 * pad), Math.Max(0, tb0.H - 2 * pad));
 
+        // Always run at least once (floor never above the preferred size) so small-font templates still draw.
         PwLayout? best = null;
-        for (double size = spec.RulesFont.Size; size >= 11; size -= 1)
+        double minSize = Math.Min(11, spec.RulesFont.Size);
+        for (double size = Math.Max(minSize, spec.RulesFont.Size); size >= minSize; size -= 1)
         {
             best = LayoutPw(rows, box, spec.RulesFont, size, spec.RulesSymbolSize * (size / spec.RulesFont.Size), loyaltyShields);
             if (best.Height <= box.Height) break;

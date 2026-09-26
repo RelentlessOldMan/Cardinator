@@ -38,6 +38,27 @@ public class CustomTemplateAndArtTests
     public void CreateFromFrame_EmptyBytes_Throws()
         => Assert.Throws<ArgumentException>(() => TemplateImporter.CreateFromFrame("x", Array.Empty<byte>()));
 
+    [Fact]
+    public void ImportedFrame_IsNotRegeneratedOnLoad()
+    {
+        // Regression guard: frame-cache invalidation must never overwrite a user's imported frame image.
+        var name = "Keep Frame " + Guid.NewGuid().ToString("N")[..6];
+        var created = TemplateImporter.CreateFromFrame(name, SolidPngBytes(8, 8));
+        var dir = Path.Combine(AppPaths.TemplatesDir, TextUtil.Slug(created));
+        try
+        {
+            var framePath = Path.Combine(dir, "frame.png");
+            var before = File.ReadAllBytes(framePath);
+
+            var spec = TemplateSpec.Load(Path.Combine(dir, "template.json"));
+            Assert.True(spec.CustomFrame);
+
+            TemplateService.EnsureFrame(spec, framePath);   // a generated frame would be 750x1050, not our 8x8
+            Assert.Equal(before, File.ReadAllBytes(framePath));
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
+    }
+
     // --- Scryfall art URL ---------------------------------------------------
 
     [Fact]

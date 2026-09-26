@@ -10,7 +10,8 @@ namespace Cardinator.Services;
 /// </summary>
 public static class ArtMatcher
 {
-    private static readonly string[] Extensions = { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp" };
+    private static readonly HashSet<string> Extensions =
+        new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp" };
 
     /// <summary>
     /// Assigns art paths to the given cards from images in <paramref name="folder"/>.
@@ -21,12 +22,21 @@ public static class ArtMatcher
     {
         if (!Directory.Exists(folder)) return 0;
 
+        // Sort by path (ordinal) so enumeration order — and therefore tie-breaking — is deterministic
+        // across machines/runs rather than filesystem-dependent.
         var images = Directory.EnumerateFiles(folder)
-            .Where(f => Extensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+            .Where(f => Extensions.Contains(Path.GetExtension(f)))
             .Select(f => (Path: f, Norm: Normalize(Path.GetFileNameWithoutExtension(f))))
             .Where(x => x.Norm.Length > 0)
+            .OrderBy(x => x.Path, StringComparer.Ordinal)
             .ToList();
         if (images.Count == 0) return 0;
+
+        // Exact-match index (the common case) so N cards × M files isn't a full quadratic scan; first
+        // file wins for a duplicate normalized name (deterministic thanks to the sort above).
+        var exact = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var img in images)
+            if (!exact.ContainsKey(img.Norm)) exact[img.Norm] = img.Path;
 
         int matched = 0;
         foreach (var card in cards)
@@ -35,15 +45,19 @@ public static class ArtMatcher
             var cardNorm = Normalize(card.Name);
             if (cardNorm.Length == 0) continue;
 
-            string? best = null;
-            int bestScore = 0;
-            foreach (var img in images)
+            string? best = exact.TryGetValue(cardNorm, out var exactPath) ? exactPath : null;
+            if (best == null)
             {
-                int score = Score(cardNorm, img.Norm);
-                if (score > bestScore) { bestScore = score; best = img.Path; }
+                int bestScore = 0;
+                foreach (var img in images)   // fuzzy fallback only when there's no exact match
+                {
+                    int score = Score(cardNorm, img.Norm);
+                    if (score > bestScore) { bestScore = score; best = img.Path; }
+                }
+                if (bestScore == 0) best = null;
             }
 
-            if (best != null && bestScore > 0)
+            if (best != null)
             {
                 card.ArtPath = Path.GetFullPath(best);
                 matched++;
