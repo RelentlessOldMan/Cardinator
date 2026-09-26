@@ -16,6 +16,9 @@ public sealed class ScryfallClient
 {
     private const string Base = "https://api.scryfall.com";
 
+    /// <summary>Descriptive User-Agent per Scryfall's API guidelines; reused by the other HTTP clients.</summary>
+    public const string UserAgent = "Cardinator/1.0 (+https://github.com/RelentlessOldMan/Cardinator)";
+
     private static readonly HttpClient Http = CreateClient();
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static DateTime _lastCall = DateTime.MinValue;
@@ -23,7 +26,7 @@ public sealed class ScryfallClient
     private static HttpClient CreateClient()
     {
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("Cardinator/1.0");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
         return http;
     }
@@ -44,7 +47,8 @@ public sealed class ScryfallClient
         var json = await GetAsync(url, ct);
         if (json is null) return Array.Empty<CardModel>();
 
-        return ScryfallMapper.MapFaces(json);
+        try { return ScryfallMapper.MapFaces(json); }
+        catch (JsonException) { throw new ScryfallException("Scryfall returned an unexpected response."); }
     }
 
     /// <summary>
@@ -62,9 +66,13 @@ public sealed class ScryfallClient
         {
             var json = await GetAsync(url, ct);
             if (json is null) break;   // 404 -> no cards matched
-            results.AddRange(ScryfallMapper.MapSearch(json));
+            try
+            {
+                results.AddRange(ScryfallMapper.MapSearch(json));
+                url = NextPage(json);
+            }
+            catch (JsonException) { throw new ScryfallException("Scryfall returned an unexpected response."); }
             progress?.Report($"Fetched {results.Count} card(s)…");
-            url = NextPage(json);
         }
         if (results.Count > maxCards) results.RemoveRange(maxCards, results.Count - maxCards);
         return results;
@@ -85,36 +93,55 @@ public sealed class ScryfallClient
         await Gate.WaitAsync(ct);
         try
         {
-            var sinceLast = DateTime.UtcNow - _lastCall;
-            var minGap = TimeSpan.FromMilliseconds(100);
-            if (sinceLast < minGap)
-                await Task.Delay(minGap - sinceLast, ct);
+            const int maxAttempts = 3;
+            for (int attempt = 1; ; attempt++)
+            {
+                var sinceLast = DateTime.UtcNow - _lastCall;
+                var minGap = TimeSpan.FromMilliseconds(100);
+                if (sinceLast < minGap)
+                    await Task.Delay(minGap - sinceLast, ct);
 
-            HttpResponseMessage resp;
-            try
-            {
-                resp = await Http.GetAsync(url, ct);
-            }
-            catch (HttpRequestException ex)
-            {
-                throw new ScryfallException("Couldn't reach Scryfall. Check your internet connection. " + ex.Message);
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                // HttpClient.Timeout elapsed (surfaces as TaskCanceledException, not HttpRequestException).
-                throw new ScryfallException("Scryfall request timed out. Check your internet connection.");
-            }
-            finally
-            {
-                _lastCall = DateTime.UtcNow;
-            }
+                HttpResponseMessage resp;
+                try
+                {
+                    resp = await Http.GetAsync(url, ct);
+                }
+                catch (HttpRequestException ex)
+                {
+                    throw new ScryfallException("Couldn't reach Scryfall. Check your internet connection. " + ex.Message);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    // HttpClient.Timeout elapsed (surfaces as TaskCanceledException, not HttpRequestException).
+                    throw new ScryfallException("Scryfall request timed out. Check your internet connection.");
+                }
+                finally
+                {
+                    _lastCall = DateTime.UtcNow;
+                }
 
-            if (resp.StatusCode == HttpStatusCode.NotFound)
-                return null;
-            if (!resp.IsSuccessStatusCode)
-                throw new ScryfallException($"Scryfall returned {(int)resp.StatusCode} {resp.ReasonPhrase}.");
+                using (resp)
+                {
+                    if (resp.StatusCode == HttpStatusCode.NotFound)
+                        return null;
 
-            return await resp.Content.ReadAsStringAsync(ct);
+                    // Scryfall rate-limits with 429 and can return transient 503 — back off and retry.
+                    if ((resp.StatusCode == HttpStatusCode.TooManyRequests
+                         || resp.StatusCode == HttpStatusCode.ServiceUnavailable)
+                        && attempt < maxAttempts)
+                    {
+                        var wait = resp.Headers.RetryAfter?.Delta
+                                   ?? TimeSpan.FromMilliseconds(500 * attempt);
+                        await Task.Delay(wait, ct);
+                        continue;
+                    }
+
+                    if (!resp.IsSuccessStatusCode)
+                        throw new ScryfallException($"Scryfall returned {(int)resp.StatusCode} {resp.ReasonPhrase}.");
+
+                    return await resp.Content.ReadAsStringAsync(ct);
+                }
+            }
         }
         finally
         {

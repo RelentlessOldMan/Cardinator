@@ -111,9 +111,11 @@ public partial class App : Application
             bool sheet = rest.Any(a => a.Equals("sheet", StringComparison.OrdinalIgnoreCase));
             bool a4 = rest.Any(a => a.Equals("a4", StringComparison.OrdinalIgnoreCase));
             int max = 60;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var ns = System.Globalization.NumberStyles.Integer;
             var maxArg = rest.FirstOrDefault(a => a.StartsWith("max=", StringComparison.OrdinalIgnoreCase));
-            if (maxArg != null) int.TryParse(maxArg[4..], out max);
-            else { var bare = rest.FirstOrDefault(a => int.TryParse(a, out _)); if (bare != null) int.TryParse(bare, out max); }
+            if (maxArg != null) int.TryParse(maxArg[4..], ns, inv, out max);
+            else { var bare = rest.FirstOrDefault(a => int.TryParse(a, ns, inv, out _)); if (bare != null) int.TryParse(bare, ns, inv, out max); }
             int code = SelfTest.RunSearch(e.Args[1], e.Args[2], sheet, a4, Math.Clamp(max <= 0 ? 60 : max, 1, 500));
             Shutdown(code);
             return;
@@ -147,6 +149,22 @@ public partial class App : Application
             Shutdown(code);
             return;
         }
+
+        // Safety net for the interactive app: a stray exception on the UI thread (e.g. from an event
+        // handler after an await) shows a message and keeps the app alive instead of hard-crashing and
+        // losing the user's unsaved work. Headless CLI paths above return before this is wired.
+        DispatcherUnhandledException += (_, ex) =>
+        {
+            MessageBox.Show("Something went wrong:\n\n" + ex.Exception.Message,
+                "Cardinator", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ex.Handled = true;
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
+        {
+            try { File.AppendAllText(Path.Combine(AppPaths.DataDir, "crash.log"),
+                $"{DateTime.Now:o} {ex.ExceptionObject}\n"); } catch { }
+        };
+        System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, ex) => ex.SetObserved();
 
         var window = new MainWindow();
         MainWindow = window;

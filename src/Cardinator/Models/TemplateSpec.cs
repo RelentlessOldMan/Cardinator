@@ -61,6 +61,12 @@ public sealed class TemplateSpec
     /// </summary>
     public bool FullArt { get; set; }
 
+    /// <summary>True when frame.png is a user-supplied image (imported), not generated from this spec. The
+    /// template loader then never regenerates/overwrites it from the spec — it only creates a procedural
+    /// placeholder if the file is missing entirely. Without this, the frame-cache invalidation would
+    /// replace an imported frame with a generated one on the next load.</summary>
+    public bool CustomFrame { get; set; }
+
     /// <summary>Frame design: "classic" (default), "clean" (flat/modern), "ornate" (heavy/decorative),
     /// "faded" (frame melts into art), "borderless" (floating panels), "overlay" (cinematic band over
     /// art) or "wave" (full frame + colorful scalloped wave crown across the top).</summary>
@@ -190,10 +196,7 @@ public sealed class TemplateSpec
     }
 
     public void Save(string path)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(this, JsonOpts));
-    }
+        => Cardinator.Services.IoUtil.AtomicWriteText(path, JsonSerializer.Serialize(this, JsonOpts));
 
     /// <summary>A deep copy (via JSON round-trip), so an editor can tweak a copy and apply on demand.</summary>
     public TemplateSpec Clone()

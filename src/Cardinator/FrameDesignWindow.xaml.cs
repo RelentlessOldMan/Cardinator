@@ -22,6 +22,7 @@ public partial class FrameDesignWindow : Window
     private readonly CardRenderer _renderer;
     private readonly CardModel _previewCard;
     private readonly DispatcherTimer _previewTimer;
+    private readonly System.Threading.CancellationTokenSource _cts = new();
     private bool _ready;
 
     /// <summary>Set to the edited template's name when Apply succeeds.</summary>
@@ -93,8 +94,23 @@ public partial class FrameDesignWindow : Window
         RefreshPreview();
 
         // Fetch real Scryfall mana symbols in the background so the preview's pips match the exported card.
-        _symbols.Updated += () => Dispatcher.Invoke(RefreshPreview);
-        _ = _symbols.PrimeAsync(ManaText.SymbolTokens(_previewCard.ManaCost, _previewCard.RulesText));
+        // Unsubscribed and cancelled on close so a late callback can't touch a dead dialog.
+        _symbols.Updated += OnSymbolsUpdated;
+        _ = _symbols.PrimeAsync(ManaText.SymbolTokens(_previewCard.ManaCost, _previewCard.RulesText), _cts.Token);
+    }
+
+    private void OnSymbolsUpdated()
+    {
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+        try { Dispatcher.BeginInvoke(new Action(RefreshPreview)); } catch { /* closing */ }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _symbols.Updated -= OnSymbolsUpdated;
+        _cts.Cancel();
+        _previewTimer.Stop();
+        base.OnClosed(e);
     }
 
     private static string Norm(string? v, string fallback) =>

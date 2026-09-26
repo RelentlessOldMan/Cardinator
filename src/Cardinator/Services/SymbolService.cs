@@ -18,7 +18,8 @@ public sealed class SymbolService
 {
     private readonly Dictionary<string, DrawingImage> _cache = new();
     private readonly object _lock = new();
-    private Dictionary<string, string>? _symbologyMap;   // normalized token -> svg_uri
+    private readonly SemaphoreSlim _mapGate = new(1, 1);   // serialize the symbology fetch/write
+    private volatile Dictionary<string, string>? _symbologyMap;   // normalized token -> svg_uri
 
     private static readonly HttpClient Http = CreateClient();
 
@@ -28,7 +29,7 @@ public sealed class SymbolService
     private static HttpClient CreateClient()
     {
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("Cardinator/1.0");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd(ScryfallClient.UserAgent);
         return http;
     }
 
@@ -88,7 +89,7 @@ public sealed class SymbolService
                 try
                 {
                     var bytes = await Http.GetByteArrayAsync(uri, ct);
-                    await File.WriteAllBytesAsync(svgPath, bytes, ct);
+                    IoUtil.AtomicWriteBytes(svgPath, bytes);   // avoid a torn .svg if two primes race
                     changed = true;
                     await Task.Delay(60, ct);   // be polite to Scryfall's CDN
                 }
@@ -110,44 +111,54 @@ public sealed class SymbolService
     {
         if (_symbologyMap != null) return _symbologyMap;
 
-        var mapPath = Path.Combine(AppPaths.SymbolsDir, "symbology.json");
-        if (File.Exists(mapPath))
-        {
-            try
-            {
-                var cached = JsonSerializer.Deserialize<Dictionary<string, string>>(
-                    await File.ReadAllTextAsync(mapPath, ct));
-                if (cached is { Count: > 0 }) return _symbologyMap = cached;
-            }
-            catch { /* fall through to refetch */ }
-        }
-
+        // Serialize so two concurrent primes don't both fetch /symbology and race on the cache file.
+        await _mapGate.WaitAsync(ct);
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Get, "https://api.scryfall.com/symbology");
-            req.Headers.Accept.ParseAdd("application/json");
-            using var resp = await Http.SendAsync(req, ct);
-            if (!resp.IsSuccessStatusCode) return null;
+            if (_symbologyMap != null) return _symbologyMap;   // another caller filled it while we waited
 
-            var json = await resp.Content.ReadAsStringAsync(ct);
-            using var doc = JsonDocument.Parse(json);
-            var map = new Dictionary<string, string>();
-            foreach (var el in doc.RootElement.GetProperty("data").EnumerateArray())
+            var mapPath = Path.Combine(AppPaths.SymbolsDir, "symbology.json");
+            if (File.Exists(mapPath))
             {
-                if (el.TryGetProperty("symbol", out var s) && el.TryGetProperty("svg_uri", out var u))
+                try
                 {
-                    var key = Normalize(s.GetString() ?? "");
-                    var uri = u.GetString();
-                    if (key.Length > 0 && !string.IsNullOrEmpty(uri)) map[key] = uri;
+                    var cached = JsonSerializer.Deserialize<Dictionary<string, string>>(
+                        await File.ReadAllTextAsync(mapPath, ct));
+                    if (cached is { Count: > 0 }) return _symbologyMap = cached;
                 }
+                catch { /* fall through to refetch */ }
             }
-            await File.WriteAllTextAsync(mapPath, JsonSerializer.Serialize(map), ct);
-            return _symbologyMap = map;
+
+            try
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, "https://api.scryfall.com/symbology");
+                req.Headers.Accept.ParseAdd("application/json");
+                using var resp = await Http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode) return null;
+
+                var json = await resp.Content.ReadAsStringAsync(ct);
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+                    return null;   // unexpected shape (e.g. an error page) — keep procedural pips
+                var map = new Dictionary<string, string>();
+                foreach (var el in data.EnumerateArray())
+                {
+                    if (el.TryGetProperty("symbol", out var s) && el.TryGetProperty("svg_uri", out var u))
+                    {
+                        var key = Normalize(s.GetString() ?? "");
+                        var uri = u.GetString();
+                        if (key.Length > 0 && !string.IsNullOrEmpty(uri)) map[key] = uri;
+                    }
+                }
+                IoUtil.AtomicWriteText(mapPath, JsonSerializer.Serialize(map));
+                return _symbologyMap = map;
+            }
+            catch
+            {
+                return null;
+            }
         }
-        catch
-        {
-            return null;
-        }
+        finally { _mapGate.Release(); }
     }
 
     private static bool TryConvertSvg(string svgPath, out DrawingImage? image)

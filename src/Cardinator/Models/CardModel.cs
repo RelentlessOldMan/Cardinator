@@ -143,10 +143,7 @@ public sealed class CardModel : INotifyPropertyChanged
     }
 
     public void Save(string path)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(this, JsonOpts));
-    }
+        => Cardinator.Services.IoUtil.AtomicWriteText(path, JsonSerializer.Serialize(this, JsonOpts));
 
     public CardModel Clone() =>
         (CardModel)JsonSerializer.Deserialize<CardModel>(

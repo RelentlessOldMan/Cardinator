@@ -17,6 +17,52 @@ public class ImportServiceTests
     }
 
     [Fact]
+    public void Parse_DeckList_ExpandsQuantities()
+    {
+        var cards = ImportService.Parse("4 Lightning Bolt\n2x Counterspell\nBrainstorm", null, "T");
+        Assert.Equal(7, cards.Count);
+        Assert.Equal(4, cards.Count(c => c.Card.Name == "Lightning Bolt"));
+        Assert.Equal(2, cards.Count(c => c.Card.Name == "Counterspell"));
+        Assert.Equal(1, cards.Count(c => c.Card.Name == "Brainstorm"));
+    }
+
+    [Fact]
+    public void Parse_DeckList_ReadsSetAndCollectorHint()
+    {
+        var cards = ImportService.Parse("4 Lightning Bolt (M10) 146", null, "T");
+        Assert.Equal(4, cards.Count);
+        Assert.Equal("Lightning Bolt", cards[0].Card.Name);
+        Assert.Equal("M10", cards[0].Card.SetCode);
+        Assert.Equal("146", cards[0].Card.CollectorNumber);
+    }
+
+    [Fact]
+    public void Parse_DeckList_SkipsSectionHeadersAndComments_AndStripsSbPrefix()
+    {
+        var cards = ImportService.Parse("Deck\nLightning Bolt\n// notes\nSideboard\nSB: Duress", null, "T");
+        Assert.Equal(2, cards.Count);
+        Assert.Equal("Lightning Bolt", cards[0].Card.Name);
+        Assert.Equal("Duress", cards[1].Card.Name);
+    }
+
+    [Fact]
+    public void Parse_StripsUtf8Bom_FromFirstName()
+    {
+        var cards = ImportService.Parse("﻿Lightning Bolt", null, "T");
+        Assert.Single(cards);
+        Assert.Equal("Lightning Bolt", cards[0].Card.Name);   // no invisible leading glyph
+    }
+
+    [Fact]
+    public void Parse_NumericNamePrefix_NotMistakenForQuantity()
+    {
+        // "1996 World Champion" starts with 4 digits and no space-after-3, so it's not a quantity.
+        var cards = ImportService.Parse("1996 World Champion", null, "T");
+        Assert.Single(cards);
+        Assert.Equal("1996 World Champion", cards[0].Card.Name);
+    }
+
+    [Fact]
     public void Parse_NameWithArt_UsingPipe()
     {
         var cards = ImportService.Parse(@"Goblin | C:\art\goblin.png", null, "T");

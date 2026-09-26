@@ -28,11 +28,19 @@ public static class AppPaths
         var candidate = Path.Combine(exeDir, "CardinatorData");
         if (TryEnsureWritable(candidate)) return candidate;
 
+        // Portable location isn't writable (e.g. installed under Program Files) — try %APPDATA%,
+        // then a temp folder as a last resort, so the app can always start with clear behavior.
         var appData = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "Cardinator");
-        Directory.CreateDirectory(appData);
-        return appData;
+        if (TryEnsureWritable(appData)) return appData;
+
+        var temp = Path.Combine(Path.GetTempPath(), "Cardinator");
+        if (TryEnsureWritable(temp)) return temp;
+
+        // Nothing is writable; return the portable candidate and let the specific failure surface
+        // where it happens (with a real path in the message) rather than crashing during startup.
+        return candidate;
     }
 
     private static bool TryEnsureWritable(string dir)
