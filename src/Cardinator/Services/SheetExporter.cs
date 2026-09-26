@@ -40,6 +40,7 @@ public static class SheetExporter
         PageSpec page,
         IProgress<string>? progress = null)
     {
+        if (templates.Count == 0) throw new InvalidOperationException("No templates available to compose a sheet.");
         var renderer = new CardRenderer(symbols);
         var byName = templates.ToDictionary(t => t.Name, t => t);
         var fallback = templates[0];
@@ -85,6 +86,76 @@ public static class SheetExporter
         }
 
         return pages;
+    }
+
+    /// <summary>
+    /// Composes double-sided sheets: each front page is immediately followed by a back page whose columns
+    /// are mirrored, so a long-edge (flip-horizontal) duplex print lines the backs up behind the fronts.
+    /// One shared card back is used for every card. Pages come out front, back, front, back, …
+    /// </summary>
+    public static List<BitmapSource> ComposeDoubleSided(
+        IReadOnlyList<CardModel> cards,
+        IReadOnlyList<Template> templates,
+        SymbolService symbols,
+        PageSpec page,
+        BitmapSource back,
+        IProgress<string>? progress = null)
+    {
+        if (templates.Count == 0) throw new InvalidOperationException("No templates available to compose a sheet.");
+        var renderer = new CardRenderer(symbols);
+        var byName = templates.ToDictionary(t => t.Name, t => t);
+        var fallback = templates[0];
+        double gridW = page.Cols * CardW, gridH = page.Rows * CardH;
+        double marginX = (page.Width - gridW) / 2, marginY = (page.Height - gridH) / 2;
+
+        var pages = new List<BitmapSource>();
+        int perPage = page.PerPage;
+        int pageCount = (cards.Count + perPage - 1) / perPage;
+
+        for (int p = 0; p < pageCount; p++)
+        {
+            int pageStart = p * perPage;
+            var front = RenderPage(page, marginX, marginY, gridW, gridH, slot =>
+            {
+                int index = pageStart + slot;
+                if (index >= cards.Count) return null;
+                var card = cards[index];
+                var template = (card.TemplateName is { Length: > 0 } n && byName.TryGetValue(n, out var t)) ? t : fallback;
+                return renderer.RenderToBitmap(card, template, supersample: 1);
+            }, mirror: false);
+            pages.Add(front);
+
+            var backPage = RenderPage(page, marginX, marginY, gridW, gridH,
+                slot => pageStart + slot < cards.Count ? back : null, mirror: true);
+            pages.Add(backPage);
+
+            progress?.Report($"Composed sheet {p + 1}/{pageCount} (front + back)");
+        }
+        return pages;
+    }
+
+    /// <summary>Lays out one page from a per-slot image function, optionally mirroring columns (for backs).</summary>
+    private static BitmapSource RenderPage(PageSpec page, double marginX, double marginY, double gridW, double gridH,
+        Func<int, BitmapSource?> slotImage, bool mirror)
+    {
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, page.Width, page.Height));
+            for (int slot = 0; slot < page.PerPage; slot++)
+            {
+                var img = slotImage(slot);
+                if (img == null) continue;
+                int col = slot % page.Cols, row = slot / page.Cols;
+                int drawCol = mirror ? page.Cols - 1 - col : col;
+                double x = marginX + drawCol * CardW, y = marginY + row * CardH;
+                dc.DrawImage(img, new Rect(x, y, CardW, CardH));
+            }
+            if (page.CutMarks) DrawCutMarks(dc, page, marginX, marginY, gridW, gridH);
+        }
+        var rtb = new RenderTargetBitmap(page.Width, page.Height, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(visual);
+        return StampDpi(rtb, page.Dpi);
     }
 
     public static List<string> Save(IReadOnlyList<BitmapSource> pages, string outDir, string baseName = "sheet")

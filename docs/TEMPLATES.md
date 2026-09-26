@@ -38,12 +38,19 @@ can compare the styles). Pick one from the **Frame** dropdown, or duplicate one 
 </tr>
 </table>
 
+Two more ship with the app and appear in the same **Frame** dropdown: **Azure Modern** (an M15-style
+`modern` frame — a textured colored background with connected, curved-out nameplates and a tapered
+base) and **Ironwrought Showcase** (a `composable` frame — full-bleed art with connected two-tone
+panels and a regal crown).
+
 Frames come in a few **styles** you can set per template (`frameStyle`): **classic** (gradient +
 bevel), **clean** (flat/modern), **ornate** (metallic band, banner, corner scrollwork + gems, stone
-texture), **faded** (edges melt into the art), **borderless** (full-bleed art + floating panels), and
+texture), **faded** (edges melt into the art), **borderless** (full-bleed art + floating panels),
 **overlay** (full-bleed art with a cinematic band + gold trim carrying the text over the bottom of
-the art), and **wave** (a full frame plus a colorful scalloped wave crown flowing across the top).
-Legendary cards also get a leafy crown, and the P/T box only appears on creatures.
+the art), **wave** (a full frame plus a colorful scalloped wave crown flowing across the top),
+**modern** (an M15-style frame built from the composable knobs below) and **composable** (the same
+knobs, but starting from full-bleed art). Legendary cards also get a leafy crown, and the P/T box
+only appears on creatures.
 
 *(Generate this grid yourself any time with `Cardinator.exe --frames <outDir>` — it renders one card
 on every frame you have installed, including your own imports.)*
@@ -57,12 +64,44 @@ Start from a default and fiddle. Copy a folder under `CardinatorData/templates/`
   `"ornate"` (metallic band, banner, corner scrollwork + gems, stone texture), `"faded"` (edges
   melt into the art), `"borderless"` (full-bleed art + floating translucent panels), `"overlay"`
   (full-bleed art with a cinematic band + gold trim carrying the text over the bottom of the art),
-  or `"wave"` (a full frame plus a colorful scalloped wave crown flowing across the top).
+  `"wave"` (a full frame plus a colorful scalloped wave crown flowing across the top), `"modern"`
+  (an M15-style frame driven by the composable knobs below), or `"composable"` (the same knobs,
+  starting from full-bleed art).
 - **`colors`** — `border` / `frame` / `frame2` (the frame gradient) / `panel` / `panelBorder`.
-- **`embellishments`** — `true`/`false` to turn the ornamental filigree on or off.
-- **`cornerRadius`** / **`panelRadius`** — rounded vs. sharp corners for the card and the panels.
+- **`embellishments`** — `true`/`false` to turn the ornamental filigree on or off (default `true`).
+- **`cornerRadius`** / **`panelRadius`** — rounded vs. sharp corners for the card and the panels
+  (defaults 48 and 10).
+- **`borderThickness`** — thickness (px) of the black outer card edge (default 28; 0 = none).
+- **`ptBevel`** — `true`/`false` to draw an inner bevel inside the power/toughness box
+  (default `true`).
+- **`legendaryCrown`** / **`crownStyle`** — toggle the crown on Legendary cards (default `true`),
+  and its type (`"leaves"` (default), `"arc"`, or `"none"`).
+- **`footerPlacement`** — where the collector/artist footer goes: `"frame"` (default, on the colored
+  card above the border), `"border"` (on the black bottom border), or `"none"`.
+- **`topEmblem`** — a decorative topper drawn across the top over any style: `"none"` (default),
+  `"wave"` (scalloped ribbon), `"regal"` (notched crown), or `"leaves"` (leafy scroll).
+- **`royalFrame`** / **`subBorderThickness`** — draw an ornate "royal" sub-border ring just inside the
+  black card border (default `false`); when on, every region is inset by `subBorderThickness` px
+  (default 18) to make room for it.
+- **`texture`** / **`textureStrength`** — background texture for styles that use one (ornate, modern):
+  `"speckle"` (default) or `"none"`, with a density multiplier (default `1.0`; `0` = off).
+
+Composable knobs (used by `frameStyle` `"modern"` / `"composable"`, but they mix and match freely):
+
+- **`connectedPanels`** — join the art + nameplates with a two-tone "hollow" pinline, the M15
+  connected look (default `true`).
+- **`panelBackground`** — fill the card interior with a textured colored background the panels sit on
+  (default `true`).
+- **`bottomTaper`** / **`taperStyle`** — taper that colored background inward at the bottom of the card
+  (default `true`); shaped `"partial"` (default — stops at the foot of the text panel) or `"full"`
+  (continues to the very bottom edge).
+- **`fadedEdges`** — melt the art-window edges softly into the frame instead of a hard keyline
+  (default `false`).
 - **fonts** — per region: `size`, `color`, `bold`, `italic`, `align`, `shadow`.
 - **regions** — move/resize the art window, title, type line, text box and P/T.
+
+There's also a per-card field, **`setSymbolPath`** (on the card, not the template): a custom
+set-symbol image path drawn at the right end of the type line in place of the rarity pip.
 
 Restart the app (or select a card) and Cardinator regenerates the frame from your edits. Prefer to
 draw the whole thing yourself? Supply your own `frame.png` — see
@@ -110,10 +149,28 @@ name falls back to a default — so a small typo won't take the app down.
   "canvasWidth": 750,            // logical canvas (keep 750 x 1050 for a normal card)
   "canvasHeight": 1050,
   "fullArt": false,             // true = art fills the whole card, text sits on it (see below)
-  "frameStyle": "classic",      // classic | clean | ornate | faded | borderless | overlay | wave
+  "frameStyle": "classic",      // classic|clean|ornate|faded|borderless|overlay|wave|modern|composable
   "embellishments": true,       // ornamental corner scrolls / art-window curls / top ornament
-  "cornerRadius": 30,           // card-edge rounding (0 = square corners)
+  "cornerRadius": 48,           // card-edge rounding (0 = square corners)
   "panelRadius": 10,            // art window + text panel rounding
+  "borderThickness": 28,        // black outer card edge thickness in px (0 = none)
+  "ptBevel": true,              // inner bevel inside the power/toughness box
+
+  "footerPlacement": "frame",   // frame | border | none  (where the collector/artist footer goes)
+  "topEmblem": "none",          // none | wave | regal | leaves  (a topper across the top)
+  "legendaryCrown": true,       // crown on Legendary cards …
+  "crownStyle": "leaves",       // … drawn as leaves | arc | none
+  "royalFrame": false,          // draw an ornate sub-border ring inside the black border
+  "subBorderThickness": 18,     // its thickness (and how far regions inset) when royalFrame is on
+  "texture": "speckle",         // background texture for ornate/modern: speckle | none
+  "textureStrength": 1.0,       // texture density (0 = off)
+
+  // Composable knobs (frameStyle "modern"/"composable"; mix & match freely):
+  "connectedPanels": true,      // two-tone "hollow" pinline joining art + nameplates (M15 look)
+  "panelBackground": true,      // fill the interior with a textured colored background
+  "bottomTaper": true,          // taper that background inward at the bottom …
+  "taperStyle": "partial",      // … partial (stops at the text panel) | full (to the card edge)
+  "fadedEdges": false,          // melt the art-window edges softly into the frame
 
   // Colors used ONLY when Cardinator generates frame.png for you.
   "colors": {
@@ -124,13 +181,14 @@ name falls back to a default — so a small typo won't take the app down.
     "panelBorder": "#0A3550"
   },
 
-  // Rectangles: x, y = top-left; w, h = size (all in the 750x1050 space).
-  "titleBar":   { "x": 28,  "y": 28,   "w": 694, "h": 66  },  // name + mana cost
-  "artWindow":  { "x": 44,  "y": 104,  "w": 662, "h": 496 },  // your artwork
-  "typeBar":    { "x": 28,  "y": 610,  "w": 694, "h": 58  },  // type line + rarity pip
-  "textBox":    { "x": 44,  "y": 678,  "w": 662, "h": 300 },  // rules + flavor
-  "ptBox":      { "x": 596, "y": 966,  "w": 126, "h": 66  },  // power/toughness (or loyalty)
-  "creditBar":  { "x": 46,  "y": 1006, "w": 540, "h": 28  },  // collector / set / artist footer
+  // Rectangles: x, y = top-left; w, h = size (all in the 750x1050 space). These are the current
+  // built-in defaults; treat them as a starting point and nudge to taste.
+  "titleBar":   { "x": 48,  "y": 56,  "w": 654, "h": 60  },  // name + mana cost
+  "artWindow":  { "x": 48,  "y": 126, "w": 654, "h": 462 },  // your artwork
+  "typeBar":    { "x": 48,  "y": 598, "w": 654, "h": 56  },  // type line + rarity/set pip
+  "textBox":    { "x": 48,  "y": 662, "w": 654, "h": 296 },  // rules + flavor
+  "ptBox":      { "x": 572, "y": 926, "w": 126, "h": 72  },  // power/toughness (or loyalty)
+  "creditBar":  { "x": 54,  "y": 962, "w": 460, "h": 34  },  // collector / set / artist footer
 
   // Fonts: family, size (logical px), color (#hex or name), bold, italic, align (left|center|right),
   //        shadow (outline behind the text for legibility on art), shadowColor.
@@ -141,9 +199,9 @@ name falls back to a default — so a small typo won't take the app down.
   "rulesFont":  { "family": "Georgia",  "size": 25 },
   "flavorFont": { "family": "Georgia",  "size": 24, "italic": true, "color": "#333333" },
   "ptFont":     { "family": "Georgia",  "size": 32, "bold": true, "align": "center" },
-  "creditFont": { "family": "Segoe UI", "size": 15, "italic": true, "color": "#241F0C" },
+  "creditFont": { "family": "Segoe UI", "size": 13, "italic": true, "color": "#241F0C" },
 
-  "manaSymbolSize":  40,   // diameter of mana pips in the title bar
+  "manaSymbolSize":  35,   // diameter of mana pips in the title bar
   "rulesSymbolSize": 26    // height of symbols embedded inside rules text
 }
 ```

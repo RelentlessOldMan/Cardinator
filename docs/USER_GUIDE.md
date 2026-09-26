@@ -33,8 +33,11 @@ the live preview that updates as you type.*
    the fields yourself — see step 5.)*
 2. **Pick a frame** from the **Frame** dropdown (Crimson Red, Ocean Blue, Forest Green, Gold
    Multicolor, Slate Artifact, Planeswalker, **Full Art**…). Choose **Full Art** for a card whose
-   text sits directly on the artwork. Have your own frame image? Click **Import…** next to the
-   dropdown to turn a transparent PNG into a template — see [Making your own frames](TEMPLATES.md).
+   text sits directly on the artwork. Click **Design…** next to the dropdown to open the frame
+   designer — mix and match the frame's style, connected panels, textured background, bottom taper,
+   top emblem, royal sub-border, border thickness and colors, all with a **live preview**. Have your
+   own frame image? Click **Import…** to turn a transparent PNG into a template — see
+   [Making your own frames](TEMPLATES.md).
 3. **Add your art.** Three easy ways:
    - **Change art…** to browse for an image file, or
    - **Paste** — copy an image (or an image file, or even an image URL) and click Paste, or
@@ -55,7 +58,16 @@ the live preview that updates as you type.*
 
 > **Mana symbols** use the real Scryfall artwork. The first time you use a symbol it's downloaded
 > and cached; after that it works offline. Before it's cached (or with no internet), Cardinator
-> draws clean colored pips instead, so nothing ever breaks.
+> draws clean colored pips instead, so nothing ever breaks. You can also point a card at a **custom
+> set-symbol image** (in **Edit details…**, or across a whole set via **Set fields on all…**).
+
+> **The CHECKS panel** below the preview watches the selected card as you edit and flags problems
+> before you export — missing art, an unrecognized `{symbol}`, a footer overlapping the text box, a
+> region that falls outside the card, or a collector number used by more than one card. A green
+> "✓ No issues" means you're clear.
+
+> **Undo/redo:** every edit is undoable — use the header **Undo** / **Redo** buttons or **Ctrl+Z** /
+> **Ctrl+Y** (**Ctrl+Shift+Z** also redoes).
 
 ---
 
@@ -102,12 +114,21 @@ by card, or import a whole batch.
   matching the filename to the card name (`serra angel.png` → "Serra Angel"). Only fills cards
   that don't already have art.
 - **Look up missing** — fills any card that still has only a name.
+- **Number cards** — assigns collector numbers in list order — `001/N`, `002/N`, … (zero-padded to
+  the total's width) — so a whole set is numbered in one click.
+- **Set fields on all…** — a bulk editor: set the **set code, artist, rarity, copyright, frame** and
+  a **custom set-symbol image** on every card at once (leave a field blank to keep each card's own).
+- **Move ↑ / ↓** — reorder the selected card in the list (this is also the print/collector order).
+- **Copy** — duplicate the selected card (the sidebar button next to Add/Delete).
 - **Export all…** — renders every card to PNGs in a folder you choose. Runs in the background
   with a progress bar so the window stays responsive, even for 100 cards.
 - **Print sheet…** — lays cards out **9 per page (3×3) at real size (2.5″×3.5″, 300 DPI)** on
-  Letter (or A4) pages with cut marks — one PNG per page, ready to print and cut.
+  Letter (or A4) pages with cut marks — one PNG per page, ready to print and cut. It first asks
+  **Yes / No / Cancel** whether to include **card backs** for double-sided printing: **Yes** writes
+  a mirrored back page after each front page (flip on the long edge), **No** writes fronts only.
 
-Use **New / Open / Save** in the top-right to manage projects. A project is a single
+Editing is fully **undoable** (**Ctrl+Z** / **Ctrl+Y**, or the header Undo/Redo buttons), across the
+whole project. Use **New / Open / Save** in the top-right to manage projects. A project is a single
 `.cardinator` file you can re-open and keep editing.
 
 ---
@@ -123,6 +144,8 @@ Use **New / Open / Save** in the top-right to manage projects. A project is a si
 | **Ctrl+L** | Look up the current card on Scryfall |
 | **Ctrl+E** | Export the current card |
 | **Ctrl+D** | Duplicate the current card |
+| **Ctrl+Z** | Undo the last edit |
+| **Ctrl+Y** | Redo (also **Ctrl+Shift+Z**) |
 
 **Drop files onto the window:**
 - an **image** → sets the current card's art;

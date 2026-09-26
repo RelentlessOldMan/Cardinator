@@ -31,7 +31,7 @@ Fetches one card from Scryfall, prints its fields, and renders it to a PNG.
 Cardinator.exe --lookup "Lightning Bolt" out
 ```
 
-## `--render <card.json> <out.png|.jpg> [scale=N] [dpi=N] [bleed=N] [q=N]`
+## `--render <card.json> <out.png|.jpg> [scale=N] [dpi=N] [bleed=N] [q=N] [nosym]`
 
 Renders a single saved card (a `CardModel` JSON — the same shape used inside a `.cardinator`
 project). Uses the card's `templateName`, falling back to the first template. Output is JPEG when
@@ -100,6 +100,26 @@ Cardinator.exe --newtemplate "Showcase" https://example.com/frame.png fullart
 Your frame image should be a **transparent PNG** where the art window is see-through. Cardinator
 writes a starter `template.json` next to it with default regions — tune those to match your frame.
 
+## `--frames <outDir> [nosym]`
+
+Renders one sample card on **every installed frame** — a style showcase (built-ins plus any you've
+imported). Add `nosym` to use the app's own generic pips instead of fetching Scryfall symbols.
+
+```powershell
+Cardinator.exe --frames out
+Cardinator.exe --frames out nosym
+```
+
+## `--permute <card.json> <outDir>`
+
+Renders one card across **32 combinations** of the composable frame knobs (connected panels,
+textured background, bottom taper, top emblem, …) — a quick way to preview how the modern /
+composable style options interact.
+
+```powershell
+Cardinator.exe --permute mycard.json out
+```
+
 ## `--batch <list.csv> <outDir> [artDir]`
 
 The whole many-cards pipeline: parse a name list / CSV, fill blank fields from Scryfall, optionally
@@ -118,6 +138,51 @@ cut marks) instead of individual cards — one PNG per page. Add `a4` for A4 pap
 ```powershell
 Cardinator.exe --sheet examples/01-real-cards-custom-art/deck.csv sheets examples/01-real-cards-custom-art
 Cardinator.exe --sheet examples/02-custom-set/cards.csv sheets examples/02-custom-set a4
+```
+
+---
+
+## Documentation / QA modes
+
+These render the app itself (its windows, a full QA pass, or the illustrated quick-start) — handy
+after any UI or frame change so the docs never drift from the code. They work off-screen, so they
+run even on a locked or headless machine.
+
+### `--qa <outDir>`
+
+Renders **every layout across the frames**, runs automated checks, and writes two contact sheets
+(`qa-layouts.png`, `qa-frames.png`) plus a `QA-REPORT.txt` summary.
+
+```powershell
+Cardinator.exe --qa qa-out
+```
+
+### `--docs <outDir>`
+
+One-command documentation build: regenerates **all documentation screenshots** (the app windows +
+a few hero card renders + a frames overview) and writes an illustrated `QUICKSTART.md` that embeds
+them, into `<outDir>` (images go in `<outDir>/images`).
+
+```powershell
+Cardinator.exe --docs docs-out
+```
+
+### `--uishot <outDir>`
+
+Renders the app's own windows (main, details, frame design, bulk edit, help) to PNGs — the raw
+documentation screenshots, without the QUICKSTART wrapper.
+
+```powershell
+Cardinator.exe --uishot shots
+```
+
+### `--appshot <list.csv> <artDir> <out.png> ["name"]`
+
+Renders the main window with a real deck loaded from a CSV (fields filled from Scryfall) — a
+"here's the app doing the thing" screenshot. Pass a name substring to pre-select a card.
+
+```powershell
+Cardinator.exe --appshot examples/01-real-cards-custom-art/deck.csv examples/01-real-cards-custom-art app.png "Bolt"
 ```
 
 ---

@@ -79,6 +79,13 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length > 2 && e.Args[0] == "--permute")
+        {
+            int code = SelfTest.RunPermute(e.Args[1], e.Args[2]);
+            Shutdown(code);
+            return;
+        }
+
         if (e.Args.Length > 2 && e.Args[0] == "--batch")
         {
             var artDir = e.Args.Length > 3 ? e.Args[3] : null;
@@ -112,6 +119,20 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length > 1 && e.Args[0] == "--qa")
+        {
+            int code = SelfTest.RunQa(e.Args[1]);
+            Shutdown(code);
+            return;
+        }
+
+        if (e.Args.Length > 1 && e.Args[0] == "--docs")
+        {
+            int code = RunDocs(e.Args[1]);
+            Shutdown(code);
+            return;
+        }
+
         if (e.Args.Length > 1 && e.Args[0] == "--uishot")
         {
             int code = RunUiShot(e.Args[1]);
@@ -141,25 +162,7 @@ public partial class App : Application
         try
         {
             Directory.CreateDirectory(outDir);
-
-            var main = new MainWindow { SuppressClosePrompt = true };
-            // Give the preview card some art so the flagship screenshot isn't a blank window.
-            var shot = main.SelectedCard;
-            if (shot != null)
-            {
-                shot.ArtPath = "examples/01-real-cards-custom-art/art/swiftspear.png";
-                main.SelectedCard = null;
-                main.SelectedCard = shot;   // re-select to re-render the preview synchronously
-            }
-            SaveWindow(main, 1240, 820, Path.Combine(outDir, "app-main.png"));
-
-            var sample = SampleCards.All("Ocean Blue").First().Clone();
-            var details = new DetailsWindow(sample);
-            SaveWindow(details, 560, 760, Path.Combine(outDir, "app-details.png"));
-
-            var help = new HelpWindow(Version);
-            SaveWindow(help, 600, 720, Path.Combine(outDir, "app-help.png"));
-
+            WriteWindowShots(outDir);
             Console.WriteLine($"UI screenshots written to {outDir}.");
             return 0;
         }
@@ -169,6 +172,138 @@ public partial class App : Application
             return 1;
         }
     }
+
+    /// <summary>Renders the app's four windows (main, details, frame design, help) to PNGs in a folder.
+    /// Shared by --uishot and --docs so the documentation screenshots always match the real UI.</summary>
+    private void WriteWindowShots(string outDir)
+    {
+        var main = new MainWindow { SuppressClosePrompt = true };
+        // Give the preview card some art so the flagship screenshot isn't a blank window.
+        var shot = main.SelectedCard;
+        if (shot != null)
+        {
+            shot.ArtPath = "examples/01-real-cards-custom-art/art/swiftspear.png";
+            main.SelectedCard = null;
+            main.SelectedCard = shot;   // re-select to re-render the preview synchronously
+        }
+        SaveWindow(main, 1240, 820, Path.Combine(outDir, "app-main.png"));
+
+        var sample = SampleCards.All("Ocean Blue").First().Clone();
+        var details = new DetailsWindow(sample);
+        SaveWindow(details, 560, 760, Path.Combine(outDir, "app-details.png"));
+
+        var help = new HelpWindow(Version);
+        SaveWindow(help, 600, 720, Path.Combine(outDir, "app-help.png"));
+
+        var tpls = new TemplateService().LoadAll();
+        var designTpl = tpls.FirstOrDefault(t => t.Name == "Azure Modern") ?? tpls.First();
+        var design = new FrameDesignWindow(designTpl);
+        SaveWindow(design, 940, 760, Path.Combine(outDir, "app-frame-design.png"));
+
+        var bulk = new BulkEditWindow(tpls.Select(t => t.Name));
+        SaveWindow(bulk, 430, 470, Path.Combine(outDir, "app-bulk-edit.png"));
+    }
+
+    /// <summary>
+    /// One-command documentation build: regenerates every screenshot the guide references (the four app
+    /// windows + a few hero card renders + a frames overview) and writes an illustrated QUICKSTART.md that
+    /// embeds them. Run this after any UI/frame change so the docs never drift from the app.
+    /// </summary>
+    private int RunDocs(string outDir)
+    {
+        try
+        {
+            var images = Path.Combine(outDir, "images");
+            Directory.CreateDirectory(images);
+            WriteWindowShots(images);
+
+            // Hero card renders (one striking card per a few signature frames).
+            var templates = new TemplateService().LoadAll();
+            var symbols = new SymbolService();
+            System.Threading.Tasks.Task.Run(() => symbols.PrimeAsync()).GetAwaiter().GetResult();
+            var renderer = new CardRenderer(symbols);
+            var heroArt = "examples/01-real-cards-custom-art/art/swiftspear.png";   // relative to the repo root
+            foreach (var (tpl, file) in new[] { ("Gold Multicolor", "hero-gold.png"), ("Azure Modern", "hero-modern.png"), ("Full Art", "hero-fullart.png") })
+            {
+                var t = templates.FirstOrDefault(x => x.Name == tpl) ?? templates[0];
+                var card = SampleCards.All(t.Name).First().Clone();
+                if (File.Exists(heroArt)) card.ArtPath = heroArt;
+                var bmp = renderer.RenderToBitmap(card, t, supersample: 2);
+                CardExporter.SavePng(bmp, Path.Combine(images, file));
+            }
+
+            File.WriteAllText(Path.Combine(outDir, "QUICKSTART.md"), QuickstartMarkdown());
+            Console.WriteLine($"Docs written to {outDir} (QUICKSTART.md + images/).");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Docs build FAILED: " + ex);
+            return 1;
+        }
+    }
+
+    private static string QuickstartMarkdown() => $$"""
+        # Cardinator — Quick Start
+
+        *This guide is generated automatically by `Cardinator.exe --docs`; the screenshots are the real app.*
+
+        Cardinator makes custom Magic-style cards from your own art — one at a time, or hundreds at once.
+
+        ![The Cardinator editor](images/app-main.png)
+
+        ## Make one card
+
+        1. **Name it.** Type a name in the CARD NAME box. To reuse a real card's stats, type its name and
+           click **Search** — Cardinator fills the mana cost, type, rules text, power/toughness and even
+           downloads the art from Scryfall. (You can override anything afterwards.)
+        2. **Pick a frame.** Choose one from the FRAME dropdown. Click **Design…** to mix and match the
+           frame's look (below).
+        3. **Add your art.** Click **Change art…**, **Paste** a copied image or URL, or just drag an image
+           onto the window. Drag on the preview to pan, scroll to zoom.
+        4. **Edit the details.** Click **Edit details…** for mana cost, type line, rules/flavor text,
+           power/toughness, loyalty, set, collector number, artist and more. Type mana as `{2}{U}{U}` —
+           it renders as symbols, in the title and inside rules text.
+        5. **Watch the CHECKS panel.** It flags problems as you go — missing art, an unrecognized symbol, a
+           footer overlapping the text box, duplicate collector numbers — so nothing surprises you at export.
+        6. **Export.** Click **Export PNG…** for a print-quality image, or **Copy image** to paste it
+           straight into a chat.
+
+        ### Editing the details
+        ![Card details editor](images/app-details.png)
+
+        ### Designing the frame
+        Mix and match the frame's style, connected panels, textured background, bottom taper, top emblem,
+        royal sub-border, border thickness and colors — all live.
+
+        ![Frame design](images/app-frame-design.png)
+
+        ## Frames at a glance
+        | Gold Multicolor | Azure Modern | Full Art |
+        |---|---|---|
+        | ![](images/hero-gold.png) | ![](images/hero-modern.png) | ![](images/hero-fullart.png) |
+
+        ## Make a whole set at once
+
+        1. Put your card names in a text or CSV file — one per line, or with columns for art and frame:
+           ```
+           Lightning Bolt, bolt.png, Crimson Red
+           Counterspell,   counter.png, Ocean Blue
+           ```
+        2. Click **Import list / CSV…** (or drop the file on the window). Cardinator fills any blank fields
+           from Scryfall and matches art files by name.
+        3. Click **Look up missing** if you left fields blank, and **Match art folder…** to attach a folder
+           of images by filename.
+        4. **Export all…** writes every card to a PNG, or **Print sheet…** lays them out at real card size
+           on Letter/A4 pages (with cut marks and optional bleed) ready to print.
+
+        ## Keyboard shortcuts
+        `Ctrl+S` save · `Ctrl+O` open · `Ctrl+N` new · `Ctrl+L` look up · `Ctrl+E` export · `Ctrl+D` duplicate · `F1` help
+
+        ---
+        *Cardinator is for personal/fan use. Card frames and symbols are original; it isn't affiliated with
+        Wizards of the Coast.*
+        """;
 
     /// <summary>
     /// Renders the main window with a real deck loaded from a CSV (Scryfall-filled) — a "here's the
@@ -248,8 +383,15 @@ public partial class App : Application
                   Render the decorative card back (for double-sided printing).
               Cardinator.exe --frames <outDir> [nosym]
                   Render one sample card on every installed frame (a style showcase).
+              Cardinator.exe --permute <card.json> <outDir>
+                  Render one card across 32 composable-frame knob combinations.
               Cardinator.exe --uishot <outDir>
                   Render the app's own windows to PNGs off-screen (documentation screenshots).
+              Cardinator.exe --qa <outDir>
+                  Render every layout across the frames, run automated checks, and write
+                  contact sheets (qa-layouts.png, qa-frames.png) + QA-REPORT.txt.
+              Cardinator.exe --docs <outDir>
+                  Regenerate all documentation screenshots + an illustrated QUICKSTART.md.
               Cardinator.exe --appshot <list.csv> <artDir> <out.png> ["name"]
                   Render the main window with a deck loaded (documentation screenshots).
               Cardinator.exe --batch <list.csv> <outDir> [artDir]

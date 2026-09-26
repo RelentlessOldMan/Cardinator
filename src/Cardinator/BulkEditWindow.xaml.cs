@@ -1,0 +1,56 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
+
+namespace Cardinator;
+
+/// <summary>
+/// A small dialog for bulk-editing common metadata across every card in the project. Each field is
+/// optional: a blank text box or the "(no change)" option leaves that field untouched. Returns the chosen
+/// values as nullable properties (null = "leave as-is").
+/// </summary>
+public partial class BulkEditWindow : Window
+{
+    private const string NoChange = "(no change)";
+
+    public string? SetCode { get; private set; }
+    public string? Artist { get; private set; }
+    public string? Copyright { get; private set; }
+    public string? Rarity { get; private set; }
+    public string? TemplateName { get; private set; }
+    public string? SetSymbolPath { get; private set; }
+
+    public BulkEditWindow(IEnumerable<string> templateNames)
+    {
+        InitializeComponent();
+        RarityBox.ItemsSource = new[] { NoChange, "C", "U", "R", "M" };
+        RarityBox.SelectedIndex = 0;
+        FrameBox.ItemsSource = new[] { NoChange }.Concat(templateNames);
+        FrameBox.SelectedIndex = 0;
+    }
+
+    private void OnApply(object sender, RoutedEventArgs e)
+    {
+        SetCode = OrNull(SetBox.Text);
+        Artist = OrNull(ArtistBox.Text);
+        Copyright = OrNull(CopyrightBox.Text);
+        Rarity = RarityBox.SelectedItem is string r && r != NoChange ? r : null;
+        TemplateName = FrameBox.SelectedItem is string f && f != NoChange ? f : null;
+        SetSymbolPath = OrNull(SetSymbolBox.Text);
+        DialogResult = true;
+    }
+
+    private void OnBrowseSymbol(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Choose a set symbol image",
+            Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All files|*.*",
+        };
+        if (dlg.ShowDialog() == true) SetSymbolBox.Text = dlg.FileName;
+    }
+
+    private void OnCancel(object sender, RoutedEventArgs e) => DialogResult = false;
+
+    private static string? OrNull(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+}

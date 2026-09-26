@@ -1,4 +1,4 @@
-# Example 02 · Real Magic cards with your own custom art ⭐
+# Example 01 · Real Magic cards with your own custom art ⭐
 
 **The headline use case.** You have a deck of **real Magic cards**, and you want the whole deck in
 **your own custom artwork**. Give Cardinator a list of the real card names + your art files; it pulls

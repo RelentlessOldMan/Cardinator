@@ -1,4 +1,4 @@
-# Example 07 · Tokens & emblems
+# Example 05 · Tokens & emblems
 
 **The bits a deck needs besides the main cards.** Tokens and emblems are just cards with no mana
 cost (and emblems have no power/toughness) — leave those cells blank and Cardinator lays them out

@@ -1,7 +1,9 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Windows;
 using Cardinator.Models;
+using Cardinator.Services;
 
 namespace Cardinator.Tests;
 
@@ -36,6 +38,80 @@ public class WindowSmokeTests
         {
             var w = new Cardinator.InputDialog("Prompt", "hint", "initial");
             Assert.NotNull(w.Content);
+        });
+
+    [Fact]
+    public void FrameDesignWindow_Constructs_AndPreviews()
+        => OnAppThread(() =>
+        {
+            var tpl = new TemplateService().LoadAll().First();
+            var w = new Cardinator.FrameDesignWindow(tpl);
+            Assert.NotNull(w.Content);   // ctor also renders the live preview — throws if that path is broken
+        });
+
+    [Fact]
+    public void BulkEditWindow_Constructs_WithAppResources()
+        => OnAppThread(() =>
+        {
+            var w = new Cardinator.BulkEditWindow(new[] { "Gold Multicolor", "Ocean Blue" });
+            Assert.NotNull(w.Content);
+        });
+
+    [Fact]
+    public void MainWindow_UndoRedo_RevertsAndReappliesEdit()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var original = main.SelectedCard!.Name;
+
+            main.SelectedCard!.Name = "Undo Probe";
+            main.Undo();
+            Assert.Equal(original, main.SelectedCard!.Name);   // reverted
+
+            main.Redo();
+            Assert.Equal("Undo Probe", main.SelectedCard!.Name);   // re-applied
+        });
+
+    [Fact]
+    public void MainWindow_Undo_AtStart_IsNoOp()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            Assert.False(main.CanUndo);
+            var name = main.SelectedCard!.Name;
+            main.Undo();                                       // nothing to undo
+            Assert.Equal(name, main.SelectedCard!.Name);
+        });
+
+    [Fact]
+    public void MainWindow_NewEdit_TruncatesRedoTail()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            main.SelectedCard!.Name = "First";
+            main.Undo();
+            Assert.True(main.CanRedo);                         // "First" is redoable
+            main.SelectedCard!.Name = "Second";               // a new edit...
+            main.CommitHistory();
+            Assert.False(main.CanRedo);                        // ...cancels the redo tail
+        });
+
+    [Fact]
+    public void MainWindow_Undo_OfStructuralChange_RestoresCollection()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            int before = main.Cards.Count;
+
+            main.Cards.Add(new Cardinator.Models.CardModel { Name = "Extra", TemplateName = main.SelectedCard!.TemplateName });
+            main.CommitHistory();
+            Assert.Equal(before + 1, main.Cards.Count);
+
+            main.Undo();
+            Assert.Equal(before, main.Cards.Count);            // add reverted
+
+            main.Redo();
+            Assert.Equal(before + 1, main.Cards.Count);        // and re-applied
         });
 
     /// <summary>Runs on an STA thread with an Application whose resources come from App.xaml.</summary>

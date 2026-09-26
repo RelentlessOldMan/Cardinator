@@ -1,7 +1,9 @@
 # Gallery
 
-A tour of what Cardinator draws — 13 original cards spanning every **frame style** and every
-special **layout** it lays out automatically. All art here is our own placeholder scenery; in the app
+A tour of what Cardinator draws — 13 original cards spanning the classic **frame styles** and every
+special **layout** it lays out automatically. (Two newer styles, `modern`/**Azure Modern** and
+`composable`/**Ironwrought Showcase**, aren't pictured here — see them live in the app's Frame
+dropdown or via `Cardinator.exe --frames`.) All art here is our own placeholder scenery; in the app
 you drop in your own image or pull a card's real artwork from Scryfall. Frames, mana symbols, loyalty
 badges, saga chapters, the adventure sub-box, rarity pips, the P/T box and the footer are all drawn
 by Cardinator.

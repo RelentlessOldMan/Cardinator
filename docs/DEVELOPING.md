@@ -33,6 +33,8 @@ dotnet build src/Cardinator/Cardinator.csproj -c Debug
 $exe = "src/Cardinator/bin/Debug/net8.0-windows/win-x64/Cardinator.exe"
 & $exe --selftest out                          # render sample cards
 & $exe --render examples\card.json card.png     # render a specific card
+& $exe --qa qa-out                              # render every layout x frame + a QA report
+& $exe --docs docs-out                          # regenerate the doc screenshots + QUICKSTART.md
 ```
 
 See [CLI.md](CLI.md) for all headless modes.
@@ -48,6 +50,8 @@ src/Cardinator/
   MainWindow.xaml(.cs)     Main UI: card list, editor, live preview, batch actions
   DetailsWindow.xaml(.cs)  Modal editor for the less-common fields
   HelpWindow.xaml(.cs)     Built-in cheat sheet (Help button / F1)
+  FrameDesignWindow.xaml(.cs)  Frame designer: edit a template's style/knobs/colors with a live preview
+  BulkEditWindow.xaml(.cs)     "Set fields on all…" bulk editor (set code/artist/rarity/frame/…)
   InputDialog.xaml(.cs)    Small themed text prompt (used by Scryfall search)
   Models/
     CardModel.cs           One card's editable content (+ JSON load/save, Clone)
@@ -69,12 +73,13 @@ src/Cardinator/
     BatchService.cs        Fill-from-Scryfall + render-all over many cards
     SheetExporter.cs       Compose printable 3x3 sheet pages
     ManaText.cs            Tokenize {..} symbols; normalize loose mana costs
+    CardValidator.cs       The live CHECKS: flags missing art, unknown symbols, overlaps, OOB regions, dup collector #s
     SampleCards.cs         Built-in sample/blank cards (offline start)
     AppPaths.cs            Resolves the CardinatorData folder (portable, %APPDATA% fallback)
-    SelfTest.cs            Headless entry points (render/lookup/batch/sheet/search/newtemplate/cardback)
+    SelfTest.cs            Headless entry points (render/lookup/batch/sheet/search/newtemplate/cardback/frames/permute/qa)
     TemplateImporter.cs    Create a custom template from a frame image (file/URL)
     TextUtil.cs            Shared slug / safe-filename helpers
-tests/Cardinator.Tests/    xUnit tests (137), incl. golden-image regression baselines
+tests/Cardinator.Tests/    xUnit tests (177), incl. golden-image regression baselines
 docs/images, golden/       Rendered gallery + committed golden baselines
 docs/                      This documentation + rendered gallery images
 examples/                  Worked examples (inputs + outputs): real-cards/custom-art, custom set, full-art, custom frame, tokens, printing
@@ -100,7 +105,7 @@ the render tests use an STA helper).
 
 ## Testing approach
 
-The suite (`dotnet test`, **137 tests**) covers:
+The suite (`dotnet test`, **177 tests**) covers:
 
 - **Pure logic** — mana tokenizing/normalizing, CSV/TSV import, Scryfall JSON mapping, art
   matching, footer/badge/ability parsing, image-intake path helpers.

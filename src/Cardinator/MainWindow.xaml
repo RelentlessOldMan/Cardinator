@@ -31,6 +31,9 @@
                                Margin="14,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Content="Undo" Style="{StaticResource Ghost}" Click="OnUndo" IsEnabled="{Binding CanUndo}" ToolTip="Undo (Ctrl+Z)"/>
+                    <Button Content="Redo" Style="{StaticResource Ghost}" Click="OnRedo" IsEnabled="{Binding CanRedo}" ToolTip="Redo (Ctrl+Y)"/>
+                    <Border Width="1" Background="{StaticResource Line}" Margin="8,10"/>
                     <Button Content="New" Style="{StaticResource Ghost}" Click="OnNewProject"/>
                     <Button Content="Open" Style="{StaticResource Ghost}" Click="OnOpenProject"/>
                     <Button Content="Save" Style="{StaticResource Ghost}" Click="OnSaveProject"/>
@@ -50,10 +53,14 @@
             <Border Grid.Column="0" Background="{StaticResource Panel}" CornerRadius="10" Padding="12">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="CARDS" Style="{StaticResource SectionLabel}"/>
-                    <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="0,0,0,8">
+                    <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="0,0,0,6">
                         <Button Content="Add" Click="OnAddCard" Margin="0,0,4,0"/>
                         <Button Content="Copy" Click="OnDuplicateCard" Margin="2,0,2,0"/>
                         <Button Content="Delete" Click="OnDeleteCard" Margin="4,0,0,0"/>
+                    </UniformGrid>
+                    <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,0,8">
+                        <Button Content="Move ↑" Style="{StaticResource Ghost}" Click="OnMoveUp" Margin="0,0,4,0" ToolTip="Move the selected card up"/>
+                        <Button Content="Move ↓" Style="{StaticResource Ghost}" Click="OnMoveDown" Margin="4,0,0,0" ToolTip="Move the selected card down"/>
                     </UniformGrid>
 
                     <StackPanel DockPanel.Dock="Bottom">
@@ -64,6 +71,10 @@
                                 ToolTip="Import many cards from a Scryfall search (with art)"/>
                         <Button Content="Match art folder…" Click="OnMatchArtFolder" Margin="0,0,0,6"/>
                         <Button Content="Look up missing" Click="OnLookupMissing" Margin="0,0,0,6"/>
+                        <Button Content="Number cards" Click="OnNumberCards" Margin="0,0,0,6"
+                                ToolTip="Assign collector numbers (001/N …) in list order"/>
+                        <Button Content="Set fields on all…" Click="OnBulkEdit" Margin="0,0,0,6"
+                                ToolTip="Set the same set code / artist / rarity / copyright / frame on every card"/>
                         <Button Content="Export all…" Click="OnExportAll" Margin="0,0,0,6"/>
                         <Button Content="Print sheet…" Click="OnExportSheet"/>
                     </StackPanel>
@@ -94,10 +105,13 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <ComboBox Grid.Column="0" ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}"
                                   DisplayMemberPath="Name"/>
-                        <Button Grid.Column="1" Content="Import…" Style="{StaticResource Ghost}" Click="OnImportFrame"
+                        <Button Grid.Column="1" Content="Design…" Style="{StaticResource Ghost}" Click="OnFrameDesign"
+                                Margin="6,0,0,0" ToolTip="Mix &amp; match frame knobs (style, connected panels, background, taper, top emblem, colors…)"/>
+                        <Button Grid.Column="2" Content="Import…" Style="{StaticResource Ghost}" Click="OnImportFrame"
                                 Margin="6,0,0,0" ToolTip="Create a template from your own frame PNG (transparent where art shows)"/>
                     </Grid>
 
@@ -117,6 +131,15 @@
                                FontSize="11" Margin="2,0,0,18"/>
 
                     <Button Content="Edit details…" Click="OnEditDetails" Margin="0,0,0,16"/>
+
+                    <TextBlock Text="CHECKS" Style="{StaticResource SectionLabel}"/>
+                    <Border Background="{StaticResource Bg}" CornerRadius="8" Padding="10,8" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="{Binding ValidationSummary}" FontSize="12" Foreground="{StaticResource Subtle}"/>
+                            <TextBlock Text="{Binding ValidationDetails}" FontSize="11" Foreground="#E0A84A" TextWrapping="Wrap"
+                                       Margin="0,5,0,0" Visibility="{Binding HasValidationIssues, Converter={StaticResource BoolToVis}}"/>
+                        </StackPanel>
+                    </Border>
 
                     <Button Content="Export PNG…" Style="{StaticResource Primary}" Click="OnExport"/>
                     <Grid Margin="0,8,0,0">

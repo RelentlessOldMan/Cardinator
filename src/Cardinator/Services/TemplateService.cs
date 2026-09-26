@@ -10,7 +10,7 @@ public sealed class Template
     public required string Name { get; init; }
     public required TemplateSpec Spec { get; init; }
     public required string FramePath { get; init; }
-    public required BitmapImage FrameImage { get; init; }
+    public required BitmapSource FrameImage { get; init; }
 
     // Shown by the Frame combo box's collapsed selection box, which falls back to ToString().
     public override string ToString() => Name;
@@ -85,23 +85,47 @@ public sealed class TemplateService
                 spec.Save(specPath);
                 SafeDelete(framePath);   // spec changed → frame must be regenerated
             }
-            if (!File.Exists(framePath))
-                FrameGenerator.Generate(TemplateSpec.Load(specPath), framePath);
+            EnsureFrame(TemplateSpec.Load(specPath), framePath);
         }
     }
 
-    /// <summary>Loads the frame image, regenerating it once if the file is missing or unreadable.</summary>
+    /// <summary>Regenerates frame.png when it's missing OR when the spec it was baked from has changed
+    /// (detected via a content-hash sidecar). This is the guard against a stale frame being composited
+    /// with mismatched text regions — the "everything slammed to the edges" class of bug.</summary>
+    internal static void EnsureFrame(TemplateSpec spec, string framePath)
+    {
+        var hashPath = framePath + ".hash";
+        var want = spec.ContentHash();
+        if (File.Exists(framePath) && File.Exists(hashPath))
+        {
+            try { if (File.ReadAllText(hashPath).Trim() == want) return; } catch { /* regenerate below */ }
+        }
+
+        // Write to a temp file then move into place, so a crash mid-render can never leave a truncated
+        // frame.png that still matches its hash (which would then be composited as a stale/corrupt frame).
+        var tmp = framePath + ".tmp";
+        FrameGenerator.Generate(spec, tmp);
+        try
+        {
+            if (File.Exists(framePath)) File.Delete(framePath);
+            File.Move(tmp, framePath);
+        }
+        catch { SafeDelete(tmp); throw; }
+        try { File.WriteAllText(hashPath, want); } catch { /* best-effort; frame still valid */ }
+    }
+
+    /// <summary>Loads the frame image, (re)generating it if missing, stale (spec changed), or unreadable.</summary>
     private static BitmapImage? TryLoadFrame(TemplateSpec spec, string framePath)
     {
         for (int attempt = 0; attempt < 2; attempt++)
         {
+            try { EnsureFrame(spec, framePath); }
+            catch { return null; }
             if (File.Exists(framePath))
             {
                 try { return LoadBitmap(framePath); }
-                catch { SafeDelete(framePath); }   // corrupt/truncated PNG → regenerate below
+                catch { SafeDelete(framePath); SafeDelete(framePath + ".hash"); }   // corrupt PNG → regenerate
             }
-            try { FrameGenerator.Generate(spec, framePath); }
-            catch { return null; }
         }
         return null;
     }

@@ -82,6 +82,8 @@
                         <TextBlock Style="{StaticResource Key}" Text="Ctrl+L"/>
                         <TextBlock Style="{StaticResource Key}" Text="Ctrl+E"/>
                         <TextBlock Style="{StaticResource Key}" Text="Ctrl+D"/>
+                        <TextBlock Style="{StaticResource Key}" Text="Ctrl+Z"/>
+                        <TextBlock Style="{StaticResource Key}" Text="Ctrl+Y"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1">
                         <TextBlock Style="{StaticResource KeyDesc}" Text="New project"/>
@@ -90,12 +92,18 @@
                         <TextBlock Style="{StaticResource KeyDesc}" Text="Look up current card"/>
                         <TextBlock Style="{StaticResource KeyDesc}" Text="Export current card"/>
                         <TextBlock Style="{StaticResource KeyDesc}" Text="Duplicate current card"/>
+                        <TextBlock Style="{StaticResource KeyDesc}" Text="Undo"/>
+                        <TextBlock Style="{StaticResource KeyDesc}" Text="Redo (also Ctrl+Shift+Z)"/>
                     </StackPanel>
                 </Grid>
-                <TextBlock Style="{StaticResource Body}" Margin="0,4,0,0">The title bar shows <Run FontWeight="SemiBold" Text="●"/> when you have unsaved changes; Cardinator asks before you lose work.</TextBlock>
+                <TextBlock Style="{StaticResource Body}" Margin="0,4,0,0">The title bar shows <Run FontWeight="SemiBold" Text="●"/> when you have unsaved changes; Cardinator asks before you lose work. Every edit is undoable with Ctrl+Z / Ctrl+Y.</TextBlock>
+
+                <TextBlock Text="The CHECKS panel" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
+                <TextBlock Style="{StaticResource Body}">Below the preview, CHECKS watches the selected card and flags problems before export — missing art, an unknown <Run FontFamily="Consolas" Text="{}{symbol}"/>, a footer overlapping the text box, a region off the card, or a collector number used twice. "<Run Text="✓ No issues"/>" means you're clear.</TextBlock>
 
                 <TextBlock Text="Many cards at once" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
-                <TextBlock Style="{StaticResource Body}">Use the <Run FontWeight="SemiBold" Text="Batch"/> section: <Run FontWeight="SemiBold" Text="Import list / CSV"/> (names or a spreadsheet), <Run FontWeight="SemiBold" Text="Match art folder"/>, <Run FontWeight="SemiBold" Text="Look up missing"/>, <Run FontWeight="SemiBold" Text="Export all"/>, and <Run FontWeight="SemiBold" Text="Print sheet"/> (3×3 at real size). Save the whole set as one project file.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">Use the <Run FontWeight="SemiBold" Text="Batch"/> section: <Run FontWeight="SemiBold" Text="Import list / CSV"/> (names or a spreadsheet), <Run FontWeight="SemiBold" Text="Match art folder"/>, <Run FontWeight="SemiBold" Text="Look up missing"/>, <Run FontWeight="SemiBold" Text="Export all"/>, and <Run FontWeight="SemiBold" Text="Print sheet"/> (3×3 at real size; it can add card backs for double-sided printing). Save the whole set as one project file.</TextBlock>
+                <TextBlock Style="{StaticResource Body}"><Run FontWeight="SemiBold" Text="Number cards"/> auto-numbers the set (001/N, 002/N…), and <Run FontWeight="SemiBold" Text="Set fields on all…"/> bulk-edits the set code, artist, rarity, copyright, frame and set-symbol image across every card at once.</TextBlock>
 
                 <TextBlock Text="Where your files live" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
                 <TextBlock Style="{StaticResource Body}">Everything is in the <Run FontFamily="Consolas" Text="CardinatorData"/> folder next to the app: exported cards in <Run FontFamily="Consolas" Text="output"/>, frames in <Run FontFamily="Consolas" Text="templates"/>, cached symbols in <Run FontFamily="Consolas" Text="symbols"/>. Move the app + that folder together to keep everything.</TextBlock>

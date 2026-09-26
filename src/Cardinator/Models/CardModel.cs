@@ -23,6 +23,7 @@ public sealed class CardModel : INotifyPropertyChanged
     private string _toughness = "";
     private string _loyalty = "";
     private string _setCode = "";
+    private string _setSymbolPath = "";
     private string _collectorNumber = "";
     private string _rarity = "";
     private string _copyright = "";
@@ -63,6 +64,10 @@ public sealed class CardModel : INotifyPropertyChanged
 
     /// <summary>Set code shown in the footer, e.g. "CST".</summary>
     public string SetCode { get => _setCode; set => Set(ref _setCode, value); }
+
+    /// <summary>Optional path to a custom set-symbol image (drawn on the type line instead of the
+    /// auto-generated emblem). Lets a custom set have its own icon across every card.</summary>
+    public string SetSymbolPath { get => _setSymbolPath; set => Set(ref _setSymbolPath, value); }
 
     /// <summary>Collector number shown in the footer, e.g. "1".</summary>
     public string CollectorNumber { get => _collectorNumber; set => Set(ref _collectorNumber, value); }
