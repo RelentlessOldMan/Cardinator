@@ -213,6 +213,11 @@ public partial class App : Application
 
         var bulk = new BulkEditWindow(tpls.Select(t => t.Name));
         SaveWindow(bulk, 430, 470, Path.Combine(outDir, "app-bulk-edit.png"));
+
+        var search = new ScryfallSearchWindow(new ScryfallClient());
+        foreach (var c in SampleCards.All("Gold Multicolor"))
+            search.Results.Add(new ScryfallSearchWindow.ResultItem(c) { IsChecked = true });
+        SaveWindow(search, 560, 680, Path.Combine(outDir, "app-search.png"));
     }
 
     /// <summary>

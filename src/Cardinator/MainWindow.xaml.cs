@@ -620,36 +620,34 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void OnScryfallSearch(object sender, RoutedEventArgs e)
     {
-        var query = InputDialog.Ask(this, "Scryfall search",
-            "e.g.  t:dragon   ·   set:dom   ·   c:r cmc=1     (imports up to 60 cards, with art)");
-        if (query == null) return;
+        // Show results in a picker first; only the cards the user checks get added.
+        var win = new ScryfallSearchWindow(_scryfall) { Owner = this };
+        if (win.ShowDialog() != true) return;
+        var chosen = win.SelectedCards;
+        if (chosen.Count == 0) return;
 
-        Status = $"Searching Scryfall for \"{query}\"…";
         try
         {
-            var progress = new Progress<string>(s => Status = s);
-            var found = await _scryfall.SearchAsync(query, 60, progress);
-            if (found.Count == 0) { Status = $"No cards matched \"{query}\"."; return; }
-
             var def = DefaultTemplateName;
-            foreach (var c in found)
+            foreach (var c in chosen)
             {
                 if (string.IsNullOrEmpty(c.TemplateName)) c.TemplateName = def;
                 Cards.Add(c);
             }
-            SelectedCard = found[0];
+            SelectedCard = chosen[0];
             OnPropertyChanged(nameof(ProjectSummary));
-            _ = _symbols.PrimeAsync(found.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
+            _ = _symbols.PrimeAsync(chosen.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
 
-            Status = $"Added {found.Count} card(s). Downloading art…";
+            Status = $"Added {chosen.Count} card(s). Downloading art…";
             int art = 0;
-            foreach (var c in found)
+            foreach (var c in chosen)
             {
                 if (!string.IsNullOrWhiteSpace(c.ArtPath) || string.IsNullOrWhiteSpace(c.ArtUrl)) continue;
                 try { c.ArtPath = await ImageIntake.DownloadAsync(c.ArtUrl); art++; } catch { /* skip */ }
             }
+            CommitHistory();
             RenderPreview();
-            Status = $"Imported {found.Count} card(s) from search ({art} with art).";
+            Status = $"Added {chosen.Count} card(s) from search ({art} with art).";
         }
         catch (Exception ex)
         {
