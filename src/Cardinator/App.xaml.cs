@@ -196,14 +196,7 @@ public partial class App : Application
     private void WriteWindowShots(string outDir)
     {
         var main = new MainWindow { SuppressClosePrompt = true };
-        // Give the preview card some art so the flagship screenshot isn't a blank window.
-        var shot = main.SelectedCard;
-        if (shot != null)
-        {
-            shot.ArtPath = "examples/01-real-cards-custom-art/art/swiftspear.png";
-            main.SelectedCard = null;
-            main.SelectedCard = shot;   // re-select to re-render the preview synchronously
-        }
+        // The default starter card already ships with bundled art, so the flagship shot isn't blank.
         SaveWindow(main, 1240, 820, Path.Combine(outDir, "app-main.png"));
 
         var sample = SampleCards.All("Ocean Blue").First().Clone();

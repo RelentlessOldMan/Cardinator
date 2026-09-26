@@ -19,37 +19,57 @@ public static class SampleCards
         TemplateName = templateName,
     };
 
-    public static IReadOnlyList<CardModel> All(string templateName) => new[]
+    /// <summary>
+    /// Starter cards shown on first run — original examples with bundled art so the app looks alive
+    /// immediately. Each pins a fitting built-in frame (rather than the passed default) so it showcases a
+    /// different layout; <paramref name="templateName"/> is the fallback if a pinned frame is unavailable.
+    /// </summary>
+    public static IReadOnlyList<CardModel> All(string templateName)
     {
-        new CardModel
+        SampleAssets.EnsureExtracted();
+        string Art(string f) => SampleAssets.Path(f);
+        return new[]
         {
-            Name = "Ember Sprite, Chaos Crafter",
-            ManaCost = "{2}{R}{W}",
-            TypeLine = "Legendary Creature — Gnome Artificer",
-            RulesText = "Haste\n\n{T}, Sacrifice an artifact creature: Create two Treasure tokens.\n\n{T}, Sacrifice a noncreature artifact: Create two 1/1 colorless Construct artifact creature tokens.",
-            FlavorText = "\"Every creation demands a price. I intend to collect.\"",
-            Artist = "Your Name Here",
-            Power = "3",
-            Toughness = "3",
-            TemplateName = templateName,
-        },
-        new CardModel
-        {
-            Name = "Verdant Awakening",
-            ManaCost = "{3}{G}",
-            TypeLine = "Sorcery",
-            RulesText = "Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. You gain 3 life.",
-            TemplateName = templateName,
-        },
-        new CardModel
-        {
-            Name = "Tidecaller Adept",
-            ManaCost = "{1}{U}",
-            TypeLine = "Creature — Merfolk Wizard",
-            RulesText = "When Tidecaller Adept enters the battlefield, draw a card, then discard a card.\n\n{2}{U}: Tidecaller Adept can't be blocked this turn.",
-            Power = "1",
-            Toughness = "3",
-            TemplateName = templateName,
-        },
-    };
+            new CardModel
+            {
+                Name = "Seraph of the Last Light",
+                ManaCost = "{3}{W}{W}",
+                TypeLine = "Legendary Creature — Angel",
+                RulesText = "Flying, vigilance, lifelink\nOther creatures you control get +1/+1.",
+                FlavorText = "Where she passes, the dark forgets itself.",
+                Power = "5", Toughness = "5", Rarity = "M", Artist = "Cardinator Demo",
+                SetCode = "DSK", CollectorNumber = "12",
+                ArtPath = Art("seraph-angel.png"),
+                TemplateName = Has("Gold Multicolor", templateName),
+            },
+            new CardModel
+            {
+                Name = "Tatiana, Tide Weaver",
+                ManaCost = "{1}{U}{U}",
+                TypeLine = "Legendary Creature — Merfolk Druid",
+                RulesText = "When Tatiana enters, draw a card, then discard a card.\n{2}{U}: Tatiana can't be blocked this turn.",
+                FlavorText = "The tide remembers every shore it has touched.",
+                Power = "3", Toughness = "4", Rarity = "R", Artist = "Cardinator Demo",
+                SetCode = "TID", CollectorNumber = "58",
+                ArtPath = Art("tatiana-merfolk.png"),
+                TemplateName = Has("Ocean Blue", templateName),
+            },
+            new CardModel
+            {
+                Name = "Kavora, Storm Herald",
+                ManaCost = "{4}{U}{R}",
+                TypeLine = "Legendary Planeswalker — Kavora",
+                RulesText = "+1: Add {U}{R}. Until end of turn, instants and sorceries you cast cost {1} less.\n-3: Kavora, Storm Herald deals 5 damage divided as you choose among up to two targets.\n-9: Draw seven cards.",
+                Loyalty = "5", Rarity = "M", Artist = "Cardinator Demo",
+                SetCode = "WAR", CollectorNumber = "42",
+                ArtPath = Art("kavora-storm.png"),
+                TemplateName = Has("Planeswalker", templateName),
+            },
+        };
+    }
+
+    /// <summary>The preferred frame name (samples pin one); callers pass the loaded template list's default
+    /// as a fallback — the renderer already falls back safely if the pinned frame is missing.</summary>
+    private static string Has(string preferred, string fallback)
+        => string.IsNullOrWhiteSpace(preferred) ? fallback : preferred;
 }

@@ -22,6 +22,12 @@
     <PackageReference Include="SharpVectors.Reloaded" Version="1.8.6" />
   </ItemGroup>
 
+  <!-- Bundled sample artwork, extracted to CardinatorData/samples on first run so the starter
+       cards (and the user) have real art to work with out of the box. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\samples\*.png" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Cardinator.Tests" />
   </ItemGroup>
