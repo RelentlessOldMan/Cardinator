@@ -579,16 +579,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         try
         {
+            // The file name IS the project's identity (there's no separate name field), so persist the
+            // name derived from the path — otherwise a reloaded file would show a stale/"Untitled" name.
+            var name = Path.GetFileNameWithoutExtension(path);
             var project = new CardProject
             {
-                Name = _projectName,
+                Name = name,
                 ArtBaseDir = _artBaseDir,
                 DefaultTemplate = DefaultTemplateName,
                 Cards = Cards.ToList(),
             };
             project.Save(path);
             _projectPath = path;
-            _projectName = Path.GetFileNameWithoutExtension(path);
+            _projectName = name;
             MarkSavedPoint();   // this history position now matches disk (undo past it re-marks dirty)
             OnPropertyChanged(nameof(ProjectSummary));
             OnPropertyChanged(nameof(WindowTitle));
@@ -637,9 +640,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         try
         {
             var content = File.ReadAllText(filePath);
-            _artBaseDir = Path.GetDirectoryName(filePath) ?? "";
-            var imported = ImportService.Parse(content, _artBaseDir, DefaultTemplateName);
+            var baseDir = Path.GetDirectoryName(filePath) ?? "";
+            var imported = ImportService.Parse(content, baseDir, DefaultTemplateName);
             if (imported.Count == 0) { Status = "No cards found in that file."; return; }
+            _artBaseDir = baseDir;   // only commit the base dir once we know the import actually produced cards
 
             foreach (var item in imported) Cards.Add(item.Card);
             SelectedCard = imported[0].Card;
@@ -1033,15 +1037,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             SetArt(dlg.FileName);
     }
 
-    /// <summary>Points the selected card at a new art file and resets its pan/zoom.</summary>
+    /// <summary>Points the selected card at a new art file and resets its pan/zoom. The image is copied
+    /// into the portable art cache so the project stays self-contained if the source later moves.</summary>
     private void SetArt(string path)
     {
         if (_selectedCard == null) return;
-        _selectedCard.ArtPath = path;
+        var local = ImageIntake.EnsureLocalCopy(path);
+        _selectedCard.ArtPath = local;
         _selectedCard.ArtScale = 1.0;
         _selectedCard.ArtOffsetX = 0;
         _selectedCard.ArtOffsetY = 0;
-        Status = "Loaded art: " + Path.GetFileName(path);
+        Status = "Loaded art: " + Path.GetFileName(local);
     }
 
     private void OnClearArt(object sender, RoutedEventArgs e)
