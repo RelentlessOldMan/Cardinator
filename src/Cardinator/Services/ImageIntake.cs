@@ -57,6 +57,40 @@ public static class ImageIntake
         return path;
     }
 
+    /// <summary>
+    /// Copies an interactively-selected image into the portable art cache and returns the cached path,
+    /// so a saved project stays self-contained even if the user later moves or deletes the original
+    /// file. Images that already live inside the app's data folder (pasted, downloaded, or previously
+    /// cached art) are returned unchanged — no needless duplication. On any failure the original path is
+    /// returned, so this is never worse than referencing the source directly.
+    /// </summary>
+    public static string EnsureLocalCopy(string path)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return path;
+            var full = Path.GetFullPath(path);
+
+            // Already under our data dir (art cache / samples / a prior copy) — leave it in place.
+            var dataRoot = Path.GetFullPath(AppPaths.DataDir);
+            if (full.StartsWith(dataRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(full, dataRoot, StringComparison.OrdinalIgnoreCase))
+                return full;
+
+            var ext = Path.GetExtension(full);
+            if (string.IsNullOrEmpty(ext)) ext = ".png";
+            var dest = Path.Combine(AppPaths.ArtCacheDir,
+                                    UniqueFileName(Path.GetFileNameWithoutExtension(full), ext));
+            Directory.CreateDirectory(AppPaths.ArtCacheDir);
+            File.Copy(full, dest, overwrite: false);
+            return dest;
+        }
+        catch
+        {
+            return path;   // fall back to referencing the original — no worse than before
+        }
+    }
+
     /// <summary>Largest art download we'll accept, to protect against hostile/misconfigured links.</summary>
     public const long MaxDownloadBytes = 32L * 1024 * 1024;
 
