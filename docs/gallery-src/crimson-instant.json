@@ -1,0 +1,13 @@
+{
+    "name":  "Emberstorm Bolt",
+    "manaCost":  "{1}{R}",
+    "typeLine":  "Instant",
+    "rulesText":  "Emberstorm Bolt deals 4 damage to any target.\nIf a creature dealt damage this way would die this turn, exile it instead.",
+    "flavorText":  "One spark is all the mountain needs.",
+    "setCode":  "M21",
+    "collectorNumber":  "139",
+    "rarity":  "U",
+    "artist":  "Cardinator Demo",
+    "templateName":  "Crimson Red",
+    "artPath":  "docs/gallery-src/art/ember.png"
+}

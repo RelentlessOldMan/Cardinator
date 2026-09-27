@@ -1,0 +1,13 @@
+{
+    "name":  "Kavora, Storm Herald",
+    "manaCost":  "{4}{U}{R}",
+    "typeLine":  "Legendary Planeswalker â€” Kavora",
+    "rulesText":  "+1: Add {U}{R}. Until end of turn, instants and sorceries you cast cost {1} less.\n-3: Kavora, Storm Herald deals 5 damage divided as you choose among up to two targets.\n-9: Draw seven cards. You may cast up to three spells this turn without paying their mana costs.",
+    "loyalty":  "5",
+    "setCode":  "WAR",
+    "collectorNumber":  "105",
+    "rarity":  "M",
+    "artist":  "Cardinator Demo",
+    "templateName":  "Planeswalker",
+    "artPath":  "docs/gallery-src/art/kavora-storm.png"
+}

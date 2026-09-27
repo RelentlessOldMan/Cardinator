@@ -1,0 +1,12 @@
+{
+    "name":  "Chronomancer\u0027s Astrolabe",
+    "manaCost":  "{3}",
+    "typeLine":  "Legendary Artifact â€” Equipment",
+    "rulesText":  "Equipped creature gets +1/+1 and has vigilance.\n{T}: Add one mana of any color.\nEquip {2}",
+    "setCode":  "BRO",
+    "collectorNumber":  "201",
+    "rarity":  "C",
+    "artist":  "Cardinator Demo",
+    "templateName":  "Slate Artifact",
+    "artPath":  "docs/gallery-src/art/chronomancer-astrolabe.png"
+}

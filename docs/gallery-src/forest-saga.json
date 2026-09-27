@@ -1,0 +1,12 @@
+{
+    "name":  "Chronicle of the Wildwood",
+    "manaCost":  "{2}{G}",
+    "typeLine":  "Enchantment â€” Saga",
+    "rulesText":  "I, II â€” Search your library for a basic Forest card, reveal it, put it into your hand, then shuffle.\nIII â€” Create a 5/5 green Wurm creature token.",
+    "setCode":  "THB",
+    "collectorNumber":  "180",
+    "rarity":  "R",
+    "artist":  "Cardinator Demo",
+    "templateName":  "Forest Green",
+    "artPath":  "docs/gallery-src/art/wildwood-saga.png"
+}

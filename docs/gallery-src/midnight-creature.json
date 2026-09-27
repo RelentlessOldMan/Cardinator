@@ -1,0 +1,15 @@
+{
+    "name":  "Bloodpact Initiate",
+    "manaCost":  "{1}{B}",
+    "typeLine":  "Creature â€” Human Warlock",
+    "rulesText":  "Deathtouch\nWhenever Bloodpact Initiate dies, each opponent loses 2 life.",
+    "flavorText":  "Every bargain has its price.",
+    "power":  "2",
+    "toughness":  "2",
+    "setCode":  "NEO",
+    "collectorNumber":  "110",
+    "rarity":  "U",
+    "artist":  "Cardinator Demo",
+    "templateName":  "Midnight",
+    "artPath":  "docs/gallery-src/art/bloodpact-warlock.png"
+}

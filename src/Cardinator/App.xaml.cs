@@ -15,7 +15,7 @@ namespace Cardinator;
 /// </summary>
 public partial class App : Application
 {
-    internal const string Version = "Cardinator 1.0";
+    internal const string Version = "Cardinator 1.3";
 
     protected override void OnStartup(StartupEventArgs e)
     {

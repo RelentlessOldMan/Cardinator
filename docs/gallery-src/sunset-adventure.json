@@ -1,0 +1,20 @@
+{
+    "name":  "Emberpaw Scrapper",
+    "manaCost":  "{2}{R}",
+    "typeLine":  "Creature â€” Goblin Rogue",
+    "rulesText":  "Haste\nWhenever Emberpaw Scrapper attacks, it gets +1/+0 until end of turn for each other attacking creature.",
+    "flavorText":  "Trouble, on two short legs.",
+    "power":  "2",
+    "toughness":  "2",
+    "setCode":  "WOE",
+    "collectorNumber":  "137",
+    "rarity":  "U",
+    "artist":  "Cardinator Demo",
+    "layout":  "adventure",
+    "adventureName":  "Quick Sabotage",
+    "adventureCost":  "{R}",
+    "adventureType":  "Sorcery â€” Adventure",
+    "adventureText":  "Destroy target artifact.",
+    "templateName":  "Sunset Orange",
+    "artPath":  "docs/gallery-src/art/emberpaw-goblin.png"
+}

@@ -4,9 +4,8 @@ using System.Reflection;
 namespace Cardinator.Services;
 
 /// <summary>
-/// Extracts the bundled sample artwork (embedded in the exe) into CardinatorData/samples on first run,
-/// so the starter cards render with real art and the user has a small art library to pick from. Idempotent
-/// and cheap after the first call.
+/// Extracts the bundled starter-card artwork (embedded in the exe) into CardinatorData/samples on first
+/// run, so the single starter card renders with real art. Idempotent and cheap after the first call.
 /// </summary>
 public static class SampleAssets
 {

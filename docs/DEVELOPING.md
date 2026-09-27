@@ -39,6 +39,25 @@ $exe = "src/Cardinator/bin/Debug/net8.0-windows/win-x64/Cardinator.exe"
 
 See [CLI.md](CLI.md) for all headless modes.
 
+### Regenerating the docs images (before a release)
+
+One script regenerates **every** app-produced image under `docs/` — the window screenshots, hero
+renders, `QUICKSTART.md`, the per-frame images, and the full `GALLERY.md` tour:
+
+```powershell
+dotnet build src/Cardinator/Cardinator.csproj -c Debug
+pwsh scripts/regen-docs.ps1        # or: powershell -ExecutionPolicy Bypass -File scripts\regen-docs.ps1
+git status docs                    # review, then commit
+```
+
+The gallery is reproducible: its card definitions live in `docs/gallery-src/*.json` and their art in
+`docs/gallery-src/art/` (doc-only — **not** embedded in the exe). To change the gallery, edit/add a
+JSON there and re-run the script. Only the single starter card's art (`seraph-angel.png`) is embedded
+in the app; everything else the app shows is the user's own art or pulled from Scryfall.
+
+After an intentional renderer change, also re-baseline the golden images:
+`$env:CARDINATOR_UPDATE_GOLDEN=1; dotnet test --filter GoldenTests` then run the tests again clean.
+
 ---
 
 ## Project layout
