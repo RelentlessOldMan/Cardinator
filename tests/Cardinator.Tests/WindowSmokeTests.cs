@@ -50,6 +50,14 @@ public class WindowSmokeTests
         });
 
     [Fact]
+    public void ConfirmDialog_Constructs_WithAppResources()
+        => OnAppThread(() =>
+        {
+            var w = new Cardinator.ConfirmDialog("Unsaved changes", "Save first?", "Save", "Don't save", "Cancel");
+            Assert.NotNull(w.Content);
+        });
+
+    [Fact]
     public void DeckListWindow_Constructs_WithAppResources()
         => OnAppThread(() =>
         {
@@ -88,6 +96,18 @@ public class WindowSmokeTests
 
             main.Redo();
             Assert.Equal("Undo Probe", main.SelectedCard!.Name);   // re-applied
+        });
+
+    [Fact]
+    public void MainWindow_BulkEdit_ReRendersActiveCard()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            Assert.NotNull(main.PreviewImage);
+            var before = main.PreviewImage;
+            // Clearing the footer on all cards must re-render the selected card's preview immediately.
+            main.ApplyBulkEdit(null, null, null, copyright: "", null, null);
+            Assert.NotSame(before, main.PreviewImage);
         });
 
     [Fact]

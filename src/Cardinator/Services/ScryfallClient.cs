@@ -88,7 +88,18 @@ public sealed class ScryfallClient
             : null;
     }
 
-    private static async Task<string?> GetAsync(string url, CancellationToken ct)
+    private static Task<string?> GetAsync(string url, CancellationToken ct)
+        => SendAsync(() => new HttpRequestMessage(HttpMethod.Get, url), ct);
+
+    private static Task<string?> PostJsonAsync(string url, string jsonBody, CancellationToken ct)
+        => SendAsync(() => new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json"),
+        }, ct);
+
+    /// <summary>Shared send with the Scryfall rate-limit throttle (~10/s) and 429/503 backoff+retry. The
+    /// request is built fresh per attempt because an HttpRequestMessage can't be resent.</summary>
+    private static async Task<string?> SendAsync(Func<HttpRequestMessage> makeRequest, CancellationToken ct)
     {
         await Gate.WaitAsync(ct);
         try
@@ -104,7 +115,7 @@ public sealed class ScryfallClient
                 HttpResponseMessage resp;
                 try
                 {
-                    resp = await Http.GetAsync(url, ct);
+                    resp = await Http.SendAsync(makeRequest(), ct);
                 }
                 catch (HttpRequestException ex)
                 {
@@ -149,4 +160,42 @@ public sealed class ScryfallClient
         }
     }
 
+    /// <summary>One card to look up in a batch: by exact name, or by a specific printing (set + collector).</summary>
+    public sealed record CardRef(string? Name, string? Set, string? Collector);
+
+    /// <summary>
+    /// Looks up many cards in as few requests as possible via Scryfall's /cards/collection endpoint
+    /// (up to 75 per request), instead of one call per card. Returns the mapped faces for each card that
+    /// matched (double-faced cards yield multiple faces). Cards Scryfall can't find are simply omitted —
+    /// the caller can fall back to a fuzzy single lookup for those.
+    /// </summary>
+    public async Task<List<List<CardModel>>> LookupCollectionAsync(
+        IReadOnlyList<CardRef> refs, CancellationToken ct = default)
+    {
+        var results = new List<List<CardModel>>();
+        for (int start = 0; start < refs.Count; start += 75)
+        {
+            ct.ThrowIfCancellationRequested();
+            var chunk = refs.Skip(start).Take(75).ToList();
+
+            var identifiers = chunk.Select(r =>
+                !string.IsNullOrWhiteSpace(r.Set) && !string.IsNullOrWhiteSpace(r.Collector)
+                    ? new Dictionary<string, string> { ["set"] = r.Set!.ToLowerInvariant(), ["collector_number"] = r.Collector! }
+                    : new Dictionary<string, string> { ["name"] = r.Name ?? "" }).ToList();
+            var body = JsonSerializer.Serialize(new { identifiers });
+
+            var json = await PostJsonAsync($"{Base}/cards/collection", body, ct);
+            if (json is null) continue;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+                    foreach (var el in data.EnumerateArray())
+                        results.Add(ScryfallMapper.MapElement(el));
+            }
+            catch (JsonException) { throw new ScryfallException("Scryfall returned an unexpected response."); }
+        }
+        return results;
+    }
 }

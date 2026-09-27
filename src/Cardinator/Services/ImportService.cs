@@ -92,9 +92,10 @@ public static class ImportService
     // common section headers. Set codes are required to be uppercase so real names ending in "(...)"
     // (e.g. reminder-style names) aren't mistaken for a hint.
     private static readonly Regex QtyPrefix = new(@"^(\d{1,3})\s*[xX]?\s+(.+)$", RegexOptions.Compiled);
-    // Printing hint "(SET) 123": uppercase set code, optional alphanumeric collector (foils/variants
-    // like "273p" or "84s"). Anchored at end so real names ending in "(...)" aren't mistaken for a hint.
-    private static readonly Regex SetHint = new(@"\s*\(([A-Z0-9]{2,6})\)\s*([0-9A-Za-z★]+)?\s*$", RegexOptions.Compiled);
+    // Printing hint "(SET) 123": uppercase set code, optional collector that may be alphanumeric with a
+    // hyphen (foils/variants like "273p", and The List / PLST numbers like "M20-14"). Anchored at end so
+    // real names ending in "(...)" aren't mistaken for a hint.
+    private static readonly Regex SetHint = new(@"\s*\(([A-Z0-9]{2,6})\)\s*([0-9A-Za-z★\-]+)?\s*$", RegexOptions.Compiled);
     // Trailing foil/etched marker some deck sites (e.g. Moxfield) append, e.g. "... (LTC) 273 *F*".
     private static readonly Regex FoilMarker = new(@"\s*\*[A-Za-z]\*\s*$", RegexOptions.Compiled);
     private static readonly HashSet<string> SectionHeaders =

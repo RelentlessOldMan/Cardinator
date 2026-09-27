@@ -38,6 +38,14 @@
             </StackPanel>
         </Grid>
 
+        <TextBlock Text="Clear on all cards (empties the field)" Style="{StaticResource SectionLabel}" Margin="2,14,0,4"/>
+        <WrapPanel>
+            <CheckBox x:Name="ClearSet" Content="Set code" Margin="0,0,14,0"/>
+            <CheckBox x:Name="ClearArtist" Content="Artist" Margin="0,0,14,0"/>
+            <CheckBox x:Name="ClearCopyright" Content="Copyright / footer" Margin="0,0,14,0"/>
+            <CheckBox x:Name="ClearSymbol" Content="Set symbol"/>
+        </WrapPanel>
+
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
             <Button Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel" Margin="0,0,8,0" IsCancel="True"/>
             <Button Content="Apply" Style="{StaticResource Primary}" MinWidth="110" Click="OnApply" IsDefault="True"/>

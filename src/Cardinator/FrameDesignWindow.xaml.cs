@@ -195,8 +195,8 @@ public partial class FrameDesignWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "Could not save the template:\n" + ex.Message, "Frame design",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            ConfirmDialog.Show(this, "Frame design", "Could not save the template:\n" + ex.Message,
+                affirmative: "OK");
         }
     }
 
