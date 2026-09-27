@@ -1,7 +1,7 @@
 {
     "name":  "Ashen Warcaller",
     "manaCost":  "{3}{B}{R}",
-    "typeLine":  "Legendary Creature â€” Human Warlock",
+    "typeLine":  "Legendary Creature — Human Warlock",
     "rulesText":  "Menace, haste\nWhenever Ashen Warcaller deals combat damage to a player, each opponent discards a card.",
     "power":  "4",
     "toughness":  "4",

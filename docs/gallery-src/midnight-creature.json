@@ -1,7 +1,7 @@
 {
     "name":  "Bloodpact Initiate",
     "manaCost":  "{1}{B}",
-    "typeLine":  "Creature â€” Human Warlock",
+    "typeLine":  "Creature — Human Warlock",
     "rulesText":  "Deathtouch\nWhenever Bloodpact Initiate dies, each opponent loses 2 life.",
     "flavorText":  "Every bargain has its price.",
     "power":  "2",
