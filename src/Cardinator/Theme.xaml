@@ -13,6 +13,11 @@
     <SolidColorBrush x:Key="Accent" Color="#4C8DF0"/>
     <SolidColorBrush x:Key="AccentHover" Color="#5E9BF5"/>
     <SolidColorBrush x:Key="AccentText" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="Warn" Color="#E0A84A"/>
+    <!-- Dark stage behind the card preview, and the progress track over it. -->
+    <SolidColorBrush x:Key="PreviewBg" Color="#0F0F12"/>
+    <SolidColorBrush x:Key="ProgressTrack" Color="#26262B"/>
+    <SolidColorBrush x:Key="ThumbBg" Color="#1A1B20"/>
 
     <!-- ===== Text ===== -->
     <Style TargetType="TextBlock">

@@ -33,7 +33,11 @@ public partial class FrameDesignWindow : Window
         InitializeComponent();
         _renderer = new CardRenderer(_symbols);
         _spec = template.Spec.Clone();
-        _templateDir = Path.GetDirectoryName(template.FramePath)!;
+        // Prefer the folder the frame lives in; fall back to the standard templates dir when a template
+        // has no on-disk frame path yet (an in-memory template), so Apply always has a valid place to write.
+        _templateDir = Path.GetDirectoryName(template.FramePath) is { Length: > 0 } dir
+            ? dir
+            : Path.Combine(AppPaths.TemplatesDir, TextUtil.SafeFileName(_spec.Name));
         DataContext = _spec;
 
         StyleBox.ItemsSource = new[] { "classic", "clean", "ornate", "faded", "modern", "borderless", "overlay", "wave" };
@@ -178,6 +182,7 @@ public partial class FrameDesignWindow : Window
 
         try
         {
+            Directory.CreateDirectory(_templateDir);   // in case this is a template with no on-disk folder yet
             _spec.Save(Path.Combine(_templateDir, "template.json"));
             // The cached frame regenerates automatically (its hash no longer matches), but delete it
             // eagerly so the change is visible immediately.

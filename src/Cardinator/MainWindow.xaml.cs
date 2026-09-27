@@ -28,6 +28,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _artBaseDir = "";
     private string _projectPath = "";     // last saved/opened file, so Ctrl+S can re-save silently
     private bool _isExporting;
+    private bool _busy;                     // any long/mutating op in flight (gates re-entrancy + conflicts)
     private double _exportProgress;
     private bool _dirty;
     private bool _loading;                 // suppress dirty-tracking while populating a project
@@ -37,6 +38,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     // they trip either the card's PropertyChanged or the Cards collection change.
     private readonly List<(string json, int sel)> _history = new();
     private int _histIdx = -1;
+    private int _savedHistIdx;             // history index that matches what's on disk (for accurate dirty state)
     private DispatcherTimer _undoTimer = null!;
     private bool _restoring;
     private static readonly System.Text.Json.JsonSerializerOptions SnapOpts =
@@ -100,6 +102,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(CanEditSelected));
             RenderPreview();
         }
     }
@@ -109,8 +112,31 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// <summary>True when the project has at least one card (gates batch/export actions).</summary>
     public bool HasCards => Cards.Count > 0;
 
-    /// <summary>True when there are cards to export and no export is already running.</summary>
-    public bool CanExport => Cards.Count > 0 && !_isExporting;
+    /// <summary>A long/mutating operation (lookup, import, search, export…) is running. While true, other
+    /// actions are disabled and re-entrant handlers early-return, so nothing conflicts or double-fires.</summary>
+    public bool Busy
+    {
+        get => _busy;
+        private set
+        {
+            _busy = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(NotBusy));
+            OnPropertyChanged(nameof(CanExport));
+            OnPropertyChanged(nameof(CanEditSelected));
+            OnPropertyChanged(nameof(CanUndo));
+            OnPropertyChanged(nameof(CanRedo));
+        }
+    }
+
+    /// <summary>Convenience inverse of <see cref="Busy"/> for "enabled unless busy" bindings.</summary>
+    public bool NotBusy => !_busy;
+
+    /// <summary>The batch/export actions are usable: there are cards and nothing else is running.</summary>
+    public bool CanExport => Cards.Count > 0 && !_busy;
+
+    /// <summary>The per-card editor is usable: a card is selected and nothing else is running.</summary>
+    public bool CanEditSelected => _selectedCard != null && !_busy;
 
     public Template? SelectedTemplate
     {
@@ -119,7 +145,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _selectedTemplate = value;
             OnPropertyChanged();
-            if (value != null && _selectedCard != null) _selectedCard.TemplateName = value.Name;
+            // Only push the frame onto the card for a genuine user change — not during restore/load or a
+            // programmatic re-sync (which would spuriously dirty the card / churn undo history).
+            if (value != null && _selectedCard != null && !_restoring && !_loading
+                && !string.Equals(value.Name, _selectedCard.TemplateName, StringComparison.Ordinal))
+                _selectedCard.TemplateName = value.Name;
             RenderPreview();
         }
     }
@@ -208,16 +238,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     // --- undo / redo --------------------------------------------------------
 
     /// <summary>Whether there's a prior state to step back to.</summary>
-    public bool CanUndo => _histIdx > 0;
+    public bool CanUndo => _histIdx > 0 && !_busy;
     /// <summary>Whether there's a forward state to redo.</summary>
-    public bool CanRedo => _histIdx >= 0 && _histIdx < _history.Count - 1;
+    public bool CanRedo => _histIdx >= 0 && _histIdx < _history.Count - 1 && !_busy;
 
     private void SeedHistory()
     {
         _history.Clear();
         _history.Add((SnapshotJson(), SelectedIndex()));
         _histIdx = 0;
+        _savedHistIdx = 0;   // a freshly seeded project matches its on-disk (or blank) baseline
         UpdateUndoRedo();
+    }
+
+    /// <summary>Marks the current history position as the saved baseline (called after Save/Open).</summary>
+    private void MarkSavedPoint()
+    {
+        _savedHistIdx = _histIdx;
+        Dirty = false;
     }
 
     private int SelectedIndex() => _selectedCard != null ? Cards.IndexOf(_selectedCard) : -1;
@@ -244,7 +282,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _history.Add((json, sel));
         _histIdx = _history.Count - 1;
         const int cap = 60;
-        while (_history.Count > cap) { _history.RemoveAt(0); _histIdx--; }
+        while (_history.Count > cap) { _history.RemoveAt(0); _histIdx--; _savedHistIdx--; }
+        Dirty = _histIdx != _savedHistIdx;
         UpdateUndoRedo();
     }
 
@@ -262,7 +301,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         finally { _restoring = false; }
         OnPropertyChanged(nameof(ProjectSummary));
-        MarkDirty();
+        OnPropertyChanged(nameof(HasCards));
+        OnPropertyChanged(nameof(CanExport));
+        // Dirty exactly when we're not sitting on the saved baseline (undo back to saved clears the ●).
+        Dirty = _histIdx != _savedHistIdx;
     }
 
     public void Undo()
@@ -356,6 +398,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         CardList.SelectedItems.Clear();                              // keep the moved cards selected
         foreach (var c in sel) CardList.SelectedItems.Add(c);
+        if (_selectedCard != null) CardList.ScrollIntoView(_selectedCard);
         MarkDirty();
         CommitHistory();
         Status = sel.Count > 1 ? $"Moved {sel.Count} cards." : "Reordered cards.";
@@ -455,6 +498,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         int firstIdx = sel.Select(c => Cards.IndexOf(c)).Where(i => i >= 0).DefaultIfEmpty(0).Min();
         foreach (var c in sel) Cards.Remove(c);
         SelectedCard = Cards.Count == 0 ? null : Cards[Math.Min(firstIdx, Cards.Count - 1)];
+        if (SelectedCard != null) CardList.ScrollIntoView(SelectedCard);
         Status = sel.Count > 1 ? $"Deleted {sel.Count} cards." : "Deleted card.";
     }
 
@@ -545,7 +589,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             project.Save(path);
             _projectPath = path;
             _projectName = Path.GetFileNameWithoutExtension(path);
-            Dirty = false;
+            MarkSavedPoint();   // this history position now matches disk (undo past it re-marks dirty)
             OnPropertyChanged(nameof(ProjectSummary));
             OnPropertyChanged(nameof(WindowTitle));
             Status = $"Saved project ({Cards.Count} cards).";
@@ -588,6 +632,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async Task ImportListFile(string filePath)
     {
+        if (Busy) return;
+        Busy = true;
         try
         {
             var content = File.ReadAllText(filePath);
@@ -606,6 +652,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var report = await BatchService.FillFromScryfallAsync(imported, progress);
             foreach (var back in report.ExtraBackFaces) Cards.Add(back);
             _ = _symbols.PrimeAsync(Cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
+            MarkDirty();
+            CommitHistory();   // fields filled on non-selected cards don't trip OnCardChanged, so commit explicitly
             RenderPreview();
             OnPropertyChanged(nameof(ProjectSummary));
             Status = $"Imported {imported.Count} card(s). Scryfall filled {report.Filled}"
@@ -616,6 +664,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Status = "Import failed: " + ex.Message;
         }
+        finally { Busy = false; }
     }
 
     private async void OnScryfallSearch(object sender, RoutedEventArgs e)
@@ -625,7 +674,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (win.ShowDialog() != true) return;
         var chosen = win.SelectedCards;
         if (chosen.Count == 0) return;
-
+        if (Busy) return;
+        Busy = true;
         try
         {
             var def = DefaultTemplateName;
@@ -645,6 +695,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!string.IsNullOrWhiteSpace(c.ArtPath) || string.IsNullOrWhiteSpace(c.ArtUrl)) continue;
                 try { c.ArtPath = await ImageIntake.DownloadAsync(c.ArtUrl); art++; } catch { /* skip */ }
             }
+            MarkDirty();
             CommitHistory();
             RenderPreview();
             Status = $"Added {chosen.Count} card(s) from search ({art} with art).";
@@ -653,10 +704,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Status = "Search failed: " + ex.Message;
         }
+        finally { Busy = false; }
     }
 
     private async void OnLookupMissing(object sender, RoutedEventArgs e)
     {
+        if (Busy) return;
         var items = Cards.Select(c => new ImportedCard(
             c, string.IsNullOrWhiteSpace(c.ManaCost)
                && string.IsNullOrWhiteSpace(c.TypeLine)
@@ -664,6 +717,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         int n = items.Count(i => i.NeedsLookup);
         if (n == 0) { Status = "No cards are missing text to look up."; return; }
 
+        Busy = true;
         Status = $"Looking up {n} card(s) on Scryfall…";
         try
         {
@@ -671,6 +725,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var report = await BatchService.FillFromScryfallAsync(items, progress);
             foreach (var back in report.ExtraBackFaces) Cards.Add(back);
             _ = _symbols.PrimeAsync(Cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
+            MarkDirty();
+            CommitHistory();   // fields filled in place don't trip OnCardChanged for non-selected cards
             RenderPreview();
             OnPropertyChanged(nameof(ProjectSummary));
             Status = $"Filled {report.Filled} card(s)"
@@ -681,6 +737,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Status = "Look up missing failed: " + ex.Message;
         }
+        finally { Busy = false; }
     }
 
     private async void OnExportAll(object sender, RoutedEventArgs e)
@@ -696,6 +753,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var symbols = _symbols;
         var folder = dlg.FolderName;
 
+        Busy = true;
         IsExporting = true;
         ExportProgress = 0;
         Status = $"Exporting {cardsSnapshot.Count} card(s)…";
@@ -722,6 +780,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         finally
         {
             IsExporting = false;
+            Busy = false;
         }
     }
 
@@ -746,6 +805,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var symbols = _symbols;
         var folder = dlg.FolderName;
 
+        Busy = true;
         IsExporting = true;
         ExportProgress = 0;
         Status = $"Composing print sheet for {cardsSnapshot.Count} card(s)…";
@@ -774,6 +834,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         finally
         {
             IsExporting = false;
+            Busy = false;
         }
     }
 
@@ -781,6 +842,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (_selectedCard == null) return;
         new DetailsWindow(_selectedCard) { Owner = this }.ShowDialog();
+        CommitHistory();   // coalesce the dialog's edits into one undo step and refresh the preview
+        RenderPreview();
     }
 
     private void OnHelp(object sender, RoutedEventArgs e)
@@ -855,12 +918,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnMatchArtFolder(object sender, RoutedEventArgs e)
     {
+        if (Busy) return;
         var dlg = new OpenFolderDialog { Title = "Choose a folder of art images to match by name" };
         if (dlg.ShowDialog() != true) return;
+        Busy = true;
         try
         {
             int matched = ArtMatcher.MatchInto(Cards, dlg.FolderName, overwrite: false);
             _artBaseDir = dlg.FolderName;
+            if (matched > 0) { MarkDirty(); CommitHistory(); }
             RenderPreview();
             Status = matched > 0 ? $"Matched art for {matched} card(s)." : "No filename matches found.";
         }
@@ -868,6 +934,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Status = "Art match failed: " + ex.Message;
         }
+        finally { Busy = false; }
     }
 
     private static Task<T> RunStaAsync<T>(Func<T> func)
@@ -888,10 +955,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void OnLookup(object sender, RoutedEventArgs e)
     {
-        if (_selectedCard == null) return;
-        var query = _selectedCard.Name;
+        if (Busy) return;
+        var card = _selectedCard;   // capture: a selection change mid-await must not write to a different card
+        if (card == null) return;
+        var query = card.Name;
         if (string.IsNullOrWhiteSpace(query)) { Status = "Type a card name first."; return; }
 
+        Busy = true;
         Status = $"Looking up \"{query}\" on Scryfall…";
         try
         {
@@ -899,34 +969,37 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (faces.Count == 0) { Status = $"No card found for \"{query}\"."; return; }
 
             var f = faces[0];
-            _selectedCard.Name = f.Name;
-            _selectedCard.ManaCost = f.ManaCost;
-            _selectedCard.TypeLine = f.TypeLine;
-            _selectedCard.RulesText = f.RulesText;
-            _selectedCard.Power = f.Power;
-            _selectedCard.Toughness = f.Toughness;
-            _selectedCard.Loyalty = f.Loyalty;
-            _selectedCard.SetCode = f.SetCode;
-            _selectedCard.CollectorNumber = f.CollectorNumber;
-            _selectedCard.Rarity = f.Rarity;
+            card.Name = f.Name;
+            card.ManaCost = f.ManaCost;
+            card.TypeLine = f.TypeLine;
+            card.RulesText = f.RulesText;
+            card.Power = f.Power;
+            card.Toughness = f.Toughness;
+            card.Loyalty = f.Loyalty;
+            card.SetCode = f.SetCode;
+            card.CollectorNumber = f.CollectorNumber;
+            card.Rarity = f.Rarity;
 
             // Double-faced: add the back as a new card in the project.
             for (int i = 1; i < faces.Count; i++)
             {
-                faces[i].TemplateName = _selectedCard.TemplateName;
+                faces[i].TemplateName = card.TemplateName;
                 Cards.Add(faces[i]);
             }
 
             _ = _symbols.PrimeAsync(faces.SelectMany(x => ManaText.SymbolTokens(x.ManaCost, x.RulesText)));
 
             // Pull the real art from Scryfall for any face that doesn't already have art.
-            await FillArtFromScryfall(_selectedCard, f.ArtUrl);
+            bool gotArt = await FillArtFromScryfall(card, f.ArtUrl);
             for (int i = 1; i < faces.Count; i++)
                 await FillArtFromScryfall(faces[i], faces[i].ArtUrl);
 
+            MarkDirty();
+            CommitHistory();
+            RenderPreview();
             Status = faces.Count > 1
                 ? $"Loaded \"{f.Name}\" (+{faces.Count - 1} back face) from Scryfall."
-                : $"Loaded \"{f.Name}\" from Scryfall.";
+                : $"Loaded \"{f.Name}\" from Scryfall" + (!gotArt && string.IsNullOrWhiteSpace(f.ArtUrl) ? " (no art available)." : ".");
         }
         catch (ScryfallException ex)
         {
@@ -936,14 +1009,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Status = "Lookup failed: " + ex.Message;
         }
+        finally { Busy = false; }
     }
 
-    /// <summary>Downloads Scryfall art for a card that has none yet (best-effort; ignored on failure).</summary>
-    private static async Task FillArtFromScryfall(CardModel card, string artUrl)
+    /// <summary>Downloads Scryfall art for a card that has none yet. Returns true if art was set.</summary>
+    private static async Task<bool> FillArtFromScryfall(CardModel card, string artUrl)
     {
-        if (!string.IsNullOrWhiteSpace(card.ArtPath) || string.IsNullOrWhiteSpace(artUrl)) return;
-        try { card.ArtPath = await ImageIntake.DownloadAsync(artUrl); }
-        catch { /* keep the card without art rather than failing the lookup */ }
+        if (!string.IsNullOrWhiteSpace(card.ArtPath)) return true;
+        if (string.IsNullOrWhiteSpace(artUrl)) return false;
+        try { card.ArtPath = await ImageIntake.DownloadAsync(artUrl); return true; }
+        catch { return false; /* keep the card without art rather than failing the lookup */ }
     }
 
     private void OnLoadArt(object sender, RoutedEventArgs e)
@@ -1112,6 +1187,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void OnWindowDrop(object sender, System.Windows.DragEventArgs e)
     {
+        if (Busy) return;   // don't accept a drop mid-import/lookup/export
         try
         {
             if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return;

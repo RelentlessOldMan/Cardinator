@@ -34,9 +34,9 @@
                     <Button Content="Undo" Style="{StaticResource Ghost}" Click="OnUndo" IsEnabled="{Binding CanUndo}" ToolTip="Undo (Ctrl+Z)"/>
                     <Button Content="Redo" Style="{StaticResource Ghost}" Click="OnRedo" IsEnabled="{Binding CanRedo}" ToolTip="Redo (Ctrl+Y)"/>
                     <Border Width="1" Background="{StaticResource Line}" Margin="8,10"/>
-                    <Button Content="New" Style="{StaticResource Ghost}" Click="OnNewProject"/>
-                    <Button Content="Open" Style="{StaticResource Ghost}" Click="OnOpenProject"/>
-                    <Button Content="Save" Style="{StaticResource Ghost}" Click="OnSaveProject"/>
+                    <Button Content="New" Style="{StaticResource Ghost}" Click="OnNewProject" IsEnabled="{Binding NotBusy}" ToolTip="New project (Ctrl+N)"/>
+                    <Button Content="Open" Style="{StaticResource Ghost}" Click="OnOpenProject" IsEnabled="{Binding NotBusy}" ToolTip="Open project (Ctrl+O)"/>
+                    <Button Content="Save" Style="{StaticResource Ghost}" Click="OnSaveProject" ToolTip="Save project (Ctrl+S)"/>
                     <Button Content="Help" Style="{StaticResource Ghost}" Click="OnHelp" ToolTip="Quick help (F1)"/>
                 </StackPanel>
             </Grid>
@@ -56,26 +56,26 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="CARDS" Style="{StaticResource SectionLabel}"/>
                     <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="0,0,0,6">
-                        <Button Content="Add" Click="OnAddCard" Margin="0,0,4,0"/>
-                        <Button Content="Copy" Click="OnDuplicateCard" Margin="2,0,2,0" IsEnabled="{Binding HasSelection}"/>
-                        <Button Content="Delete" Click="OnDeleteCard" Margin="4,0,0,0" IsEnabled="{Binding HasSelection}"/>
+                        <Button Content="Add" Click="OnAddCard" Margin="0,0,4,0" IsEnabled="{Binding NotBusy}"/>
+                        <Button Content="Duplicate" Click="OnDuplicateCard" Margin="2,0,2,0" IsEnabled="{Binding CanEditSelected}"/>
+                        <Button Content="Delete" Click="OnDeleteCard" Margin="4,0,0,0" IsEnabled="{Binding CanEditSelected}"/>
                     </UniformGrid>
                     <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,0,8">
-                        <Button Content="Move ↑" Style="{StaticResource Ghost}" Click="OnMoveUp" Margin="0,0,4,0" IsEnabled="{Binding HasSelection}" ToolTip="Move the selected card(s) up"/>
-                        <Button Content="Move ↓" Style="{StaticResource Ghost}" Click="OnMoveDown" Margin="4,0,0,0" IsEnabled="{Binding HasSelection}" ToolTip="Move the selected card(s) down"/>
+                        <Button Content="Move ↑" Click="OnMoveUp" Margin="0,0,4,0" IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) up"/>
+                        <Button Content="Move ↓" Click="OnMoveDown" Margin="4,0,0,0" IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) down"/>
                     </UniformGrid>
 
                     <StackPanel DockPanel.Dock="Bottom">
                         <Border Height="1" Background="{StaticResource Line}" Margin="0,10"/>
                         <TextBlock Text="BATCH" Style="{StaticResource SectionLabel}"/>
-                        <Button Content="Import list / CSV…" Click="OnImport" Margin="0,0,0,6"/>
-                        <Button Content="Scryfall search…" Click="OnScryfallSearch" Margin="0,0,0,6"
+                        <Button Content="Import list / CSV…" Click="OnImport" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"/>
+                        <Button Content="Scryfall search…" Click="OnScryfallSearch" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"
                                 ToolTip="Import many cards from a Scryfall search (with art)"/>
-                        <Button Content="Match art folder…" Click="OnMatchArtFolder" Margin="0,0,0,6" IsEnabled="{Binding HasCards}"/>
-                        <Button Content="Look up missing" Click="OnLookupMissing" Margin="0,0,0,6" IsEnabled="{Binding HasCards}"/>
-                        <Button Content="Number cards" Click="OnNumberCards" Margin="0,0,0,6" IsEnabled="{Binding HasCards}"
+                        <Button Content="Match art folder…" Click="OnMatchArtFolder" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"/>
+                        <Button Content="Look up missing" Click="OnLookupMissing" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"/>
+                        <Button Content="Number cards" Click="OnNumberCards" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
                                 ToolTip="Assign collector numbers (001/N …) in list order"/>
-                        <Button Content="Set fields on all…" Click="OnBulkEdit" Margin="0,0,0,6" IsEnabled="{Binding HasCards}"
+                        <Button Content="Set fields on all…" Click="OnBulkEdit" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
                                 ToolTip="Set the same set code / artist / rarity / copyright / frame on every card"/>
                         <Button Content="Export all…" Click="OnExportAll" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"/>
                         <Button Content="Print sheet…" Click="OnExportSheet" IsEnabled="{Binding CanExport}"/>
@@ -90,7 +90,7 @@
 
             <!-- ===== Editor (simple flow) ===== -->
             <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="10" Padding="18" Margin="14,0">
-                <StackPanel IsEnabled="{Binding HasSelection}">
+                <StackPanel IsEnabled="{Binding CanEditSelected}">
                     <TextBlock Text="CARD NAME" Style="{StaticResource SectionLabel}"/>
                     <Grid Margin="0,0,0,14">
                         <Grid.ColumnDefinitions>
@@ -138,7 +138,7 @@
                     <Border Background="{StaticResource Bg}" CornerRadius="8" Padding="10,8" Margin="0,0,0,16">
                         <StackPanel>
                             <TextBlock Text="{Binding ValidationSummary}" FontSize="12" Foreground="{StaticResource Subtle}"/>
-                            <TextBlock Text="{Binding ValidationDetails}" FontSize="11" Foreground="#E0A84A" TextWrapping="Wrap"
+                            <TextBlock Text="{Binding ValidationDetails}" FontSize="11" Foreground="{StaticResource Warn}" TextWrapping="Wrap"
                                        Margin="0,5,0,0" Visibility="{Binding HasValidationIssues, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </Border>
@@ -155,7 +155,7 @@
             </Border>
 
             <!-- ===== Preview ===== -->
-            <Border Grid.Column="2" Background="#0F0F12" CornerRadius="10" Padding="18">
+            <Border Grid.Column="2" Background="{StaticResource PreviewBg}" CornerRadius="10" Padding="18">
                 <Grid>
                     <Image x:Name="PreviewImageControl" Source="{Binding PreviewImage}" Stretch="Uniform"
                            RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True" Cursor="SizeAll"
@@ -163,7 +163,7 @@
                            MouseLeftButtonUp="OnPreviewMouseUp" MouseWheel="OnPreviewWheel"/>
                     <ProgressBar VerticalAlignment="Bottom" Height="6" Minimum="0" Maximum="100"
                                  Value="{Binding ExportProgress}" Foreground="{StaticResource Accent}"
-                                 Background="#26262B" BorderThickness="0"
+                                 Background="{StaticResource ProgressTrack}" BorderThickness="0"
                                  Visibility="{Binding IsExporting, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
             </Border>

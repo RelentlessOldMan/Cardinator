@@ -32,7 +32,7 @@ public partial class ScryfallSearchWindow : Window
     }
 
     private readonly ScryfallClient _scryfall;
-    private readonly CancellationTokenSource _cts = new();
+    private CancellationTokenSource _cts = new();   // renewed per search so a Cancel doesn't kill later searches
     private bool _searching;
 
     public ObservableCollection<ResultItem> Results { get; } = new();
@@ -53,7 +53,9 @@ public partial class ScryfallSearchWindow : Window
 
     private void OnQueryKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter) OnSearch(sender, e);
+        // Enter in the query box runs the search — mark it handled so it doesn't also trigger the
+        // default "Add selected" button.
+        if (e.Key == Key.Enter) { OnSearch(sender, e); e.Handled = true; }
     }
 
     private async void OnSearch(object sender, RoutedEventArgs e)
@@ -64,17 +66,20 @@ public partial class ScryfallSearchWindow : Window
 
         _searching = true;
         _cts.Cancel();   // stop any in-flight thumbnail loads from a previous search
+        _cts.Dispose();
+        _cts = new CancellationTokenSource();   // fresh token for this search (the old one is now cancelled)
+        var ct = _cts.Token;
         Results.Clear();
         StatusText.Text = "Searching…";
         try
         {
             var progress = new Progress<string>(s => StatusText.Text = s);
-            var found = await _scryfall.SearchAsync(query, 60, progress, CancellationToken.None);
+            var found = await _scryfall.SearchAsync(query, 60, progress, ct);
             if (found.Count == 0) { StatusText.Text = $"No cards matched \"{query}\"."; return; }
 
             foreach (var c in found) Results.Add(new ResultItem(c) { IsChecked = true });
             StatusText.Text = $"{found.Count} result(s) — pick what to add.";
-            _ = LoadThumbnailsAsync(Results.ToList());
+            _ = LoadThumbnailsAsync(Results.ToList(), ct);
         }
         catch (ScryfallException ex) { StatusText.Text = ex.Message; }
         catch (System.Exception ex) { StatusText.Text = "Search failed: " + ex.Message; }
@@ -82,9 +87,8 @@ public partial class ScryfallSearchWindow : Window
     }
 
     /// <summary>Loads result thumbnails in the background (art crops), so the list is usable immediately.</summary>
-    private async Task LoadThumbnailsAsync(List<ResultItem> items)
+    private async Task LoadThumbnailsAsync(List<ResultItem> items, CancellationToken ct)
     {
-        var ct = _cts.Token;
         foreach (var item in items)
         {
             if (ct.IsCancellationRequested) return;
