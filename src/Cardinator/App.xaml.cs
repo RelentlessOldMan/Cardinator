@@ -214,6 +214,9 @@ public partial class App : Application
         var bulk = new BulkEditWindow(tpls.Select(t => t.Name));
         SaveWindow(bulk, 430, 470, Path.Combine(outDir, "app-bulk-edit.png"));
 
+        var deck = new DeckListWindow();
+        SaveWindow(deck, 560, 560, Path.Combine(outDir, "app-deck-list.png"));
+
         var search = new ScryfallSearchWindow(new ScryfallClient());
         foreach (var c in SampleCards.All("Gold Multicolor"))
             search.Results.Add(new ScryfallSearchWindow.ResultItem(c) { IsChecked = true });
