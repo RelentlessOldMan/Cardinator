@@ -89,7 +89,12 @@ public sealed class CardRenderer
         else if (card.IsAdventure)
             DrawAdventure(dc, card, spec);
         else
-            DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize);
+        {
+            // Creatures nest a P/T box in the bottom-right — reserve that space so rules text wraps around
+            // it instead of being hidden underneath.
+            Rect? avoid = (!ArtText(spec) && card.HasPowerToughness) ? PtRect(spec) : (Rect?)null;
+            DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, avoid);
+        }
 
         if (card.IsPlaneswalker && !string.IsNullOrWhiteSpace(card.Loyalty))
             DrawLoyalty(dc, card, spec);
@@ -650,7 +655,16 @@ public sealed class CardRenderer
         if (ArtText(spec)) return rect;
         const double margin = 8;
         var tb = ToRect(spec.EffectiveTextBox);
-        return new Rect(tb.Right - margin - rect.Width, tb.Bottom - margin - rect.Height, rect.Width, rect.Height);
+        double left = tb.Right - margin - rect.Width;
+        // Straddle the description panel's bottom edge: the box's MIDDLE sits on the panel bottom, so the
+        // text ends around the box's top half and the box hangs half-below the panel (classic MTG look).
+        double top = tb.Bottom - rect.Height / 2;
+        // But never let it reach the bottom black border — always keep a clear gap above the rim.
+        double border = Math.Max(0, spec.BorderThickness);
+        const double borderGap = 16;
+        double maxBottom = spec.CanvasHeight - border - borderGap;
+        if (top + rect.Height > maxBottom) top = maxBottom - rect.Height;
+        return new Rect(left, top, rect.Width, rect.Height);
     }
 
     private static void DrawPtBox(DrawingContext dc, CardModel card, TemplateSpec spec)
@@ -757,7 +771,7 @@ public sealed class CardRenderer
     }
 
     private void DrawTextBox(DrawingContext dc, string rules, string flavor, Region region,
-        FontSpec rulesFont, FontSpec flavorFont, double baseSymbolSize)
+        FontSpec rulesFont, FontSpec flavorFont, double baseSymbolSize, Rect? avoid = null)
     {
         if (string.IsNullOrWhiteSpace(rules) && string.IsNullOrWhiteSpace(flavor)) return;
 
@@ -773,7 +787,7 @@ public sealed class CardRenderer
         {
             double scale = size / rulesFont.Size;
             best = LayoutContent(rules, flavor, box, rulesFont, size,
-                                 flavorFont, flavorFont.Size * scale, baseSymbolSize * scale);
+                                 flavorFont, flavorFont.Size * scale, baseSymbolSize * scale, avoid);
             if (best.Height <= box.Height) break;
         }
         if (best == null) return;
@@ -791,7 +805,7 @@ public sealed class CardRenderer
     }
 
     private TextLayout LayoutContent(string rules, string flavor, Rect box,
-        FontSpec rulesFont, double rulesSize, FontSpec flavorFont, double flavorSize, double symSize)
+        FontSpec rulesFont, double rulesSize, FontSpec flavorFont, double flavorSize, double symSize, Rect? avoid)
     {
         var layout = new TextLayout();
         double y = box.Y;
@@ -800,7 +814,7 @@ public sealed class CardRenderer
         bool hasFlavor = !string.IsNullOrWhiteSpace(flavor);
 
         if (hasRules)
-            y = LayoutParagraphs(rules, rulesFont, rulesSize, symSize, box, layout.Items, y);
+            y = LayoutParagraphs(rules, rulesFont, rulesSize, symSize, box, layout.Items, y, avoid);
 
         if (hasFlavor)
         {
@@ -810,7 +824,7 @@ public sealed class CardRenderer
                 layout.Dividers.Add(y);
                 y += rulesSize * 0.55;
             }
-            y = LayoutParagraphs(flavor, flavorFont, flavorSize, flavorSize, box, layout.Items, y);
+            y = LayoutParagraphs(flavor, flavorFont, flavorSize, flavorSize, box, layout.Items, y, avoid);
         }
 
         layout.Height = y - box.Y;
@@ -818,12 +832,18 @@ public sealed class CardRenderer
     }
 
     private double LayoutParagraphs(string text, FontSpec font, double fontSize, double symSize,
-        Rect box, List<Placed> placed, double startY)
+        Rect box, List<Placed> placed, double startY, Rect? avoid = null)
     {
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
         double lineHeight = fontSize * 1.34;
         double x = box.X, y = startY;
         double spaceWidth = MakeText(" ", font, fontSize, brush).WidthIncludingTrailingWhitespace;
+
+        // Lines whose vertical band overlaps a reserved box (the P/T box) wrap before it.
+        double RightAt(double lineTop) =>
+            avoid is Rect a && lineTop + lineHeight > a.Top && lineTop < a.Bottom
+                ? Math.Min(box.Right, a.Left - 8)
+                : box.Right;
 
         var paragraphs = text.Replace("\r", "").Split('\n');
         foreach (var para in paragraphs)
@@ -834,7 +854,7 @@ public sealed class CardRenderer
             foreach (var word in BuildWords(para, font, fontSize, symSize, brush))
             {
                 double gap = (first || word.NoLeadingGap) ? 0 : spaceWidth;
-                if (!first && x + gap + word.Width > box.Right)
+                if (!first && x + gap + word.Width > RightAt(y))
                 {
                     x = box.X;
                     y += lineHeight;

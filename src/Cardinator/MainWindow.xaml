@@ -19,25 +19,25 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- ===== Header ===== -->
         <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
             <Grid Margin="18,0" Height="52">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="◆" Foreground="{StaticResource Accent}" FontSize="16" VerticalAlignment="Center"/>
-                    <TextBlock Text="Cardinator" FontSize="17" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Cardinator" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding ProjectSummary}" Foreground="{StaticResource Subtle}" FontSize="12"
                                Margin="14,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button Content="Undo" Style="{StaticResource Ghost}" Click="OnUndo" IsEnabled="{Binding CanUndo}" ToolTip="Undo (Ctrl+Z)"/>
-                    <Button Content="Redo" Style="{StaticResource Ghost}" Click="OnRedo" IsEnabled="{Binding CanRedo}" ToolTip="Redo (Ctrl+Y)"/>
-                    <Border Width="1" Background="{StaticResource Line}" Margin="8,10"/>
-                    <Button Content="New" Style="{StaticResource Ghost}" Click="OnNewProject" IsEnabled="{Binding NotBusy}" ToolTip="New project (Ctrl+N)"/>
-                    <Button Content="Open" Style="{StaticResource Ghost}" Click="OnOpenProject" IsEnabled="{Binding NotBusy}" ToolTip="Open project (Ctrl+O)"/>
-                    <Button Content="Save" Style="{StaticResource Ghost}" Click="OnSaveProject" ToolTip="Save project (Ctrl+S)"/>
-                    <Button Content="Help" Style="{StaticResource Ghost}" Click="OnHelp" ToolTip="Quick help (F1)"/>
+                    <Button Content="Undo" Style="{StaticResource Ghost}" Click="OnUndo" IsEnabled="{Binding CanUndo}" ToolTip="Undo (Ctrl+Z)" MinWidth="62" Margin="0,0,6,0"/>
+                    <Button Content="Redo" Style="{StaticResource Ghost}" Click="OnRedo" IsEnabled="{Binding CanRedo}" ToolTip="Redo (Ctrl+Y)" MinWidth="62"/>
+                    <Border Width="1" Background="{StaticResource Line}" Margin="10,10"/>
+                    <Button Content="New" Style="{StaticResource Ghost}" Click="OnNewProject" IsEnabled="{Binding NotBusy}" ToolTip="New project (Ctrl+N)" MinWidth="62" Margin="0,0,6,0"/>
+                    <Button Content="Open" Style="{StaticResource Ghost}" Click="OnOpenProject" IsEnabled="{Binding NotBusy}" ToolTip="Open project (Ctrl+O)" MinWidth="62" Margin="0,0,6,0"/>
+                    <Button Content="Save" Style="{StaticResource Ghost}" Click="OnSaveProject" ToolTip="Save project (Ctrl+S)" MinWidth="62" Margin="0,0,6,0"/>
+                    <Button Content="Help" Style="{StaticResource Ghost}" Click="OnHelp" ToolTip="Quick help (F1)" MinWidth="62"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -56,9 +56,9 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="CARDS" Style="{StaticResource SectionLabel}"/>
                     <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="0,0,0,6">
-                        <Button Content="Add" Click="OnAddCard" Margin="0,0,4,0" IsEnabled="{Binding NotBusy}"/>
-                        <Button Content="Duplicate" Click="OnDuplicateCard" Margin="2,0,2,0" IsEnabled="{Binding CanEditSelected}"/>
-                        <Button Content="Delete" Click="OnDeleteCard" Margin="4,0,0,0" IsEnabled="{Binding CanEditSelected}"/>
+                        <Button Content="Add" Click="OnAddCard" Margin="0,0,4,0" Padding="4,0" IsEnabled="{Binding NotBusy}"/>
+                        <Button Content="Duplicate" Click="OnDuplicateCard" Margin="2,0,2,0" Padding="4,0" IsEnabled="{Binding CanEditSelected}"/>
+                        <Button Content="Delete" Click="OnDeleteCard" Margin="4,0,0,0" Padding="4,0" IsEnabled="{Binding CanEditSelected}"/>
                     </UniformGrid>
                     <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,0,8">
                         <Button Content="Move ↑" Click="OnMoveUp" Margin="0,0,4,0" IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) up"/>
@@ -68,13 +68,16 @@
                     <StackPanel DockPanel.Dock="Bottom">
                         <Border Height="1" Background="{StaticResource Line}" Margin="0,10"/>
                         <TextBlock Text="BATCH" Style="{StaticResource SectionLabel}"/>
-                        <Button Content="Import list / CSV…" Click="OnImport" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"/>
-                        <Button Content="Paste deck list…" Click="OnImportDeckList" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"
-                                ToolTip="Paste a deck exported from Moxfield (⋯ More → Export), Archidekt, MTGGoldfish, or plain text"/>
+                        <Button Content="Import file…" Click="OnImport" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"
+                                ToolTip="Import a .txt/.csv/.tsv card list — including a Moxfield deck saved as a .txt"/>
+                        <Button Content="Import deck…" Click="OnImportDeckList" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"
+                                ToolTip="Fetch a Moxfield deck by link, or paste an exported list (Moxfield ⋯ More → Export, Archidekt, MTGGoldfish, plain text)"/>
                         <Button Content="Scryfall search…" Click="OnScryfallSearch" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"
                                 ToolTip="Import many cards from a Scryfall search (with art)"/>
-                        <Button Content="Match art folder…" Click="OnMatchArtFolder" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"/>
-                        <Button Content="Look up missing" Click="OnLookupMissing" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"/>
+                        <Button Content="Add art from folder…" Click="OnMatchArtFolder" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
+                                ToolTip="Attach images from a folder to cards by matching filename to card name"/>
+                        <Button Content="Fill blanks from Scryfall" Click="OnLookupMissing" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
+                                ToolTip="Fetch mana cost, type, rules text and art for cards that don't have them yet"/>
                         <Button Content="Number cards" Click="OnNumberCards" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
                                 ToolTip="Assign collector numbers (001/N …) in list order"/>
                         <Button Content="Set fields on all…" Click="OnBulkEdit" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
@@ -100,7 +103,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBox Grid.Column="0" Height="36" Text="{Binding SelectedCard.Name, UpdateSourceTrigger=PropertyChanged}"/>
-                        <Button Grid.Column="1" Content="Search" Style="{StaticResource Primary}" Margin="8,0,0,0"
+                        <Button Grid.Column="1" Content="Search" Margin="8,0,0,0"
                                 Height="36" MinWidth="94" Click="OnLookup" ToolTip="Fill this card from Scryfall"/>
                     </Grid>
 
@@ -145,14 +148,12 @@
                         </StackPanel>
                     </Border>
 
-                    <Button Content="Export PNG…" Style="{StaticResource Primary}" Click="OnExport"/>
+                    <Button Content="Export PNG…" Click="OnExport"/>
                     <UniformGrid Columns="2" Margin="0,8,0,0">
                         <Button Content="Copy image" Click="OnCopyImage" Margin="0,0,4,0"
                                 ToolTip="Copy the finished card image to the clipboard"/>
                         <Button Content="Open output folder" Click="OnOpenOutput" Margin="4,0,0,0"/>
                     </UniformGrid>
-
-                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource Subtle}" TextWrapping="Wrap" Margin="0,12,0,0"/>
                 </StackPanel>
             </Border>
 
@@ -163,12 +164,22 @@
                            RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True" Cursor="SizeAll"
                            MouseLeftButtonDown="OnPreviewMouseDown" MouseMove="OnPreviewMouseMove"
                            MouseLeftButtonUp="OnPreviewMouseUp" MouseWheel="OnPreviewWheel"/>
-                    <ProgressBar VerticalAlignment="Bottom" Height="6" Minimum="0" Maximum="100"
-                                 Value="{Binding ExportProgress}" Foreground="{StaticResource Accent}"
-                                 Background="{StaticResource ProgressTrack}" BorderThickness="0"
-                                 Visibility="{Binding IsExporting, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
             </Border>
         </Grid>
+
+        <!-- ===== Status bar (persistent; shows progress for any running operation) ===== -->
+        <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+                BorderThickness="0,1,0,0" Padding="16,7">
+            <Grid>
+                <TextBlock Text="{Binding Status}" Foreground="{StaticResource Subtle}" FontSize="12"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,170,0"/>
+                <ProgressBar HorizontalAlignment="Right" VerticalAlignment="Center" Width="150" Height="6"
+                             Minimum="0" Maximum="100" Value="{Binding ExportProgress}"
+                             IsIndeterminate="{Binding ProgressIndeterminate}" Foreground="{StaticResource Accent}"
+                             Background="{StaticResource ProgressTrack}" BorderThickness="0"
+                             Visibility="{Binding Busy, Converter={StaticResource BoolToVis}}"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

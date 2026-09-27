@@ -31,12 +31,13 @@ public partial class BulkEditWindow : Window
 
     private void OnApply(object sender, RoutedEventArgs e)
     {
-        SetCode = OrNull(SetBox.Text);
-        Artist = OrNull(ArtistBox.Text);
-        Copyright = OrNull(CopyrightBox.Text);
+        // A checked "clear" box wins: it returns "" (apply sets the field to empty), vs. null = leave as-is.
+        SetCode = ClearSet.IsChecked == true ? "" : OrNull(SetBox.Text);
+        Artist = ClearArtist.IsChecked == true ? "" : OrNull(ArtistBox.Text);
+        Copyright = ClearCopyright.IsChecked == true ? "" : OrNull(CopyrightBox.Text);
         Rarity = RarityBox.SelectedItem is string r && r != NoChange ? r : null;
         TemplateName = FrameBox.SelectedItem is string f && f != NoChange ? f : null;
-        SetSymbolPath = OrNull(SetSymbolBox.Text);
+        SetSymbolPath = ClearSymbol.IsChecked == true ? "" : OrNull(SetSymbolBox.Text);
         DialogResult = true;
     }
 

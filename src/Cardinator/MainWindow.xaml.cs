@@ -178,6 +178,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         set { _exportProgress = value; OnPropertyChanged(); }
     }
 
+    private bool _progressIndeterminate = true;
+    /// <summary>When busy without a known item count (fetch, single lookup), the progress bar animates
+    /// instead of showing a percentage — so a long operation reads as "working", never "hung".</summary>
+    public bool ProgressIndeterminate
+    {
+        get => _progressIndeterminate;
+        set { _progressIndeterminate = value; OnPropertyChanged(); }
+    }
+
     private string _validationSummary = "";
     /// <summary>A one-line health line for the selected card (e.g. "✓ No issues" or "⚠ 1 error · 2 warnings").</summary>
     public string ValidationSummary
@@ -354,25 +363,34 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var dlg = new BulkEditWindow(Templates.Select(t => t.Name)) { Owner = this };
         if (dlg.ShowDialog() != true) return;
 
+        ApplyBulkEdit(dlg.SetCode, dlg.Artist, dlg.Rarity, dlg.Copyright, dlg.TemplateName, dlg.SetSymbolPath);
+        Status = $"Applied changes to {Cards.Count} card(s).";
+    }
+
+    /// <summary>Applies bulk field changes to every card and refreshes the live preview. A null value
+    /// leaves that field unchanged; an empty string clears it. Exposed for testing the live re-render.</summary>
+    internal void ApplyBulkEdit(string? setCode, string? artist, string? rarity,
+        string? copyright, string? templateName, string? setSymbolPath)
+    {
         foreach (var c in Cards)
         {
-            if (dlg.SetCode != null) c.SetCode = dlg.SetCode;
-            if (dlg.Artist != null) c.Artist = dlg.Artist;
-            if (dlg.Rarity != null) c.Rarity = dlg.Rarity;
-            if (dlg.Copyright != null) c.Copyright = dlg.Copyright;
-            if (dlg.TemplateName != null) c.TemplateName = dlg.TemplateName;
-            if (dlg.SetSymbolPath != null) c.SetSymbolPath = dlg.SetSymbolPath;
+            if (setCode != null) c.SetCode = setCode;
+            if (artist != null) c.Artist = artist;
+            if (rarity != null) c.Rarity = rarity;
+            if (copyright != null) c.Copyright = copyright;
+            if (templateName != null) c.TemplateName = templateName;
+            if (setSymbolPath != null) c.SetSymbolPath = setSymbolPath;
         }
         MarkDirty();
         CommitHistory();
-        // Re-sync the frame dropdown + preview to the selected card, whose frame may have changed.
+        // Re-sync the frame dropdown to the selected card, whose frame may have changed.
         if (_selectedCard != null)
         {
             var t = Templates.FirstOrDefault(x => x.Name == _selectedCard.TemplateName);
-            if (t != null) SelectedTemplate = t;   // updates the dropdown and re-renders
+            if (t != null && !ReferenceEquals(t, _selectedTemplate)) SelectedTemplate = t;
         }
-        RenderPreview();
-        Status = $"Applied changes to {Cards.Count} card(s).";
+        _renderTimer.Stop();   // cancel any pending debounce so our explicit render is the final word
+        RenderPreview();       // re-render the active card immediately with the new values
     }
 
     /// <summary>Moves every selected card up/down as a block (multi-select aware).</summary>
@@ -609,13 +627,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool ConfirmDiscardIfDirty()
     {
         if (!_dirty) return true;
-        var choice = MessageBox.Show(this,
-            "You have unsaved changes. Save them first?",
-            "Cardinator", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+        var choice = ConfirmDialog.Show(this, "Unsaved changes",
+            "You have unsaved changes. Save them before continuing?",
+            affirmative: "Save", negative: "Don't save", cancel: "Cancel");
         return choice switch
         {
-            MessageBoxResult.Yes => SaveProject(forceDialog: false),
-            MessageBoxResult.No => true,
+            ConfirmResult.Affirmative => SaveProject(forceDialog: false),
+            ConfirmResult.Negative => true,
             _ => false,
         };
     }
@@ -651,65 +669,27 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         await AddImportedAsync(imported, "that file");
     }
 
-    /// <summary>Imports a deck list pasted from Moxfield/Archidekt/plain text, or fetches a pasted
-    /// Moxfield deck link directly via the hidden browser (see <see cref="DeckListWindow"/>).</summary>
+    /// <summary>Imports a deck: paste an exported list or fetch a Moxfield deck by link — both land as
+    /// text in the dialog and flow through the same parser (see <see cref="DeckListWindow"/>).</summary>
     private async void OnImportDeckList(object sender, RoutedEventArgs e)
     {
         if (Busy) return;
         var dlg = new DeckListWindow { Owner = this };
         if (dlg.ShowDialog() != true) return;
-        var text = dlg.DeckText;
 
-        if (ImportService.LooksLikeOnlyLinks(text) && MoxfieldClient.IsMoxfieldUrl(text))
-        {
-            await ImportMoxfieldUrlAsync(text);
-            return;
-        }
-
-        var imported = ImportService.Parse(text, "", DefaultTemplateName);
+        var imported = ImportService.Parse(dlg.DeckText, "", DefaultTemplateName);
         if (imported.Count == 0) { Status = "No cards found in the pasted list."; return; }
-        await AddImportedAsync(imported, "the pasted list");
+        await AddImportedAsync(imported, "the deck list");
     }
 
-    /// <summary>Fetches a Moxfield deck by URL (hidden WebView2) and imports its cards; falls back to a
-    /// clear message pointing at the paste flow if the fetch is blocked/unavailable.</summary>
-    private async Task ImportMoxfieldUrlAsync(string url)
-    {
-        if (Busy) return;
-        var id = MoxfieldClient.ExtractDeckId(url);
-        if (id == null) { Status = "That doesn't look like a Moxfield deck link."; return; }
-
-        Busy = true;
-        try
-        {
-            Status = "Loading deck from Moxfield…";
-            var progress = new Progress<string>(s => Status = s);
-            string json;
-            try { json = await MoxfieldFetcher.FetchDeckJsonAsync(id, progress); }
-            catch (MoxfieldException ex) { Status = ex.Message; return; }
-
-            var (name, imported) = MoxfieldClient.ParseDeck(json, DefaultTemplateName);
-            if (imported.Count == 0) { Status = "That Moxfield deck had no cards to import."; return; }
-            await ImportCoreAsync(imported, string.IsNullOrWhiteSpace(name) ? "Moxfield" : $"Moxfield — {name}");
-        }
-        catch (Exception ex) { Status = "Moxfield import failed: " + ex.Message; }
-        finally { Busy = false; }
-    }
-
-    /// <summary>Adds parsed cards to the project and fills their blank fields + art from Scryfall.
-    /// Shared by file import and pasted-deck-list import (owns the busy gate).</summary>
+    /// <summary>Adds parsed cards to the project and fills their blank fields + art from Scryfall,
+    /// with a live progress bar. Shared by file import and deck-list import.</summary>
     private async Task AddImportedAsync(List<ImportedCard> imported, string source)
     {
         if (Busy) return;
         Busy = true;
-        try { await ImportCoreAsync(imported, source); }
-        finally { Busy = false; }
-    }
-
-    /// <summary>The shared import body (add + Scryfall fill + commit). Assumes the busy gate is already
-    /// held by the caller, so URL import can span both the fetch and the fill under one busy state.</summary>
-    private async Task ImportCoreAsync(List<ImportedCard> imported, string source)
-    {
+        ProgressIndeterminate = false;   // we know the card count, so show real percentage
+        ExportProgress = 0;
         try
         {
             foreach (var item in imported) Cards.Add(item.Card);
@@ -717,10 +697,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OnPropertyChanged(nameof(ProjectSummary));
 
             int needLookup = imported.Count(i => i.NeedsLookup);
-            Status = $"Imported {imported.Count} card(s) from {source}. Looking up {needLookup} on Scryfall…";
+            Status = $"Imported {imported.Count} card(s) from {source}. Filling {needLookup} from Scryfall…";
 
             var progress = new Progress<string>(s => Status = s);
-            var report = await BatchService.FillFromScryfallAsync(imported, progress);
+            var percent = new Progress<double>(p => ExportProgress = p * 100);
+            var report = await BatchService.FillFromScryfallAsync(imported, progress, percent: percent);
             foreach (var back in report.ExtraBackFaces) Cards.Add(back);
             _ = _symbols.PrimeAsync(Cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
             MarkDirty();
@@ -735,6 +716,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Status = "Import failed: " + ex.Message;
         }
+        finally { ProgressIndeterminate = true; Busy = false; }
     }
 
     private async void OnScryfallSearch(object sender, RoutedEventArgs e)
@@ -788,11 +770,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (n == 0) { Status = "No cards are missing text to look up."; return; }
 
         Busy = true;
-        Status = $"Looking up {n} card(s) on Scryfall…";
+        ProgressIndeterminate = false;
+        ExportProgress = 0;
+        Status = $"Filling {n} card(s) from Scryfall…";
         try
         {
             var progress = new Progress<string>(s => Status = s);
-            var report = await BatchService.FillFromScryfallAsync(items, progress);
+            var percent = new Progress<double>(p => ExportProgress = p * 100);
+            var report = await BatchService.FillFromScryfallAsync(items, progress, percent: percent);
             foreach (var back in report.ExtraBackFaces) Cards.Add(back);
             _ = _symbols.PrimeAsync(Cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
             MarkDirty();
@@ -805,9 +790,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            Status = "Look up missing failed: " + ex.Message;
+            Status = "Fill from Scryfall failed: " + ex.Message;
         }
-        finally { Busy = false; }
+        finally { ProgressIndeterminate = true; Busy = false; }
     }
 
     private async void OnExportAll(object sender, RoutedEventArgs e)
@@ -825,6 +810,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         Busy = true;
         IsExporting = true;
+        ProgressIndeterminate = false;
         ExportProgress = 0;
         Status = $"Exporting {cardsSnapshot.Count} card(s)…";
         try
@@ -860,11 +846,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (Cards.Count == 0) { Status = "No cards to export."; return; }
 
         // Offer double-sided (adds a mirrored back page after each front page for duplex printing).
-        var duplexAnswer = MessageBox.Show(this,
-            "Include card backs for double-sided printing?\n\nYes  — front + back pages (flip on the long edge)\nNo   — fronts only",
-            "Print sheet", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-        if (duplexAnswer == MessageBoxResult.Cancel) return;
-        bool doubleSided = duplexAnswer == MessageBoxResult.Yes;
+        var duplexAnswer = ConfirmDialog.Show(this, "Print sheet",
+            "Include card backs for double-sided printing?\n\n"
+            + "Front + back — pages to flip on the long edge.\nFronts only — just the card fronts.",
+            affirmative: "Front + back", negative: "Fronts only", cancel: "Cancel");
+        if (duplexAnswer == ConfirmResult.Cancel) return;
+        bool doubleSided = duplexAnswer == ConfirmResult.Affirmative;
 
         var dlg = new OpenFolderDialog { Title = "Choose a folder for the printable sheet pages" };
         if (dlg.ShowDialog() != true) return;

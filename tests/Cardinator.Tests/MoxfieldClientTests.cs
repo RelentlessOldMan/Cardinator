@@ -85,4 +85,38 @@ public class MoxfieldClientTests
     [Fact]
     public void ApiUrl_UsesV3AllEndpoint()
         => Assert.Equal("https://api2.moxfield.com/v3/decks/all/abc", MoxfieldClient.ApiUrl("abc"));
+
+    [Fact]
+    public void ToDeckList_ProducesParserFriendlyText_CommanderFirst()
+    {
+        var json = """
+        {
+          "name": "My Deck",
+          "boards": {
+            "mainboard": { "cards": {
+              "a": { "quantity": 1, "card": { "name": "Sol Ring", "set": "ltc", "cn": "273" } },
+              "b": { "quantity": 2, "card": { "name": "Forest", "set": "unf", "cn": "235" } }
+            }},
+            "commanders": { "cards": {
+              "c": { "quantity": 1, "card": { "name": "Atraxa, Praetors' Voice", "set": "2xm", "cn": "197" } }
+            }}
+          }
+        }
+        """;
+
+        var text = MoxfieldClient.ToDeckList(json);
+        var lines = text.Replace("\r", "").Split('\n');
+
+        Assert.Equal("# My Deck", lines[0]);                                  // deck name as a comment
+        Assert.Contains("1 Atraxa, Praetors' Voice (2XM) 197", text);         // commander first, set uppercased
+        Assert.Contains("1 Sol Ring (LTC) 273", text);
+        Assert.Contains("2 Forest (UNF) 235", text);                          // quantity preserved
+        Assert.True(Array.IndexOf(lines, "1 Atraxa, Praetors' Voice (2XM) 197")
+                    < Array.IndexOf(lines, "1 Sol Ring (LTC) 273"));          // commander appears before mainboard
+
+        // Round-trips through the shared importer.
+        var cards = ImportService.Parse(text, null, "T");
+        Assert.Equal(4, cards.Count);                                         // 1 + 1 + 2
+        Assert.Equal(2, cards.Count(c => c.Card.Name == "Forest"));
+    }
 }

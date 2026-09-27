@@ -22,7 +22,7 @@
             </Grid.ColumnDefinitions>
             <TextBox x:Name="QueryBox" Grid.Column="0" Height="34" KeyDown="OnQueryKeyDown"
                      ToolTip="e.g.  t:dragon   ·   set:dom   ·   c:r cmc=1"/>
-            <Button Grid.Column="1" Content="Search" Style="{StaticResource Primary}" MinWidth="90"
+            <Button Grid.Column="1" Content="Search" MinWidth="90"
                     Height="34" Margin="8,0,0,0" Click="OnSearch"/>
         </Grid>
 

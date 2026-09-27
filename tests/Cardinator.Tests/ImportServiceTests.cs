@@ -70,6 +70,18 @@ public class ImportServiceTests
         Assert.Equal("42p", cards[0].Card.CollectorNumber);
     }
 
+    [Fact]
+    public void Parse_TheListHyphenatedCollector_IsCaptured()
+    {
+        // The List (PLST) numbers look like "M20-14" — the hyphen must not break set/collector parsing,
+        // or the "(PLST) M20-14" stays glued to the name and the lookup fails.
+        var cards = ImportService.Parse("1 Disenchant (PLST) M20-14", null, "T");
+        Assert.Single(cards);
+        Assert.Equal("Disenchant", cards[0].Card.Name);
+        Assert.Equal("PLST", cards[0].Card.SetCode);
+        Assert.Equal("M20-14", cards[0].Card.CollectorNumber);
+    }
+
     [Theory]
     [InlineData("https://moxfield.com/decks/Wq2LzlPelEOT9a541Et1XQ", true)]
     [InlineData("www.moxfield.com/decks/abc", true)]

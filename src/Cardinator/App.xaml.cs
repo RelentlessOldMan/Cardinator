@@ -166,6 +166,9 @@ public partial class App : Application
         };
         System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, ex) => ex.SetObserved();
 
+        // Dark title bars + app icon on every window (matches the app's dark theme).
+        ThemeHelper.ApplyToAllWindows();
+
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
@@ -216,6 +219,10 @@ public partial class App : Application
 
         var deck = new DeckListWindow();
         SaveWindow(deck, 560, 560, Path.Combine(outDir, "app-deck-list.png"));
+
+        var confirm = new ConfirmDialog("Unsaved changes",
+            "You have unsaved changes. Save them before continuing?", "Save", "Don't save", "Cancel");
+        SaveWindow(confirm, 460, 150, Path.Combine(outDir, "app-confirm.png"));
 
         var search = new ScryfallSearchWindow(new ScryfallClient());
         foreach (var c in SampleCards.All("Gold Multicolor"))

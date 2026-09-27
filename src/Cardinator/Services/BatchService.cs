@@ -20,48 +20,147 @@ public static class BatchService
         IReadOnlyList<ImportedCard> cards,
         IProgress<string>? progress = null,
         bool downloadArt = true,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        IProgress<double>? percent = null)
     {
         var client = new ScryfallClient();
         int found = 0, filled = 0;
         var notFound = new List<string>();
         var extraBacks = new List<CardModel>();
 
-        int i = 0;
-        foreach (var item in cards)
+        // Cards that share a name + printing hint resolve to the same card, so look each unique request
+        // up only once (a 4-of playset or repeated basics collapses to one lookup + one art download).
+        var groups = cards.Where(c => c.NeedsLookup)
+            .GroupBy(c => $"{c.Card.Name}{c.Card.SetCode}{c.Card.CollectorNumber}")
+            .ToList();
+
+        // Art downloads to run after the lookups. Each hits Scryfall's image CDN (which — unlike the API —
+        // isn't rate-limited), so they parallelize; keyed by URL so identical art downloads once.
+        var artJobs = new List<(CardModel card, string url)>();
+
+        // Fills every card in a group from its resolved faces, queuing art + double-faced backs.
+        void ApplyFaces(IGrouping<string, ImportedCard> group, List<CardModel> faces)
+        {
+            foreach (var member in group)
+            {
+                found++;
+                FillBlanks(member.Card, faces[0], canonicalName: true);
+                filled++;
+                if (downloadArt && Blank(member.Card.ArtPath) && !Blank(faces[0].ArtUrl))
+                    artJobs.Add((member.Card, faces[0].ArtUrl));
+
+                // Double-faced: give each instance its own back card (cloned) sharing the front's template.
+                for (int f = 1; f < faces.Count; f++)
+                {
+                    var backUrl = faces[f].ArtUrl;   // grabbed before Clone(): ArtUrl is transient/not cloned
+                    var back = faces[f].Clone();
+                    back.TemplateName = member.Card.TemplateName;
+                    extraBacks.Add(back);
+                    if (downloadArt && !Blank(backUrl)) artJobs.Add((back, backUrl));
+                }
+            }
+        }
+
+        // Phase 1a: one batched /cards/collection request per 75 cards (vs. one call per card). Prefer an
+        // exact printing (set + collector) when we have it — that resolves double-faced cards and specific
+        // versions that a fuzzy name lookup would miss.
+        // Diagnostic log written to CardinatorData so import failures can be inspected exactly.
+        var log = new List<string> { $"=== Import {DateTime.Now:yyyy-MM-dd HH:mm:ss} — {groups.Count} unique card(s) ===" };
+        string Ident(CardModel c) => !Blank(c.SetCode) && !Blank(c.CollectorNumber)
+            ? $"\"{c.Name}\" [set={c.SetCode} cn={c.CollectorNumber}]"
+            : $"\"{c.Name}\" [by name]";
+
+        progress?.Report($"Looking up {groups.Count} card(s) on Scryfall…");
+        var refs = groups.Select(g =>
+        {
+            var c = g.First().Card;
+            return (!Blank(c.SetCode) && !Blank(c.CollectorNumber))
+                ? new ScryfallClient.CardRef(null, c.SetCode, c.CollectorNumber)
+                : new ScryfallClient.CardRef(c.Name, null, null);
+        }).ToList();
+        log.Add($"refs: {refs.Count(r => r.Set != null)} by set+cn, {refs.Count(r => r.Name != null)} by name");
+
+        List<List<CardModel>> matches;
+        try { matches = await client.LookupCollectionAsync(refs, ct); }
+        catch (ScryfallException ex) { matches = new(); log.Add($"batch collection FAILED: {ex.Message}"); }
+        log.Add($"batch returned {matches.Count} card(s)");
+        percent?.Report(0.4);
+
+        var bySetCn = new Dictionary<string, List<CardModel>>(StringComparer.OrdinalIgnoreCase);
+        var byName = new Dictionary<string, List<CardModel>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var faces in matches)
+        {
+            if (faces.Count == 0) continue;
+            var f = faces[0];
+            if (!Blank(f.SetCode) && !Blank(f.CollectorNumber))
+                bySetCn.TryAdd(f.SetCode + "|" + f.CollectorNumber, faces);
+            // Index by the returned name AND (for DFCs) each face name, so "Front // Back" or "Front" both match.
+            foreach (var face in faces)
+                if (!Blank(face.Name)) byName.TryAdd(face.Name, faces);
+        }
+
+        var unresolved = new List<IGrouping<string, ImportedCard>>();
+        foreach (var group in groups)
+        {
+            var c = group.First().Card;
+            List<CardModel>? faces = null;
+            if (!Blank(c.SetCode) && !Blank(c.CollectorNumber))
+                bySetCn.TryGetValue(c.SetCode + "|" + c.CollectorNumber, out faces);
+            if (faces == null) byName.TryGetValue(c.Name, out faces);
+            // Last resort within the batch: a DFC whose imported name is "Front // Back" — match the front.
+            if (faces == null && c.Name.Contains("//"))
+                byName.TryGetValue(c.Name.Split("//")[0].Trim(), out faces);
+            if (faces != null) { ApplyFaces(group, faces); log.Add($"batch OK  {Ident(c)} -> {faces[0].Name}"); }
+            else unresolved.Add(group);
+        }
+
+        // Phase 1b: fuzzy single lookups only for the stragglers the batch couldn't match (typos, cards
+        // whose printing hint was off). Usually a handful, so the ~10/s throttle barely matters.
+        int fi = 0;
+        foreach (var group in unresolved)
         {
             ct.ThrowIfCancellationRequested();
-            i++;
-            if (!item.NeedsLookup) continue;
-
-            var name = item.Card.Name;
-            progress?.Report($"Looking up {i}/{cards.Count}: {name}");
-            IReadOnlyList<CardModel> faces;
+            var c = group.First().Card;
+            var name = c.Name;
+            progress?.Report($"Looking up {name}…");
+            percent?.Report(0.4 + (double)(++fi) / Math.Max(1, unresolved.Count) * 0.1);
             try
             {
-                faces = await client.LookupFacesAsync(name, ct);
+                var faces = await client.LookupFacesAsync(name, ct);
+                if (faces.Count > 0) { ApplyFaces(group, faces.ToList()); log.Add($"fuzzy OK  {Ident(c)} -> {faces[0].Name}"); }
+                else { notFound.Add(name); log.Add($"NOT FOUND {Ident(c)} (no fuzzy match)"); }
             }
-            catch (ScryfallException ex)
+            catch (ScryfallException ex) { notFound.Add($"{name} ({ex.Message})"); log.Add($"NOT FOUND {Ident(c)} ({ex.Message})"); }
+        }
+
+        log.Add($"--- {found} filled, {notFound.Count} not found ---");
+        try { File.WriteAllLines(Path.Combine(AppPaths.DataDir, "last-import-log.txt"), log); } catch { /* logging is best-effort */ }
+
+        // Phase 2: parallel art downloads from the CDN (bounded concurrency), sharing one file per URL.
+        if (artJobs.Count > 0)
+        {
+            var byUrl = artJobs.GroupBy(j => j.url).ToList();
+            int artDone = 0;
+            using var sem = new SemaphoreSlim(6);
+            var tasks = byUrl.Select(async grp =>
             {
-                notFound.Add($"{name} ({ex.Message})");
-                continue;
-            }
-
-            if (faces.Count == 0) { notFound.Add(name); continue; }
-
-            found++;
-            FillBlanks(item.Card, faces[0], canonicalName: true);
-            if (downloadArt) await TryDownloadArt(item.Card, faces[0].ArtUrl);
-            filled++;
-
-            // Double-faced card: add the back as an extra card sharing the front's template.
-            for (int f = 1; f < faces.Count; f++)
-            {
-                var back = faces[f];
-                back.TemplateName = item.Card.TemplateName;
-                if (downloadArt) await TryDownloadArt(back, back.ArtUrl);
-                extraBacks.Add(back);
-            }
+                await sem.WaitAsync(ct);
+                try
+                {
+                    string? path = null;
+                    try { path = await ImageIntake.DownloadAsync(grp.Key, ct); }
+                    catch { /* keep the card(s) without art rather than failing the batch */ }
+                    if (path != null) foreach (var (card, _) in grp) card.ArtPath = path;
+                }
+                finally
+                {
+                    sem.Release();
+                    int d = Interlocked.Increment(ref artDone);
+                    progress?.Report($"Downloading art {d}/{byUrl.Count}…");
+                    percent?.Report(0.5 + (double)d / byUrl.Count * 0.5);   // art fills the second half
+                }
+            }).ToList();
+            await Task.WhenAll(tasks);
         }
 
         progress?.Report($"Scryfall: {found} found, {notFound.Count} not found.");
@@ -125,14 +224,6 @@ public static class BatchService
         if (Blank(target.SetCode)) target.SetCode = src.SetCode;
         if (Blank(target.CollectorNumber)) target.CollectorNumber = src.CollectorNumber;
         if (Blank(target.Rarity)) target.Rarity = src.Rarity;
-    }
-
-    /// <summary>Downloads Scryfall art into a card that has none yet (best-effort).</summary>
-    private static async Task TryDownloadArt(CardModel card, string artUrl)
-    {
-        if (!Blank(card.ArtPath) || string.IsNullOrWhiteSpace(artUrl)) return;
-        try { card.ArtPath = await ImageIntake.DownloadAsync(artUrl); }
-        catch { /* keep the card without art rather than failing the batch */ }
     }
 
     private static bool Blank(string? s) => string.IsNullOrWhiteSpace(s);
