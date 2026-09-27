@@ -1,0 +1,15 @@
+{
+    "name":  "Seraph of the Last Light",
+    "manaCost":  "{3}{W}{W}",
+    "typeLine":  "Legendary Creature â€” Angel",
+    "rulesText":  "Flying, vigilance, lifelink\nOther creatures you control get +1/+1.",
+    "flavorText":  "Where she passes, the dark forgets itself.",
+    "power":  "4",
+    "toughness":  "4",
+    "setCode":  "DSK",
+    "collectorNumber":  "12",
+    "rarity":  "M",
+    "artist":  "Cardinator Demo",
+    "templateName":  "Showcase",
+    "artPath":  "docs/gallery-src/art/seraph-angel.png"
+}

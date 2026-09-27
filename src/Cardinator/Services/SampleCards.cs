@@ -20,14 +20,13 @@ public static class SampleCards
     };
 
     /// <summary>
-    /// Starter cards shown on first run — original examples with bundled art so the app looks alive
-    /// immediately. Each pins a fitting built-in frame (rather than the passed default) so it showcases a
-    /// different layout; <paramref name="templateName"/> is the fallback if a pinned frame is unavailable.
+    /// The single starter card shown on first run — an original example with its own bundled art so the app
+    /// looks alive immediately. It pins a fitting built-in frame; <paramref name="templateName"/> is the
+    /// fallback if that frame is unavailable. (Only this one card's art is embedded in the exe.)
     /// </summary>
     public static IReadOnlyList<CardModel> All(string templateName)
     {
         SampleAssets.EnsureExtracted();
-        string Art(string f) => SampleAssets.Path(f);
         return new[]
         {
             new CardModel
@@ -39,31 +38,8 @@ public static class SampleCards
                 FlavorText = "Where she passes, the dark forgets itself.",
                 Power = "5", Toughness = "5", Rarity = "M", Artist = "Cardinator Demo",
                 SetCode = "DSK", CollectorNumber = "12",
-                ArtPath = Art("seraph-angel.png"),
+                ArtPath = SampleAssets.Path("seraph-angel.png"),
                 TemplateName = Has("Gold Multicolor", templateName),
-            },
-            new CardModel
-            {
-                Name = "Tatiana, Tide Weaver",
-                ManaCost = "{1}{U}{U}",
-                TypeLine = "Legendary Creature — Merfolk Druid",
-                RulesText = "When Tatiana enters, draw a card, then discard a card.\n{2}{U}: Tatiana can't be blocked this turn.",
-                FlavorText = "The tide remembers every shore it has touched.",
-                Power = "3", Toughness = "4", Rarity = "R", Artist = "Cardinator Demo",
-                SetCode = "TID", CollectorNumber = "58",
-                ArtPath = Art("tatiana-merfolk.png"),
-                TemplateName = Has("Ocean Blue", templateName),
-            },
-            new CardModel
-            {
-                Name = "Kavora, Storm Herald",
-                ManaCost = "{4}{U}{R}",
-                TypeLine = "Legendary Planeswalker — Kavora",
-                RulesText = "+1: Add {U}{R}. Until end of turn, instants and sorceries you cast cost {1} less.\n-3: Kavora, Storm Herald deals 5 damage divided as you choose among up to two targets.\n-9: Draw seven cards.",
-                Loyalty = "5", Rarity = "M", Artist = "Cardinator Demo",
-                SetCode = "WAR", CollectorNumber = "42",
-                ArtPath = Art("kavora-storm.png"),
-                TemplateName = Has("Planeswalker", templateName),
             },
         };
     }

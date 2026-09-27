@@ -1,0 +1,15 @@
+{
+    "name":  "Tatiana, Tide Weaver",
+    "manaCost":  "{3}{G}{U}",
+    "typeLine":  "Legendary Creature â€” Merfolk Druid",
+    "rulesText":  "Landfall â€” Whenever a land you control enters, you gain 1 life and draw a card.\n{T}: Add {G} or {U}.",
+    "flavorText":  "The tide remembers every shore it has touched.",
+    "power":  "3",
+    "toughness":  "4",
+    "setCode":  "LTR",
+    "collectorNumber":  "235",
+    "rarity":  "R",
+    "artist":  "Cardinator Demo",
+    "templateName":  "Tidecaller",
+    "artPath":  "docs/gallery-src/art/tatiana-merfolk.png"
+}

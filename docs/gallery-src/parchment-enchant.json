@@ -1,0 +1,13 @@
+{
+    "name":  "Sanctified Horizon",
+    "manaCost":  "{2}{W}",
+    "typeLine":  "Enchantment",
+    "rulesText":  "At the beginning of your upkeep, you gain 1 life.\n{3}{W}: Create a 1/1 white Spirit creature token with flying.",
+    "flavorText":  "Dawn keeps its promises.",
+    "setCode":  "THB",
+    "collectorNumber":  "20",
+    "rarity":  "R",
+    "artist":  "Cardinator Demo",
+    "templateName":  "Parchment",
+    "artPath":  "docs/gallery-src/art/mountains.png"
+}
