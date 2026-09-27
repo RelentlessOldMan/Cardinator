@@ -12,13 +12,15 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Paste a deck list" FontSize="15" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="0" Text="Import a deck" FontSize="15" FontWeight="SemiBold"/>
         <TextBlock Grid.Row="1" TextWrapping="Wrap" Foreground="{StaticResource Subtle}" FontSize="12" Margin="0,4,0,10">
-            <Run Text="From Moxfield, open your deck →"/>
+            <Run Text="Paste a"/>
+            <Run Text="Moxfield deck link" FontWeight="SemiBold" Foreground="{StaticResource Text}"/>
+            <Run Text="and Cardinator loads it for you — or paste an exported deck list (Moxfield"/>
             <Run Text="⋯ More → Export" FontWeight="SemiBold" Foreground="{StaticResource Text}"/>
-            <Run Text="→ copy, then paste below. Archidekt, MTGGoldfish, and plain text work too — one card per line, with quantities and (SET) numbers welcome. Cardinator fills each card from Scryfall and downloads its art."/>
+            <Run Text=", Archidekt, MTGGoldfish, or plain text — one card per line, quantities and (SET) numbers welcome). Each card is filled from Scryfall with its art."/>
             <LineBreak/>
-            <Run Text="Deck sites block apps from opening links directly, so paste the exported list rather than the URL." Foreground="{StaticResource Warn}"/>
+            <Run Text="Links from other deck sites can't be opened directly — export the list and paste it instead." Foreground="{StaticResource Warn}"/>
         </TextBlock>
 
         <TextBox Grid.Row="2" x:Name="DeckBox" AcceptsReturn="True" AcceptsTab="False"

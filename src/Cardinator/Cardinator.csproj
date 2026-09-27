@@ -20,6 +20,11 @@
 
   <ItemGroup>
     <PackageReference Include="SharpVectors.Reloaded" Version="1.8.6" />
+    <!-- Embedded Edge/Chromium engine used ONLY to fetch a Moxfield deck by URL with a real browser
+         fingerprint + cookies (Cloudflare bot-blocks plain HTTP clients). Runs hidden/off-screen. The
+         WebView2 Runtime ships with Windows 11 / modern Edge; if it's absent, URL import falls back to
+         the paste flow. -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
   </ItemGroup>
 
   <!-- Bundled sample artwork, extracted to CardinatorData/samples on first run so the starter

@@ -24,7 +24,10 @@ public partial class DeckListWindow : Window
         if (text.Length == 0) { StatusText.Text = "Paste a deck list first."; return; }
         if (ImportService.LooksLikeOnlyLinks(text))
         {
-            StatusText.Text = "That's a link — on Moxfield click ⋯ More → Export, copy the list, then paste it here.";
+            // A Moxfield deck link works directly (we load it via the hidden browser); other sites' links
+            // can't be fetched, so steer those to the exported list.
+            if (MoxfieldClient.IsMoxfieldUrl(text)) { DeckText = text; DialogResult = true; return; }
+            StatusText.Text = "That link isn't a Moxfield deck — export the list from your deck site and paste it here.";
             return;
         }
         DeckText = text;

@@ -651,23 +651,65 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         await AddImportedAsync(imported, "that file");
     }
 
-    /// <summary>Imports a deck list pasted from Moxfield/Archidekt/plain text (see <see cref="DeckListWindow"/>).</summary>
+    /// <summary>Imports a deck list pasted from Moxfield/Archidekt/plain text, or fetches a pasted
+    /// Moxfield deck link directly via the hidden browser (see <see cref="DeckListWindow"/>).</summary>
     private async void OnImportDeckList(object sender, RoutedEventArgs e)
     {
         if (Busy) return;
         var dlg = new DeckListWindow { Owner = this };
         if (dlg.ShowDialog() != true) return;
-        var imported = ImportService.Parse(dlg.DeckText, "", DefaultTemplateName);
+        var text = dlg.DeckText;
+
+        if (ImportService.LooksLikeOnlyLinks(text) && MoxfieldClient.IsMoxfieldUrl(text))
+        {
+            await ImportMoxfieldUrlAsync(text);
+            return;
+        }
+
+        var imported = ImportService.Parse(text, "", DefaultTemplateName);
         if (imported.Count == 0) { Status = "No cards found in the pasted list."; return; }
         await AddImportedAsync(imported, "the pasted list");
     }
 
+    /// <summary>Fetches a Moxfield deck by URL (hidden WebView2) and imports its cards; falls back to a
+    /// clear message pointing at the paste flow if the fetch is blocked/unavailable.</summary>
+    private async Task ImportMoxfieldUrlAsync(string url)
+    {
+        if (Busy) return;
+        var id = MoxfieldClient.ExtractDeckId(url);
+        if (id == null) { Status = "That doesn't look like a Moxfield deck link."; return; }
+
+        Busy = true;
+        try
+        {
+            Status = "Loading deck from Moxfield…";
+            var progress = new Progress<string>(s => Status = s);
+            string json;
+            try { json = await MoxfieldFetcher.FetchDeckJsonAsync(id, progress); }
+            catch (MoxfieldException ex) { Status = ex.Message; return; }
+
+            var (name, imported) = MoxfieldClient.ParseDeck(json, DefaultTemplateName);
+            if (imported.Count == 0) { Status = "That Moxfield deck had no cards to import."; return; }
+            await ImportCoreAsync(imported, string.IsNullOrWhiteSpace(name) ? "Moxfield" : $"Moxfield — {name}");
+        }
+        catch (Exception ex) { Status = "Moxfield import failed: " + ex.Message; }
+        finally { Busy = false; }
+    }
+
     /// <summary>Adds parsed cards to the project and fills their blank fields + art from Scryfall.
-    /// Shared by file import and pasted-deck-list import.</summary>
+    /// Shared by file import and pasted-deck-list import (owns the busy gate).</summary>
     private async Task AddImportedAsync(List<ImportedCard> imported, string source)
     {
         if (Busy) return;
         Busy = true;
+        try { await ImportCoreAsync(imported, source); }
+        finally { Busy = false; }
+    }
+
+    /// <summary>The shared import body (add + Scryfall fill + commit). Assumes the busy gate is already
+    /// held by the caller, so URL import can span both the fetch and the fill under one busy state.</summary>
+    private async Task ImportCoreAsync(List<ImportedCard> imported, string source)
+    {
         try
         {
             foreach (var item in imported) Cards.Add(item.Card);
@@ -693,7 +735,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Status = "Import failed: " + ex.Message;
         }
-        finally { Busy = false; }
     }
 
     private async void OnScryfallSearch(object sender, RoutedEventArgs e)
