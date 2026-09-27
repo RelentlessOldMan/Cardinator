@@ -43,6 +43,21 @@ public static class ImportService
         ["lookup"] = "lookup", ["scryfall"] = "lookup", ["fetch"] = "lookup",
     };
 
+    /// <summary>
+    /// True when the pasted text is nothing but web link(s) — i.e. the user pasted a deck URL instead of
+    /// the exported list. Deck sites (Moxfield, Archidekt, …) block apps from opening links directly, so
+    /// the UI uses this to steer the user to the site's Export button rather than attempting a doomed fetch.
+    /// </summary>
+    public static bool LooksLikeOnlyLinks(string? content)
+    {
+        var lines = (content ?? "").Replace("\r", "").Split('\n')
+            .Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        return lines.Count > 0 && lines.All(l =>
+            l.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || l.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            || l.StartsWith("www.", StringComparison.OrdinalIgnoreCase));
+    }
+
     public static List<ImportedCard> Parse(string content, string? artBaseDir, string defaultTemplate)
     {
         content = (content ?? "").TrimStart('﻿');   // strip a UTF-8 BOM so line 0 isn't polluted
@@ -77,7 +92,11 @@ public static class ImportService
     // common section headers. Set codes are required to be uppercase so real names ending in "(...)"
     // (e.g. reminder-style names) aren't mistaken for a hint.
     private static readonly Regex QtyPrefix = new(@"^(\d{1,3})\s*[xX]?\s+(.+)$", RegexOptions.Compiled);
-    private static readonly Regex SetHint = new(@"\s*\(([A-Z0-9]{2,6})\)\s*(\d+)?\s*$", RegexOptions.Compiled);
+    // Printing hint "(SET) 123": uppercase set code, optional alphanumeric collector (foils/variants
+    // like "273p" or "84s"). Anchored at end so real names ending in "(...)" aren't mistaken for a hint.
+    private static readonly Regex SetHint = new(@"\s*\(([A-Z0-9]{2,6})\)\s*([0-9A-Za-z★]+)?\s*$", RegexOptions.Compiled);
+    // Trailing foil/etched marker some deck sites (e.g. Moxfield) append, e.g. "... (LTC) 273 *F*".
+    private static readonly Regex FoilMarker = new(@"\s*\*[A-Za-z]\*\s*$", RegexOptions.Compiled);
     private static readonly HashSet<string> SectionHeaders =
         new(StringComparer.OrdinalIgnoreCase) { "deck", "sideboard", "commander", "maybeboard", "companion" };
 
@@ -99,6 +118,9 @@ public static class ImportService
                 art = line[(sep + 1)..].Trim();
                 line = line[..sep].Trim();
             }
+
+            // Strip a trailing foil/etched marker before reading the printing hint at the end of the line.
+            line = FoilMarker.Replace(line, "").TrimEnd();
 
             // Leading quantity: "4 Lightning Bolt" / "2x Counterspell" -> N copies.
             int qty = 1;

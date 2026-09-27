@@ -50,6 +50,14 @@ public class WindowSmokeTests
         });
 
     [Fact]
+    public void DeckListWindow_Constructs_WithAppResources()
+        => OnAppThread(() =>
+        {
+            var w = new Cardinator.DeckListWindow();
+            Assert.NotNull(w.Content);
+        });
+
+    [Fact]
     public void BulkEditWindow_Constructs_WithAppResources()
         => OnAppThread(() =>
         {

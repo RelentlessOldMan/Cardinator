@@ -69,6 +69,8 @@
                         <Border Height="1" Background="{StaticResource Line}" Margin="0,10"/>
                         <TextBlock Text="BATCH" Style="{StaticResource SectionLabel}"/>
                         <Button Content="Import list / CSV…" Click="OnImport" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"/>
+                        <Button Content="Paste deck list…" Click="OnImportDeckList" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"
+                                ToolTip="Paste a deck exported from Moxfield (⋯ More → Export), Archidekt, MTGGoldfish, or plain text"/>
                         <Button Content="Scryfall search…" Click="OnScryfallSearch" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"
                                 ToolTip="Import many cards from a Scryfall search (with art)"/>
                         <Button Content="Match art folder…" Click="OnMatchArtFolder" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"/>

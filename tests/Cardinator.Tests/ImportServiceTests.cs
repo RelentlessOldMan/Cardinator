@@ -37,6 +37,50 @@ public class ImportServiceTests
     }
 
     [Fact]
+    public void Parse_MoxfieldExport_ParsesQuantitiesSetsAndSections()
+    {
+        // A representative Moxfield "text" export: a commander section, category comments, blank lines,
+        // set/collector hints, and a foil marker.
+        var export = string.Join("\n",
+            "Commander",
+            "1 Atraxa, Praetors' Voice (2XM) 197",
+            "",
+            "// Ramp",
+            "1 Sol Ring (LTC) 273 *F*",
+            "1 Arcane Signet (LTC) 297",
+            "2 Forest (UNF) 235");
+        var cards = ImportService.Parse(export, null, "T");
+
+        Assert.Equal(5, cards.Count);                                   // 1+1+1+2, headers/comments/blank skipped
+        Assert.Equal("Atraxa, Praetors' Voice", cards[0].Card.Name);
+        Assert.Equal("2XM", cards[0].Card.SetCode);
+        Assert.Equal("197", cards[0].Card.CollectorNumber);
+        Assert.Equal("Sol Ring", cards[1].Card.Name);                  // foil marker stripped
+        Assert.Equal("273", cards[1].Card.CollectorNumber);
+        Assert.Equal(2, cards.Count(c => c.Card.Name == "Forest"));
+    }
+
+    [Fact]
+    public void Parse_AlphanumericCollectorNumber_IsCaptured()
+    {
+        var cards = ImportService.Parse("1 Lightning Bolt (STA) 42p", null, "T");
+        Assert.Single(cards);
+        Assert.Equal("Lightning Bolt", cards[0].Card.Name);
+        Assert.Equal("STA", cards[0].Card.SetCode);
+        Assert.Equal("42p", cards[0].Card.CollectorNumber);
+    }
+
+    [Theory]
+    [InlineData("https://moxfield.com/decks/Wq2LzlPelEOT9a541Et1XQ", true)]
+    [InlineData("www.moxfield.com/decks/abc", true)]
+    [InlineData("https://a\nhttps://b", true)]
+    [InlineData("1 Sol Ring\nhttps://moxfield.com/x", false)]   // has a real card line too
+    [InlineData("Lightning Bolt", false)]
+    [InlineData("", false)]
+    public void LooksLikeOnlyLinks_DetectsPastedUrls(string text, bool expected)
+        => Assert.Equal(expected, ImportService.LooksLikeOnlyLinks(text));
+
+    [Fact]
     public void Parse_DeckList_SkipsSectionHeadersAndComments_AndStripsSbPrefix()
     {
         var cards = ImportService.Parse("Deck\nLightning Bolt\n// notes\nSideboard\nSB: Duress", null, "T");

@@ -636,21 +636,46 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task ImportListFile(string filePath)
     {
         if (Busy) return;
-        Busy = true;
+        List<ImportedCard> imported;
+        string baseDir;
         try
         {
             var content = File.ReadAllText(filePath);
-            var baseDir = Path.GetDirectoryName(filePath) ?? "";
-            var imported = ImportService.Parse(content, baseDir, DefaultTemplateName);
-            if (imported.Count == 0) { Status = "No cards found in that file."; return; }
-            _artBaseDir = baseDir;   // only commit the base dir once we know the import actually produced cards
+            baseDir = Path.GetDirectoryName(filePath) ?? "";
+            imported = ImportService.Parse(content, baseDir, DefaultTemplateName);
+        }
+        catch (Exception ex) { Status = "Import failed: " + ex.Message; return; }
 
+        if (imported.Count == 0) { Status = "No cards found in that file."; return; }
+        _artBaseDir = baseDir;   // only commit the base dir once we know the import actually produced cards
+        await AddImportedAsync(imported, "that file");
+    }
+
+    /// <summary>Imports a deck list pasted from Moxfield/Archidekt/plain text (see <see cref="DeckListWindow"/>).</summary>
+    private async void OnImportDeckList(object sender, RoutedEventArgs e)
+    {
+        if (Busy) return;
+        var dlg = new DeckListWindow { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+        var imported = ImportService.Parse(dlg.DeckText, "", DefaultTemplateName);
+        if (imported.Count == 0) { Status = "No cards found in the pasted list."; return; }
+        await AddImportedAsync(imported, "the pasted list");
+    }
+
+    /// <summary>Adds parsed cards to the project and fills their blank fields + art from Scryfall.
+    /// Shared by file import and pasted-deck-list import.</summary>
+    private async Task AddImportedAsync(List<ImportedCard> imported, string source)
+    {
+        if (Busy) return;
+        Busy = true;
+        try
+        {
             foreach (var item in imported) Cards.Add(item.Card);
             SelectedCard = imported[0].Card;
             OnPropertyChanged(nameof(ProjectSummary));
 
             int needLookup = imported.Count(i => i.NeedsLookup);
-            Status = $"Imported {imported.Count} card(s). Looking up {needLookup} on Scryfall…";
+            Status = $"Imported {imported.Count} card(s) from {source}. Looking up {needLookup} on Scryfall…";
 
             var progress = new Progress<string>(s => Status = s);
             var report = await BatchService.FillFromScryfallAsync(imported, progress);
