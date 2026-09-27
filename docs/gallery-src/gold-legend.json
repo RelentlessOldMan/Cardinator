@@ -1,7 +1,7 @@
 {
     "name":  "Dawnblade Vanguard",
     "manaCost":  "{2}{G/R}{G/R}",
-    "typeLine":  "Legendary Creature â€” Human Soldier",
+    "typeLine":  "Legendary Creature — Human Soldier",
     "rulesText":  "First strike, vigilance\n({G/R} can be paid with either {G} or {R}.)\nWhenever Dawnblade Vanguard attacks, other creatures you control get +1/+0 until end of turn.",
     "flavorText":  "Hold the line; the dawn is ours.",
     "power":  "4",

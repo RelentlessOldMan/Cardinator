@@ -1,7 +1,7 @@
 {
     "name":  "Nerida, Tideseer",
     "manaCost":  "{3}{U}",
-    "typeLine":  "Legendary Planeswalker â€” Nerida",
+    "typeLine":  "Legendary Planeswalker — Nerida",
     "rulesText":  "+1: Scry 2, then draw a card.\n-2: Return target creature to its owner\u0027s hand.\n-7: Take an extra turn after this one.",
     "loyalty":  "4",
     "setCode":  "WAR",
@@ -9,5 +9,5 @@
     "rarity":  "M",
     "artist":  "Cardinator Demo",
     "templateName":  "Ocean Blue",
-    "artPath":  "docs/gallery-src/art/nebula.png"
+    "artPath":  "docs/gallery-src/art/nerida-tideseer.png"
 }
