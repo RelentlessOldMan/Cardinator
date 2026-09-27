@@ -111,7 +111,7 @@
 
         <!-- footer -->
         <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="22,14">
-            <Button Content="Done" Style="{StaticResource Primary}" MinWidth="110" HorizontalAlignment="Right" Click="OnDone"/>
+            <Button Content="Done" Style="{StaticResource Primary}" MinWidth="110" HorizontalAlignment="Right" Click="OnDone" IsCancel="True"/>
         </Border>
     </Grid>
 </Window>

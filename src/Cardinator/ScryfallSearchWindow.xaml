@@ -44,7 +44,7 @@
                                 <CheckBox Grid.Column="0" IsChecked="{Binding IsChecked, Mode=TwoWay}"
                                           VerticalAlignment="Center" Margin="4,0,8,0"/>
                                 <Border Grid.Column="1" Width="56" Height="78" CornerRadius="4"
-                                        Background="#1A1B20" Margin="0,0,10,0">
+                                        Background="{StaticResource ThumbBg}" Margin="0,0,10,0">
                                     <Image Source="{Binding Thumb}" Stretch="UniformToFill"/>
                                 </Border>
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
@@ -71,9 +71,9 @@
                            VerticalAlignment="Center" Margin="12,0,0,0"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel"/>
+                <Button Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel" IsCancel="True"/>
                 <Button x:Name="AddButton" Content="Add selected" Style="{StaticResource Primary}"
-                        MinWidth="120" Margin="10,0,0,0" Click="OnAdd"/>
+                        MinWidth="110" Margin="10,0,0,0" Click="OnAdd" IsDefault="True"/>
             </StackPanel>
         </Grid>
     </Grid>

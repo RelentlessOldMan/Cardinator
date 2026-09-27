@@ -15,7 +15,7 @@
         <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="22,16">
             <StackPanel>
                 <TextBlock Text="Frame design" FontSize="17" FontWeight="SemiBold"/>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource Subtle}" FontSize="12" Margin="0,2,0,0"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource Subtle}" FontSize="12" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
                 <TextBlock Text="Mix &amp; match — changes apply to this template." Foreground="{StaticResource Subtle}" FontSize="11" Margin="0,2,0,0"/>
             </StackPanel>
         </Border>
@@ -26,7 +26,7 @@
                 <ColumnDefinition Width="*" MinWidth="240"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="1" Background="#0F0F12" Margin="0,0,0,0">
+            <Border Grid.Column="1" Background="{StaticResource PreviewBg}" Margin="0,0,0,0">
                 <Image x:Name="PreviewImage" Stretch="Uniform" Margin="16"
                        RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True"/>
             </Border>
@@ -40,11 +40,11 @@
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                        <TextBlock Text="Top emblem" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                        <TextBlock Text="Top emblem" Style="{StaticResource SectionLabel}"/>
                         <ComboBox x:Name="TopEmblemBox"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                        <TextBlock Text="Legendary crown" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                        <TextBlock Text="Legendary crown" Style="{StaticResource SectionLabel}"/>
                         <ComboBox x:Name="CrownStyleBox"/>
                     </StackPanel>
                 </Grid>
@@ -67,33 +67,33 @@
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                        <TextBlock Text="Texture" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                        <TextBlock Text="Texture" Style="{StaticResource SectionLabel}"/>
                         <ComboBox x:Name="TextureBox"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                        <TextBlock Text="Texture strength (0–3)" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                        <TextBlock Text="Texture strength (0–3)" Style="{StaticResource SectionLabel}"/>
                         <TextBox x:Name="TextureStrengthBox"/>
                     </StackPanel>
                 </Grid>
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                        <TextBlock Text="Border px" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                        <TextBlock Text="Border px" Style="{StaticResource SectionLabel}"/>
                         <TextBox x:Name="BorderBox"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="4,0,4,0">
-                        <TextBlock Text="Corner radius" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                        <TextBlock Text="Corner radius" Style="{StaticResource SectionLabel}"/>
                         <TextBox x:Name="CornerBox"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Margin="4,0,0,0">
-                        <TextBlock Text="Panel radius" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                        <TextBlock Text="Panel radius" Style="{StaticResource SectionLabel}"/>
                         <TextBox x:Name="PanelRadiusBox"/>
                     </StackPanel>
                 </Grid>
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                        <TextBlock Text="Royal sub-border px" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                        <TextBlock Text="Royal sub-border px" Style="{StaticResource SectionLabel}"/>
                         <TextBox x:Name="SubBorderBox"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="6,0,0,0"/>
@@ -123,8 +123,8 @@
 
         <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="22,14">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel"/>
-                <Button Content="Apply" Style="{StaticResource Primary}" MinWidth="110" Margin="10,0,0,0" Click="OnApply"/>
+                <Button Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel" IsCancel="True"/>
+                <Button Content="Apply" Style="{StaticResource Primary}" MinWidth="110" Margin="10,0,0,0" Click="OnApply" IsDefault="True"/>
             </StackPanel>
         </Border>
     </Grid>

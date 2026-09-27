@@ -115,7 +115,7 @@
         <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="22,14">
             <Grid>
                 <TextBlock x:Name="VersionText" Text="Cardinator" Foreground="{StaticResource Subtle}" FontSize="12" VerticalAlignment="Center"/>
-                <Button Content="Close" Style="{StaticResource Primary}" MinWidth="110" HorizontalAlignment="Right" Click="OnClose"/>
+                <Button Content="Close" Style="{StaticResource Primary}" MinWidth="110" HorizontalAlignment="Right" Click="OnClose" IsCancel="True" IsDefault="True"/>
             </Grid>
         </Border>
     </Grid>

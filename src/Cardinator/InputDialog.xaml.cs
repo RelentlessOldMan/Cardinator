@@ -19,12 +19,4 @@ public partial class InputDialog : Window
 
     private void OnOk(object sender, RoutedEventArgs e) { DialogResult = true; Close(); }
     private void OnCancel(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
-
-    /// <summary>Shows the dialog and returns the entered text, or null if cancelled/blank.</summary>
-    public static string? Ask(Window owner, string prompt, string hint = "", string initial = "")
-    {
-        var dlg = new InputDialog(prompt, hint, initial) { Owner = owner };
-        if (dlg.ShowDialog() != true) return null;
-        return string.IsNullOrWhiteSpace(dlg.Value) ? null : dlg.Value;
-    }
 }

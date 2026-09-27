@@ -10,7 +10,7 @@
         <TextBlock x:Name="HintText" Foreground="{StaticResource Subtle}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"/>
         <TextBox x:Name="Entry" Height="36"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-            <Button Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel" Margin="0,0,8,0"/>
+            <Button Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel" Margin="0,0,8,0" IsCancel="True"/>
             <Button Content="OK" Style="{StaticResource Primary}" MinWidth="110" Click="OnOk" IsDefault="True"/>
         </StackPanel>
     </StackPanel>
