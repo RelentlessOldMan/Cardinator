@@ -31,6 +31,11 @@
        cards (and the user) have real art to work with out of the box. -->
   <ItemGroup>
     <EmbeddedResource Include="Assets\samples\*.png" />
+    <!-- Bundled sample TEMPLATES (raster custom frames): each is a frame.png + template.json under
+         Assets\templates\<slug>\, extracted to CardinatorData/templates on first run (see SampleTemplates).
+         Ships the "Partial Cardboard Chemist" alchemy frames without any procedural drawing. -->
+    <EmbeddedResource Include="Assets\templates\**\frame.png" />
+    <EmbeddedResource Include="Assets\templates\**\template.json" />
     <!-- WPF resource so windows can load it for their title-bar icon via a pack URI. -->
     <Resource Include="Assets\cardinator.ico" />
   </ItemGroup>

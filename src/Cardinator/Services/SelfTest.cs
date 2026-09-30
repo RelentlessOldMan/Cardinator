@@ -231,6 +231,103 @@ public static class SelfTest
     }
 
     /// <summary>
+    /// Batch-renders ready-made card JSONs to PNGs. <paramref name="inPath"/> is a single card.json or a
+    /// folder of them (each *.json except template.json). Options: scale=N (supersample, default 2),
+    /// templates=&lt;dir&gt; to also load custom frames straight from a folder (no install needed — they take
+    /// precedence over installed frames of the same name), nosym to skip fetching Scryfall mana symbols.
+    /// Each card is written to &lt;outDir&gt;/&lt;slug&gt;.png, resolving its templateName across the combined set.
+    /// </summary>
+    public static int RunRenderCards(string inPath, string outDir, string[]? opts = null)
+    {
+        try
+        {
+            opts ??= Array.Empty<string>();
+            int scale = Math.Clamp(OptInt(opts, "scale", 2), 1, 6);
+            bool noSym = opts.Any(o => o.Equals("nosym", StringComparison.OrdinalIgnoreCase));
+            var extraDir = OptStr(opts, "templates");
+
+            // Collect the card JSON files.
+            List<string> cardFiles;
+            if (File.Exists(inPath))
+                cardFiles = new List<string> { inPath };
+            else if (Directory.Exists(inPath))
+                cardFiles = Directory.EnumerateFiles(inPath, "*.json")
+                    .Where(f => !Path.GetFileName(f).Equals("template.json", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+            else
+            {
+                Console.Error.WriteLine($"RenderCards: '{inPath}' is not a file or folder.");
+                return 2;
+            }
+            if (cardFiles.Count == 0)
+            {
+                Console.Error.WriteLine($"RenderCards: no card JSON files found in '{inPath}'.");
+                return 2;
+            }
+
+            // Templates: installed ones, plus any from templates=<dir> (the extras win on name clashes).
+            var service = new TemplateService();
+            var byName = new Dictionary<string, Template>(StringComparer.OrdinalIgnoreCase);
+            foreach (var t in service.LoadAll()) byName[t.Name] = t;
+            if (!string.IsNullOrWhiteSpace(extraDir))
+            {
+                var extras = service.LoadFrom(extraDir);
+                foreach (var t in extras) byName[t.Name] = t;
+                Console.WriteLine($"Loaded {extras.Count} custom frame(s) from {extraDir}.");
+            }
+            if (byName.Count == 0) { Console.Error.WriteLine("RenderCards: no templates available."); return 2; }
+            var fallback = byName.Values.OrderBy(t => t.Name, StringComparer.Ordinal).First();
+
+            // Load all cards, then prime every mana symbol they use in one pass.
+            var cards = new List<Cardinator.Models.CardModel>();
+            foreach (var f in cardFiles)
+            {
+                try { cards.Add(Cardinator.Models.CardModel.Load(f)); }
+                catch (Exception ex) { Console.Error.WriteLine($"  skip {Path.GetFileName(f)}: {ex.Message}"); }
+            }
+            if (cards.Count == 0) { Console.Error.WriteLine("RenderCards: no cards loaded."); return 2; }
+
+            var symbols = new SymbolService();
+            if (!noSym)
+            {
+                var tokens = cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)).Distinct().ToList();
+                Task.Run(() => symbols.PrimeAsync(tokens)).GetAwaiter().GetResult();
+            }
+
+            Directory.CreateDirectory(outDir);
+            var renderer = new CardRenderer(symbols);
+            int ok = 0;
+            var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var card in cards)
+            {
+                var tpl = (!string.IsNullOrEmpty(card.TemplateName) && byName.TryGetValue(card.TemplateName, out var hit))
+                    ? hit : fallback;
+                bool missing = !string.IsNullOrEmpty(card.TemplateName) && !byName.ContainsKey(card.TemplateName);
+
+                // Unique output name even if two cards share a title.
+                var baseName = Slug(string.IsNullOrWhiteSpace(card.Name) ? "card" : card.Name);
+                var name = baseName;
+                for (int i = 2; !usedNames.Add(name); i++) name = $"{baseName}-{i}";
+
+                var outFile = Path.Combine(outDir, name + ".png");
+                var bmp = renderer.RenderToBitmap(card, tpl, scale);
+                CardExporter.SavePng(bmp, outFile);
+                ok++;
+                Console.WriteLine($"  {card.Name}  ->  {name}.png  [{tpl.Name}]"
+                    + (missing ? $"  (templateName '{card.TemplateName}' not found — used fallback)" : ""));
+            }
+
+            Console.WriteLine($"Rendered {ok}/{cards.Count} card(s) to {outDir}.");
+            return ok > 0 ? 0 : 1;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("RenderCards FAILED: " + ex);
+            return 1;
+        }
+    }
+
+    /// <summary>
     /// Renders one card across every on/off permutation of the composable frame knobs (background,
     /// connected panels, taper, faded edges, regal topper) so the combinations can be eyeballed.
     /// </summary>
@@ -306,6 +403,13 @@ public static class SelfTest
     {
         var hit = opts.FirstOrDefault(o => o.StartsWith(name + "=", StringComparison.OrdinalIgnoreCase));
         return hit != null && int.TryParse(hit[(name.Length + 1)..], out var v) ? v : fallback;
+    }
+
+    /// <summary>Reads a "name=value" option (value may be quoted); returns null if absent.</summary>
+    private static string? OptStr(string[] opts, string name)
+    {
+        var hit = opts.FirstOrDefault(o => o.StartsWith(name + "=", StringComparison.OrdinalIgnoreCase));
+        return hit?[(name.Length + 1)..].Trim('"');
     }
 
     /// <summary>

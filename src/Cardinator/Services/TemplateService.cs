@@ -38,8 +38,23 @@ public sealed class TemplateService
     {
         try { EnsureDefaults(); } catch { /* best-effort; enumeration below still tries */ }
 
+        var result = new List<Template>(LoadFrom(AppPaths.TemplatesDir));
+
+        // Guarantee the app always has at least the built-in frames to render with.
+        if (result.Count == 0)
+            result.AddRange(BuildBuiltInsInMemory());
+
+        return result;
+    }
+
+    /// <summary>Loads every template folder (template.json + frame.png) directly under <paramref name="root"/>,
+    /// sorted by name. Does not create or heal the built-ins — used to pull frames from an arbitrary folder
+    /// (e.g. a batch of generated frames) without installing them first. Returns an empty list if the folder
+    /// is missing or has none.</summary>
+    public IReadOnlyList<Template> LoadFrom(string root)
+    {
         var result = new List<Template>();
-        foreach (var dir in SafeEnumerateDirs(AppPaths.TemplatesDir))
+        foreach (var dir in SafeEnumerateDirs(root))
         {
             var specPath = Path.Combine(dir, "template.json");
             if (!File.Exists(specPath)) continue;
@@ -62,16 +77,14 @@ public sealed class TemplateService
         }
 
         result.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
-
-        // Guarantee the app always has at least the built-in frames to render with.
-        if (result.Count == 0)
-            result.AddRange(BuildBuiltInsInMemory());
-
         return result;
     }
 
     private static void EnsureDefaults()
     {
+        // Raster sample templates (bundled frame.png + template.json) — extracted straight to disk.
+        SampleTemplates.EnsureExtracted();
+
         foreach (var spec in BuiltInTemplates.All())
         {
             var dir = Path.Combine(AppPaths.TemplatesDir, Slug(spec.Name));

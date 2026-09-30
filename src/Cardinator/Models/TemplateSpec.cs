@@ -188,9 +188,15 @@ public sealed class TemplateSpec
 
     public static TemplateSpec Load(string path)
     {
-        var json = File.ReadAllText(path);
+        try { return LoadFromJson(File.ReadAllText(path)); }
+        catch (InvalidDataException) { throw new InvalidDataException($"Could not parse template: {path}"); }
+    }
+
+    /// <summary>Parses a template spec from a JSON string (normalizing degenerate values).</summary>
+    public static TemplateSpec LoadFromJson(string json)
+    {
         var spec = JsonSerializer.Deserialize<TemplateSpec>(json, JsonOpts)
-               ?? throw new InvalidDataException($"Could not parse template: {path}");
+               ?? throw new InvalidDataException("Could not parse template JSON.");
         spec.Normalize();
         return spec;
     }

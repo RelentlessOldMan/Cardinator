@@ -135,12 +135,14 @@ public class CustomTemplateAndArtTests
                 var card = new CardModel { Name = "Edge", ArtPath = artPath };
                 var renderer = new CardRenderer(new SymbolService());
 
-                // A point just inside the black border, below the title: art on full-art, frame on framed.
+                // A point in the frame margin (between the black border ~28px and the art window, which is
+                // inset ≥40px on framed templates): art bleeds here on full-art, but it's frame on a framed
+                // template. Sampling in this margin keeps the test robust to which framed template sorts first.
                 var fullBmp = renderer.RenderToBitmap(card, full!, 1);
                 var framedBmp = renderer.RenderToBitmap(card, framed!, 1);
 
-                Assert.True(IsMagenta(Sample(fullBmp, 52, 520)), "full-art should bleed art to the edge");
-                Assert.False(IsMagenta(Sample(framedBmp, 52, 520)), "framed art should be inside its window only");
+                Assert.True(IsMagenta(Sample(fullBmp, 36, 520)), "full-art should bleed art to the edge");
+                Assert.False(IsMagenta(Sample(framedBmp, 36, 520)), "framed art should be inside its window only");
             }
             finally { File.Delete(artPath); }
         });

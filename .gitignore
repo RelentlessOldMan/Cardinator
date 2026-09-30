@@ -11,3 +11,9 @@ selftest-out/
 # IDE
 .vs/
 *.user
+
+# Jacob's personal FMA frames — lifted show material, never shipped/committed
+jacob/
+
+# Transient commit-message temp files (see global git instructions)
+commit-msg.tmp

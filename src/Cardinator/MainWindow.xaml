@@ -115,13 +115,16 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <ComboBox Grid.Column="0" ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}"
                                   DisplayMemberPath="Name"/>
                         <Button Grid.Column="1" Content="Design…" Style="{StaticResource Ghost}" Click="OnFrameDesign"
                                 Margin="6,0,0,0" ToolTip="Mix &amp; match frame knobs (style, connected panels, background, taper, top emblem, colors…)"/>
                         <Button Grid.Column="2" Content="Import…" Style="{StaticResource Ghost}" Click="OnImportFrame"
-                                Margin="6,0,0,0" ToolTip="Create a template from your own frame PNG (transparent where art shows)"/>
+                                Margin="6,0,0,0" ToolTip="Add a frame from a PNG, or install a shared template bundle (.cardframe)"/>
+                        <Button Grid.Column="3" Content="Export…" Style="{StaticResource Ghost}" Click="OnExportTemplate"
+                                Margin="6,0,0,0" ToolTip="Save this template as a shareable bundle (.cardframe = frame.png + its settings)"/>
                     </Grid>
 
                     <TextBlock Text="ARTWORK" Style="{StaticResource SectionLabel}"/>
