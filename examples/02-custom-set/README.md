@@ -10,7 +10,7 @@ planeswalker) on different frames — all original, all rendered from one CSV.
 ```
 02-custom-set/
   cards.csv          <- the set: one row per card
-  art/               <- our placeholder artwork (swap in your own)
+  art/               <- our our sample artwork (swap in your own)
   output/            <- the rendered result (checked in)
 ```
 

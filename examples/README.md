@@ -40,8 +40,8 @@ The third argument is the folder your art paths are relative to (here, the examp
 
 ## Notes
 
-- The artwork in these examples is **our own** placeholder art (simple generated scenes) so nothing
-  copyrighted ships in this repo — swap in your own images.
+- The artwork in these examples is **our own** original generated art, so nothing copyrighted ships
+  in this repo — swap in your own images.
 - Example 01 uses **real card names**; Cardinator fetches their text (and shows the real mana
   symbols) from Scryfall at run time. That's fan content — see the repo's Legal note. Everything you
   make is for personal use.

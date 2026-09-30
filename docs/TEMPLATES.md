@@ -63,14 +63,10 @@ These are **custom-frame** templates (`customFrame: true`) — Cardinator keeps 
 rather than generating one. They're the same kind of template you get when you import your own frame,
 so they double as worked examples of a hand-made frame + a tuned `template.json`.
 
-Frames come in a few **styles** you can set per template (`frameStyle`): **classic** (gradient +
-bevel), **clean** (flat/modern), **ornate** (metallic band, banner, corner scrollwork + gems, stone
-texture), **faded** (edges melt into the art), **borderless** (full-bleed art + floating panels),
-**overlay** (full-bleed art with a cinematic band + gold trim carrying the text over the bottom of
-the art), **wave** (a full frame plus a colorful scalloped wave crown flowing across the top),
-**modern** (an M15-style frame built from the composable knobs below) and **composable** (the same
-knobs, but starting from full-bleed art). Legendary cards also get a leafy crown, and the P/T box
-only appears on creatures.
+Each template picks a **style** with `frameStyle` (classic, clean, ornate, faded, borderless, overlay,
+wave, modern, composable) — the full list, with what each does, is under
+[Tweaking a frame's style](#tweaking-a-frames-style) below. Legendary cards also get a leafy crown,
+and the P/T box only appears on creatures.
 
 *(Generate this grid yourself any time with `Cardinator.exe --frames <outDir>` — it renders one card
 on every frame you have installed, including your own imports.)*

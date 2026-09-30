@@ -98,7 +98,7 @@ src/Cardinator/
     SelfTest.cs            Headless entry points (render/lookup/batch/sheet/search/newtemplate/cardback/frames/permute/qa)
     TemplateImporter.cs    Create a custom template from a frame image (file/URL)
     TextUtil.cs            Shared slug / safe-filename helpers
-tests/Cardinator.Tests/    xUnit tests (177), incl. golden-image regression baselines
+tests/Cardinator.Tests/    xUnit tests, incl. golden-image regression baselines
 docs/images, golden/       Rendered gallery + committed golden baselines
 docs/                      This documentation + rendered gallery images
 examples/                  Worked examples (inputs + outputs): real-cards/custom-art, custom set, full-art, custom frame, tokens, printing
@@ -124,7 +124,7 @@ the render tests use an STA helper).
 
 ## Testing approach
 
-The suite (`dotnet test`, **177 tests**) covers:
+The suite (`dotnet test`) covers:
 
 - **Pure logic** — mana tokenizing/normalizing, CSV/TSV import, Scryfall JSON mapping, art
   matching, footer/badge/ability parsing, image-intake path helpers.

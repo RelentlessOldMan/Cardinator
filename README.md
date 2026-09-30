@@ -36,10 +36,11 @@ adventure sub-box, rarity pips, the P/T box and footer — is drawn by the app.
 
 ### **[→ See the full gallery: 13 cards across the classic frame styles](docs/GALLERY.md)**
 
-**15 built-in frames** (Gold, Crimson, Ocean, Forest, Slate, Midnight, Parchment, Sunset,
-Planeswalker, Full Art, Showcase, Cinematic) plus the **Tidecaller** wave frame, **Azure Modern**
-(M15-style) and **Ironwrought Showcase** (composable) — with ornamental filigree you can toggle and
-tweak. **[See them all →](docs/TEMPLATES.md#the-built-in-frames)**
+**18 built-in frames:** 15 drawn styles (Gold, Crimson, Ocean, Forest, Slate, Midnight, Parchment,
+Sunset, Planeswalker, Full Art, Showcase, Cinematic, plus the **Tidecaller** wave, **Azure Modern**
+M15-style and **Ironwrought Showcase** composable), and 3 image-based **alchemy sample frames** (the
+*Partial Cardboard Chemist* set — riveted steel, aged parchment, carved stone). All tweakable.
+**[See them all →](docs/TEMPLATES.md#the-built-in-frames)**
 
 ---
 
@@ -85,27 +86,15 @@ Full walkthrough → **[User Guide](docs/USER_GUIDE.md)**.
 
 ## Make many at once
 
-Cardinator works on a **project** (the list on the left). Import a whole batch, fill blanks from
-Scryfall, and export everything:
+Cardinator works on a **project** (the list on the left). **Import list / CSV…** loads a batch — a
+list of names, `Name | art.png` lines, or a CSV/TSV with a header row (see the
+[example deck](examples/01-real-cards-custom-art/deck.csv)) — or import a whole **Scryfall search**.
+Then **Look up missing** fills blanks from Scryfall, **Match art folder…** attaches art by filename,
+**Set fields on all…** bulk-edits set/artist/rarity/frame, and **Export all…** / **Print sheet…**
+render everything (3×3 pages at real size + optional card backs). A live **CHECKS** panel flags
+problems as you type, and every edit is undoable.
 
-- **Import list / CSV…** — a list of names, `Name | art.png` lines, or a CSV/TSV with a header row
-  (columns matched by friendly names in any order). See the [example deck](examples/01-real-cards-custom-art/deck.csv).
-- **Match art folder…** — attach a folder of images to cards by filename.
-- **Look up missing** — fetch any card that still has only a name.
-- **Number cards** — auto-assign collector numbers in list order (`001/N`, `002/N`, …).
-- **Set fields on all…** — bulk-edit set code, artist, rarity, copyright, frame and set-symbol
-  image across every card at once.
-- **Move ↑ / ↓** — reorder cards in the list.
-- **Export all…** — render every card to PNGs (background progress bar).
-- **Print sheet…** — 9 cards per page (3×3, real size, 300 DPI, cut marks), Letter or A4; asks
-  whether to include **card backs** for double-sided printing.
-- **Save / Open** — the whole project is one `.cardinator` file.
-
-Editing is fully **undoable** (Ctrl+Z / Ctrl+Y), and a live **CHECKS** panel flags problems —
-missing art, unknown symbols, footer overlaps, out-of-bounds regions, duplicate collector numbers —
-as you type.
-
-Details → **[User Guide: making many cards](docs/USER_GUIDE.md#4-making-many-cards-at-once)**.
+Full list of batch tools → **[User Guide: making many cards](docs/USER_GUIDE.md#4-making-many-cards-at-once)**.
 
 ---
 
@@ -171,7 +160,7 @@ the top-right for the in-app cheat sheet.
 
 ## Development
 
-`dotnet test` runs the suite (**177 tests**). The renderer is verified headlessly via
+`dotnet test` runs the full suite. The renderer is verified headlessly via
 `Cardinator.exe --selftest` / `--render` (and `--qa` / `--docs` for full QA and screenshot builds),
 so changes can be checked without opening the GUI. See **[Developing](docs/DEVELOPING.md)**.
 
