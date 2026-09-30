@@ -65,6 +65,31 @@ Minimal `card.json`:
 }
 ```
 
+## `--rendercards <cards-dir | card.json> <outDir> [templates=<dir>] [scale=N] [nosym]`
+
+Batch-renders **a whole folder of ready-made card JSONs** to PNGs — point it at a folder of cards
+(and, optionally, a folder of custom frames) and out come finished cards. Each card is written to
+`<outDir>/<slug>.png` (from its name; duplicates get `-2`, `-3`, …), resolving its `templateName`
+against the available templates and falling back to the first one (noting which cards fell back).
+
+- `templates=<dir>` — **also** load custom frames straight from a folder of template folders
+  (each a `frame.png` + `template.json`), **without installing them first**. Frames loaded this way
+  win name-clashes over the installed ones, so you can iterate on a frame and render against it in
+  one step.
+- `scale=N` — supersample factor (default 2 → 1500×2100).
+- `nosym` — use the app's own generic mana pips instead of fetching Scryfall symbols.
+
+```powershell
+# render every card in .\mycards to .\out using the installed frames
+Cardinator.exe --rendercards mycards out
+
+# iterate: render cards against frames sitting in a working folder (no install step)
+Cardinator.exe --rendercards mycards out templates=C:\work\frames scale=2
+```
+
+This is the fastest way to preview a set of cards, or to script card generation from a pipeline:
+generate/author the `card.json` files and the frame folders, then run one command to render them all.
+
 ## `--search "<query>" <outDir> [sheet] [a4] [max=N]`
 
 Imports a **Scryfall search** — pulls matching cards *with their real art* and renders them. By

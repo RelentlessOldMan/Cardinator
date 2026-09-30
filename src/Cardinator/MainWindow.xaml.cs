@@ -913,8 +913,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         // Offer a URL first; leaving it blank (and clicking OK) falls back to picking a local file.
         // Cancelling the prompt aborts entirely (it must NOT fall through to the file picker).
-        var prompt = new InputDialog("Import a frame",
-            "Paste a link to a frame image (transparent PNG), or leave blank to pick a file on your PC.")
+        var prompt = new InputDialog("Import a frame or template",
+            "Paste a link to a frame image (transparent PNG), or leave blank to pick a file on your PC "
+            + "(a frame image, or a shared template bundle).")
         { Owner = this };
         if (prompt.ShowDialog() != true) return;   // cancelled
         var url = prompt.Value;                     // trimmed; "" means "use the file picker"
@@ -926,23 +927,58 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!ImageIntake.IsHttpUrl(url)) { Status = "That doesn't look like a web link."; return; }
                 Status = "Downloading frame…";
                 name = await TemplateImporter.CreateFromUrlAsync("", url);
+                Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
             }
             else
             {
                 var dlg = new OpenFileDialog
                 {
-                    Title = "Choose a frame image (transparent PNG where the art shows through)",
-                    Filter = "Images|*.png;*.webp;*.gif;*.bmp|All files|*.*",
+                    Title = "Choose a frame image, or a shared template bundle",
+                    Filter = "Frames & templates|*.cardframe;*.zip;*.png;*.webp;*.gif;*.bmp"
+                           + "|Template bundle|*.cardframe;*.zip|Images|*.png;*.webp;*.gif;*.bmp|All files|*.*",
                 };
                 if (dlg.ShowDialog() != true) return;
-                name = TemplateImporter.CreateFromFile(Path.GetFileNameWithoutExtension(dlg.FileName), dlg.FileName);
+                // A bundle carries its own tuned regions/fonts/colors; a bare image gets default regions.
+                if (TemplateImporter.IsBundlePath(dlg.FileName))
+                {
+                    name = TemplateImporter.ImportBundle(dlg.FileName);
+                    Status = $"Imported template \"{name}\".";
+                }
+                else
+                {
+                    name = TemplateImporter.CreateFromFile(Path.GetFileNameWithoutExtension(dlg.FileName), dlg.FileName);
+                    Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
+                }
             }
             RefreshTemplates(name);
-            Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
         }
         catch (Exception ex)
         {
-            Status = "Couldn't import frame: " + ex.Message;
+            Status = "Couldn't import: " + ex.Message;
+        }
+    }
+
+    /// <summary>Exports the selected template as a shareable bundle (frame.png + template.json in one file).</summary>
+    private void OnExportTemplate(object sender, RoutedEventArgs e)
+    {
+        var t = _selectedTemplate ?? Templates.FirstOrDefault();
+        if (t == null) { Status = "No frame selected to export."; return; }
+        try
+        {
+            var dlg = new SaveFileDialog
+            {
+                Title = "Export this template as a shareable bundle",
+                FileName = TextUtil.Slug(t.Name) + TemplateImporter.BundleExtension,
+                Filter = "Template bundle|*" + TemplateImporter.BundleExtension + "|Zip archive|*.zip",
+            };
+            if (dlg.ShowDialog() != true) return;
+            var dir = Path.GetDirectoryName(t.FramePath)!;
+            TemplateImporter.ExportBundle(dir, dlg.FileName);
+            Status = $"Exported \"{t.Name}\" to {Path.GetFileName(dlg.FileName)}.";
+        }
+        catch (Exception ex)
+        {
+            Status = "Couldn't export template: " + ex.Message;
         }
     }
 

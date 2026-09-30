@@ -11,3 +11,9 @@ selftest-out/
 # IDE
 .vs/
 *.user
+
+# a friend's personal frames — lifted show material, never shipped/committed
+friend/
+
+# Transient commit-message temp files (see global git instructions)
+commit-msg.tmp

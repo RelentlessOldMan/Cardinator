@@ -79,6 +79,13 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length > 2 && e.Args[0] == "--rendercards")
+        {
+            int code = SelfTest.RunRenderCards(e.Args[1], e.Args[2], e.Args.Skip(3).ToArray());
+            Shutdown(code);
+            return;
+        }
+
         if (e.Args.Length > 2 && e.Args[0] == "--permute")
         {
             int code = SelfTest.RunPermute(e.Args[1], e.Args[2]);
@@ -403,6 +410,9 @@ public partial class App : Application
               Cardinator.exe --render <card.json> <out.png|.jpg> [scale=N] [dpi=N] [bleed=N] [q=N]
                   Render a saved card JSON. scale=supersample, dpi=stamp, bleed=print margin px,
                   q=JPEG quality. .jpg output writes a JPEG.
+              Cardinator.exe --rendercards <cards-dir|card.json> <outDir> [templates=<dir>] [scale=N] [nosym]
+                  Batch-render a folder of card JSONs to PNGs. templates=<dir> also loads custom
+                  frames straight from a folder (no install needed). Each card -> <outDir>/<slug>.png.
               Cardinator.exe --newtemplate "<name>" <frame.png | url> [fullart]
                   Create a custom template from your own frame image (local file or URL).
               Cardinator.exe --cardback <out.png> ["Wordmark"]

@@ -43,6 +43,26 @@ Two more ship with the app and appear in the same **Frame** dropdown: **Azure Mo
 base) and **Ironwrought Showcase** (a `composable` frame — full-bleed art with connected two-tone
 panels and a regal crown).
 
+### Alchemy sample frames
+
+Cardinator also ships three richer, **image-based** sample frames — an original alchemy-themed set
+(*"Partial Cardboard Chemist"*) whose `frame.png` is a real textured image (riveted steel, aged
+parchment, carved stone) with an original alchemy-sigil medallion seated at the bottom. They're a
+good starting point if you want a photographic/painted frame rather than a drawn one — duplicate one
+and swap the `frame.png` for your own art. (Shown here with sample cards.)
+
+<table>
+<tr>
+<td align="center"><img src="images/frames/pcc-alchemists-steel.png" width="150"><br/><sub>Alchemist's Steel</sub></td>
+<td align="center"><img src="images/frames/pcc-arcane-parchment.png" width="150"><br/><sub>Arcane Parchment</sub></td>
+<td align="center"><img src="images/frames/pcc-sealed-gate.png" width="150"><br/><sub>Sealed Gate</sub></td>
+</tr>
+</table>
+
+These are **custom-frame** templates (`customFrame: true`) — Cardinator keeps their `frame.png` as-is
+rather than generating one. They're the same kind of template you get when you import your own frame,
+so they double as worked examples of a hand-made frame + a tuned `template.json`.
+
 Frames come in a few **styles** you can set per template (`frameStyle`): **classic** (gradient +
 bevel), **clean** (flat/modern), **ornate** (metallic band, banner, corner scrollwork + gems, stone
 texture), **faded** (edges melt into the art), **borderless** (full-bleed art + floating panels),
@@ -236,7 +256,10 @@ If you have your own frame image (a transparent PNG whose center is the art wind
 to write JSON by hand:
 
 - **In the app:** click **Import…** next to the Frame dropdown, choose your PNG. Cardinator creates
-  the template and selects it. It writes a starter `template.json` you can then tune.
+  the template and selects it. It writes a starter `template.json` you can then tune. The same
+  **Import…** button also installs a **template bundle** (a `.cardframe` file — see
+  [Sharing templates](#sharing-templates) below), which brings in a frame *with* its tuned regions,
+  fonts and colors already set.
 - **From a file or URL (command line):**
 
   ```powershell
@@ -271,6 +294,16 @@ for an art-fills-the-card look (text sits on the art); otherwise the default win
 
 ## Sharing templates
 
-A template is self-contained in its folder — zip up
-`CardinatorData/templates/<name>/` and share it. The recipient drops it into their own
+The easiest way is a **template bundle** — a single `.cardframe` file that holds the frame image
+**and** its layout together, so a frame keeps its tuned regions/fonts/colors when someone else
+installs it:
+
+- **Export:** select a frame in the dropdown and click **Export…** → save a `.cardframe` file.
+- **Import:** the recipient clicks **Import…**, picks the `.cardframe`, and it installs in one step —
+  no fiddling with regions.
+
+(A `.cardframe` is just a zip of `frame.png` + `template.json`; `.zip` files with those two work too.)
+
+Prefer files on disk? A template is also self-contained in its folder — zip up
+`CardinatorData/templates/<name>/` and share it; the recipient drops it into their own
 `CardinatorData/templates/` and restarts the app.
