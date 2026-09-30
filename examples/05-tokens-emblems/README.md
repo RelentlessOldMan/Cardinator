@@ -9,7 +9,7 @@ correctly.
 ```
 05-tokens-emblems/
   cards.csv          <- two creature tokens, a Treasure, and an emblem
-  art/               <- our placeholder artwork
+  art/               <- our our sample artwork
   output/            <- the rendered result (checked in)
 ```
 

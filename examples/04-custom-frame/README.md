@@ -9,7 +9,7 @@ where the art and text should show) and it creates a template you can pick from 
 04-custom-frame/
   frame/gilded.png   <- our hand-made frame (transparent center + ornate border)
   card.json                 <- a card that uses the new template
-  art/hero.png              <- placeholder artwork
+  art/hero.png              <- our sample artwork
   output/warden.png         <- the rendered result (checked in)
 ```
 

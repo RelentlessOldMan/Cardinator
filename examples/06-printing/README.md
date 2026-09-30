@@ -8,7 +8,7 @@ a **print-ready export** (bleed margin + DPI) for print services like MakePlayin
 ```
 06-printing/
   card.json               <- a single card, for the print-ready export
-  art/hero.png            <- placeholder artwork
+  art/hero.png            <- our sample artwork
   output/card-back.png    <- the decorative card back (checked in)
   output/print-ready.jpg  <- exported with bleed + 300 DPI (checked in)
 ```

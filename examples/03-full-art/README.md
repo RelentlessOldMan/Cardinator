@@ -9,7 +9,7 @@ puts the text directly on top — kept readable by a subtle scrim and a white te
 ```
 03-full-art/
   cards.csv          <- two cards using the Full Art frame
-  art/               <- our placeholder artwork
+  art/               <- our our sample artwork
   output/            <- the rendered result (checked in)
 ```
 
