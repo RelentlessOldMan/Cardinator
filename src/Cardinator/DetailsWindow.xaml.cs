@@ -28,6 +28,7 @@ public partial class DetailsWindow : Window
         _scryfall = scryfall ?? new ScryfallClient();
         DataContext = card;
         SearchBox.Text = card.Name;   // a convenient default; edit it to search for something else
+        LandStyleBox.ItemsSource = new[] { "row", "splitv", "splith", "pie", "yinyang" };
     }
 
     private void OnDone(object sender, RoutedEventArgs e) => Close();   // keep edits (they're already live)

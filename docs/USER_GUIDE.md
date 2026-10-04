@@ -98,6 +98,12 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Adventure** | Fill the **Adventure** fields (or import an adventure card) | A spell sub-box on the creature |
 | **Double-faced** | Look up a real DFC | Imported as two cards — front and back |
 
+**Authoring them by hand:** open **Edit details…** and use the **Special layouts** section to set a
+**Subtitle** (a small plate under the title, on any card), the **Adventure** half (name/cost/type/text —
+filling the name turns on the adventure sub-box), or a land's **big mana symbols** (`{R}{G}`) and how they're
+arranged (`row`, `splitv`, `splith`, `pie`, `yinyang`). Planeswalker/Saga/Class still come from the type
+line + rules-text syntax. Everything in Edit details… can be backed out with **Cancel**.
+
 See the [gallery in the README](../README.md#gallery) for examples of each.
 
 ---
