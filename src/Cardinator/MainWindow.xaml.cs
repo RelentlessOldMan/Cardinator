@@ -699,6 +699,39 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnSaveProject(object sender, RoutedEventArgs e) => SaveProject(forceDialog: false);
 
+    /// <summary>Opens one of this set's automatic backups (made on each save) after confirming any unsaved
+    /// work. Lets the user roll back a bad save / buggy build without hunting through the file system.</summary>
+    private void OnRestoreBackup(object sender, RoutedEventArgs e)
+    {
+        if (Busy) return;
+        if (string.IsNullOrEmpty(_projectPath))
+        {
+            Status = "Save the set once first — backups are created each time you save.";
+            return;
+        }
+        var backups = ProjectBackup.ListBackups(_projectPath);
+        if (backups.Count == 0) { Status = "No backups yet — they're created each time you save."; return; }
+        if (!ConfirmDiscardIfDirty()) return;
+
+        // Show the most recent backups (newest first) and let the user pick one to open read-into-memory.
+        var dlg = new OpenFileDialog
+        {
+            Title = "Restore a backup of this set",
+            InitialDirectory = ProjectBackup.BackupDir(_projectPath),
+            Filter = "Cardinator backups (*.cardinator;*.json)|*.cardinator;*.json|All files|*.*",
+            FileName = Path.GetFileName(backups[0]),
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        LoadProjectFile(dlg.FileName);
+        // Opening a backup loads it under the backup's path; point saving back at the real project file so a
+        // subsequent Save restores it in place (and itself backs up the bad version first).
+        _projectPath = "";
+        Dirty = true;
+        OnPropertyChanged(nameof(WindowTitle));
+        Status = $"Loaded backup “{Path.GetFileName(dlg.FileName)}”. Use Save to restore it as your project.";
+    }
+
     /// <summary>Saves to the remembered path when we have one; otherwise prompts for a location.</summary>
     private bool SaveProject(bool forceDialog)
     {
@@ -751,6 +784,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 Profile = savedProfile,
                 Cards = Cards.Select(c => CloneWithRelativeArt(c, projFolder)).ToList(),
             };
+            // Keep a rolling, timestamped copy of the previous good file before overwriting it, so a bad
+            // save / buggy build / upgrade can be rolled back (no-op on first save). Best-effort.
+            ProjectBackup.BackupExisting(path, DateTime.Now.ToString("yyyyMMdd-HHmmss"));
             project.Save(path);
             _projectPath = path;
             _projectFolder = projFolder;

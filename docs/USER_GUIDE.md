@@ -158,6 +158,12 @@ sheet default). The whole folder is self-contained — **move, zip or share it**
 finds its art, because art is stored as a path relative to the folder. A one-off single card needs no
 setup: the folder is only created the first time you save. (Older single-file projects still open fine.)
 
+**Your work is protected three ways.** (1) Saves are **atomic** — a crash or full disk mid-save can never
+truncate a good file. (2) Every save first tucks the previous version into a **`backups/`** folder (the last
+15, timestamped); click **Restore…** (top-right) to roll back to an earlier one if a save or an update ever
+goes wrong. (3) If a project file is ever unreadable, Cardinator preserves it as a `.corrupt-backup` instead
+of losing it. And every new version is built to **open files from every older version**.
+
 ---
 
 ## 5. Keyboard shortcuts & drag-and-drop
