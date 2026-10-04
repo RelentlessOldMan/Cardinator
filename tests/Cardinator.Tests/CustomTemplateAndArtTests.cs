@@ -39,6 +39,28 @@ public class CustomTemplateAndArtTests
         => Assert.Throws<ArgumentException>(() => TemplateImporter.CreateFromFrame("x", Array.Empty<byte>()));
 
     [Fact]
+    public void CreateFromFile_FullArt_HonorsTheFlag()   // L11: the overload the import UI now calls
+    {
+        var src = Path.Combine(Path.GetTempPath(), "cardinator_frame_" + Guid.NewGuid().ToString("N") + ".png");
+        File.WriteAllBytes(src, SolidPngBytes(8, 8));
+        string? dir = null;
+        try
+        {
+            var created = TemplateImporter.CreateFromFile("Full Import Test", src, fullArt: true);
+            dir = Path.Combine(AppPaths.TemplatesDir, TextUtil.Slug(created));
+            var spec = TemplateSpec.Load(Path.Combine(dir, "template.json"));
+            Assert.True(spec.FullArt);
+            Assert.Equal(spec.CanvasWidth, spec.ArtWindow.W);   // art window fills the canvas
+            Assert.Equal(spec.CanvasHeight, spec.ArtWindow.H);
+        }
+        finally
+        {
+            try { File.Delete(src); } catch { }
+            try { if (dir != null) Directory.Delete(dir, true); } catch { }
+        }
+    }
+
+    [Fact]
     public void ImportedFrame_IsNotRegeneratedOnLoad()
     {
         // Regression guard: frame-cache invalidation must never overwrite a user's imported frame image.

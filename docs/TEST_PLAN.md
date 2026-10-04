@@ -235,8 +235,12 @@ These drive the fix backlog.
   aggregate warning (only per-card). · ✅ L9 Corrupt project shows raw parser message, no backup/restore *(load failure now copies the file to a
   `.corrupt-backup` sibling via `IoUtil.BackupCorrupt` and shows a friendly dialog instead of a raw error)*. ·
   ✅ L10 Deleting a frame still referenced by other cards leaves them pointing at a missing template
-  *(delete confirm now reports how many cards use it via `TemplateService.CountReferencing`)*. · L11
-  Import of a bare frame can't opt into full-art regions.
+  *(delete confirm now reports how many cards use it via `TemplateService.CountReferencing`)*. · ✅ L11
+  Import of a bare frame can't opt into full-art regions *(import now asks Full-art / Standard and passes the
+  flag to `TemplateImporter.CreateFromFile` / `CreateFromUrlAsync`)*.
+
+**Only L6 remains open in the Low tier** — a cosmetic collector-width note; the behaviour (pad width tracks
+the set total) is intended and the User Guide already describes it accurately.
 
 ### Fix order (each change ships with unit tests + coverlet)
 1. ✅ **Portability batch (done, `f919490`):** H1 set-symbol travels, M11 surface non-localized art, M4 apply DefaultTemplate + inherit. *(+ M1 Export-all → `out/` + last-dir, M3 dup-collector normalize)*
@@ -244,5 +248,5 @@ These drive the fix backlog.
 3. ✅ **Validation surfacing (done):** ✅ H2 missing-frame CHECK (+ wired live), ✅ M13 set-symbol CHECK, ✅ M8 stray-Loyalty CHECK · ☐ M5 live RenderInspector (pixel checks) still pending.
 4. **Authoring depth:** ✅ M7 details Cancel, ✅ M6 non-destructive Ctrl+L, ✅ H3 card-type editing UI, ✅ H4 layout authoring guidance (CHECK flags unparseable PW/Saga/Class syntax, reusing the renderer's own parsers) · ☐ M9 DFC handling.
 5. **Big-ticket:** ✅ frames travel with a set — "Share set + frames" zip (`SetPackager`), ✅ whole-set validation report (W4 — "Check all cards" via `SetValidator`) · ☐ set profile (W1), multi-set manager (W8).
-6. **Low batch:** ✅ L1 clear-art resets framing, ✅ L4 duplicate-name CHECK, ✅ L8 load-time missing-art summary, ✅ L2 fuzzy art-match review report, ✅ L5 import skipped-line count, ✅ L7 single-Export in-progress guard, ✅ L10 delete-frame-in-use warning, ✅ L3 re-import duplicate prompt, ✅ L9 corrupt-project backup + friendly dialog · ☐ L11.
+6. **Low batch:** ✅ L1 clear-art resets framing, ✅ L4 duplicate-name CHECK, ✅ L8 load-time missing-art summary, ✅ L2 fuzzy art-match review report, ✅ L5 import skipped-line count, ✅ L7 single-Export in-progress guard, ✅ L10 delete-frame-in-use warning, ✅ L3 re-import duplicate prompt, ✅ L9 corrupt-project backup + friendly dialog, ✅ L11 full-art option on bare-frame import.
 
