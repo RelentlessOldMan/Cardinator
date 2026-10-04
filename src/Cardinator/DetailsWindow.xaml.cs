@@ -73,7 +73,16 @@ public partial class DetailsWindow : Window
             var f = faces[0];
             CardDetailsFill.ApplyScryfall(_card, f);   // printed details only — name, art and frame left alone
 
-            var extra = faces.Count > 1 ? $" (“{f.Name}” is the front of a double-faced card)" : "";
+            // A real double-faced card brings its back with it (G6) — but only onto a FRONT that hasn't got
+            // one yet: a back face can't have a back of its own, and an existing one is the user's own work.
+            // Cancel still discards it, because CopyFrom restores the snapshot's back face too.
+            string extra = "";
+            bool canTakeABack = !_card.IsBackFace && !_card.IsDoubleFaced;
+            if (canTakeABack) CardDetailsFill.AttachFaces(_card, faces);
+            if (canTakeABack && _card.IsDoubleFaced)
+                extra = $" Added the back face “{_card.BackFace!.Name}” — use “Show back” to preview it.";
+            else if (faces.Count > 1)
+                extra = $" (“{f.Name}” has another half: look it up from the main window to add it.)";
             SearchStatus.Text = $"Filled details from “{f.Name}”. Name, art and frame unchanged.{extra}";
         }
         catch (ScryfallException ex)

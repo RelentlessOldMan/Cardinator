@@ -37,6 +37,9 @@ public static class BatchService
         // isn't rate-limited), so they parallelize; keyed by URL so identical art downloads once.
         var artJobs = new List<(CardModel card, string url)>();
 
+        // Diagnostic log written to CardinatorData so import failures can be inspected exactly.
+        var log = new List<string> { $"=== Import {DateTime.Now:yyyy-MM-dd HH:mm:ss} — {groups.Count} unique card(s) ===" };
+
         // Fills every card in a group from its resolved faces, queuing art + double-faced backs.
         void ApplyFaces(IGrouping<string, ImportedCard> group, List<CardModel> faces)
         {
@@ -48,25 +51,23 @@ public static class BatchService
                 if (downloadArt && Blank(member.Card.ArtPath) && !Blank(faces[0].ArtUrl))
                     artJobs.Add((member.Card, faces[0].ArtUrl));
 
-                // Double-faced: attach the back as THIS card's back face (one card, two faces). Only the
-                // first extra face is used (standard DFC); the renderer/model keep it to one level.
-                if (faces.Count > 1)
-                {
-                    var backUrl = faces[1].ArtUrl;   // grabbed before Clone(): ArtUrl is transient/not cloned
-                    var back = faces[1].Clone();
-                    back.TemplateName = member.Card.TemplateName;
-                    member.Card.BackFace = back;
-                    if (Blank(member.Card.DfcStyle)) member.Card.DfcStyle = "sunmoon";   // default indicator
-                    if (downloadArt && !Blank(backUrl)) artJobs.Add((back, backUrl));
-                }
+                // Genuinely two-sided: attach the back as THIS card's back face (one card, two faces). Only
+                // the first extra face is used (standard DFC); the renderer/model keep it to one level. A
+                // split/flip/aftermath card is printed on one side, so AttachFaces hands those faces back
+                // instead — batch import fills from the primary face and logs the rest (they're separate
+                // cards, which a per-line batch fill has no slot for).
+                var unused = CardDetailsFill.AttachFaces(member.Card, faces);
+                if (member.Card.BackFace is { } back && downloadArt && !Blank(back.ArtUrl))
+                    artJobs.Add((back, back.ArtUrl));
+                foreach (var extra in unused)
+                    log.Add($"  note: \"{member.Card.Name}\" is a {faces[0].Layout} card — the other half " +
+                            $"(\"{extra.Name}\") was not added as a separate card.");
             }
         }
 
         // Phase 1a: one batched /cards/collection request per 75 cards (vs. one call per card). Prefer an
         // exact printing (set + collector) when we have it — that resolves double-faced cards and specific
         // versions that a fuzzy name lookup would miss.
-        // Diagnostic log written to CardinatorData so import failures can be inspected exactly.
-        var log = new List<string> { $"=== Import {DateTime.Now:yyyy-MM-dd HH:mm:ss} — {groups.Count} unique card(s) ===" };
         string Ident(CardModel c) => !Blank(c.SetCode) && !Blank(c.CollectorNumber)
             ? $"\"{c.Name}\" [set={c.SetCode} cn={c.CollectorNumber}]"
             : $"\"{c.Name}\" [by name]";

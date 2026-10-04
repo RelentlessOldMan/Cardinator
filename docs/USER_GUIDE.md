@@ -100,7 +100,9 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Double-faced** | Look up a real DFC, or **Make double-faced** | One card with a **front + back face** you can flip |
 
 **Double-faced cards (DFC).** A card can have a **back face** — a front/back card that flips. Looking up a real
-double-faced card imports it as **one card with both faces**. To build one yourself, click **Make double-faced**
+double-faced card imports it as **one card with both faces**, whether you use **Ctrl+L**, a deck/CSV import or
+the search inside **Edit details…**. (A **split** card like *Fire // Ice* is printed on one side, so it still
+comes in as two separate cards rather than a flip.) To build one yourself, click **Make double-faced**
 (under the editor), then **Edit back face…** to fill the back's fields and art, and **Show back** to flip the
 preview. The style dropdown adds a corner indicator — **Flip arrow**, or **Sun / moon** (sun on the front,
 crescent moon on the back) — drawn by Cardinator (no third-party art). Exporting writes both sides
@@ -121,21 +123,23 @@ See the [gallery in the README](../README.md#gallery) for examples of each.
 Cardinator always works on a **project** — the list of cards down the left side. Build it up card
 by card, or import a whole batch.
 
-- **Import list / CSV…** — load a file of cards. It accepts:
+- **Import file…** — load a file of cards. It accepts:
   - a plain **list of names**, one per line (each looked up on Scryfall);
   - `Name | C:\art\thing.png` per line (name + art);
   - a **CSV/TSV with a header row**, columns matched by friendly names in any order. See the
     [example CSV](../examples/02-custom-set/cards.csv) and its [column reference](../examples/README.md).
   - If any lines can't be read they're counted in the status, and if some card names are **already in
     your project** you're asked whether to **skip the duplicates** or add them anyway.
+- **Import deck…** — paste a **Moxfield deck URL** (or the deck's exported text) and Cardinator pulls
+  the whole decklist in, quantities and all.
 - **Scryfall search…** — type a Scryfall query (e.g. `t:dragon c:r`, `set:dom`) and Cardinator
   imports up to 60 matching cards **with their real art** in one go — a fast way to build a themed
   set. (Also on the command line via `--search`.)
-- **Match art folder…** — point it at a folder of images and it attaches them to cards by
+- **Add art from folder…** — point it at a folder of images and it attaches them to cards by
   matching the filename to the card name (`serra angel.png` → "Serra Angel"). Only fills cards
   that don't already have art. Exact filename matches are used silently; any **best-guess** (fuzzy)
   matches are listed afterwards so you can review the ones it wasn't sure about.
-- **Look up missing** — fills any card that still has only a name.
+- **Fill blanks from Scryfall** — fills any card that still has only a name.
 - **Number cards** — assigns collector numbers in list order — `001/N`, `002/N`, … (zero-padded to
   the total's width) — so a whole set is numbered in one click.
 - **Set defaults…** — the set's **house defaults** (set code, rarity, copyright, artist, set-symbol image,

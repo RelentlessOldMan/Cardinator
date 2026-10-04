@@ -10,6 +10,16 @@ namespace Cardinator.Services;
 /// </summary>
 public static class ScryfallMapper
 {
+    /// <summary>Layouts where the card physically has TWO SIDES that flip — the only ones that may become a
+    /// single Cardinator card with a back face. Other multi-face layouts (split, flip, aftermath) print both
+    /// halves on ONE side, so treating their second face as a "back" would invent a double-faced card,
+    /// stamp a sun/moon indicator on it and export a bogus <c>-back.png</c>.</summary>
+    public static bool IsTwoSidedLayout(string? layout) => (layout ?? "").Trim().ToLowerInvariant() switch
+    {
+        "transform" or "modal_dfc" or "reversible_card" or "double_faced_token" or "battle" => true,
+        _ => false,
+    };
+
     public static List<CardModel> MapFaces(string json)
     {
         using var doc = JsonDocument.Parse(json);

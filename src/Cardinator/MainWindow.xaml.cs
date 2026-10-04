@@ -114,6 +114,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             DfcToggleBtn.Content = dfc ? "Remove back face" : "Make double-faced";
             DfcEditBackBtn.IsEnabled = dfc;
             DfcFlipBtn.IsEnabled = dfc;
+            DfcStyleBox.IsEnabled = dfc;   // the indicator only draws on a double-faced card
             DfcFlipBtn.Content = _viewingBack ? "Show front" : "Show back";
             var style = (_selectedCard?.DfcStyle ?? "").Trim().ToLowerInvariant();
             if (style.Length == 0) style = "none";
@@ -154,7 +155,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (_selectedCard?.BackFace == null) return;
         new DetailsWindow(_selectedCard.BackFace, _scryfall) { Owner = this }.ShowDialog();
-        MarkDirty();
+        // No MarkDirty here: Cancel restores the snapshot, so an unchanged card must stay clean.
+        // CommitHistory recomputes Dirty from the history position, which is accurate either way.
         CommitHistory();
         RenderPreview();
     }
@@ -428,7 +430,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _undoTimer.Stop();
         var json = SnapshotJson();
         int sel = SelectedIndex();
-        if (_histIdx >= 0 && _history[_histIdx].json == json && _history[_histIdx].sel == sel) return;
+        if (_histIdx >= 0 && _history[_histIdx].json == json && _history[_histIdx].sel == sel)
+        {
+            Dirty = _histIdx != _savedHistIdx;   // nothing changed — re-derive, so a cancelled edit clears ●
+            return;
+        }
         if (_histIdx < _history.Count - 1)
             _history.RemoveRange(_histIdx + 1, _history.Count - _histIdx - 1);   // drop the redo tail
         _history.Add((json, sel));
@@ -1617,11 +1623,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // Non-destructive: fill from the looked-up face but never blank a field the user already typed.
             CardDetailsFill.MergeNonEmpty(card, f);
 
-            // Double-faced: add the back as a new card in the project.
-            for (int i = 1; i < faces.Count; i++)
+            // A genuinely two-sided card becomes ONE card with a back face (flip + indicator + a -back.png on
+            // export), exactly as batch import does. A split/flip/aftermath card is printed on one side, so
+            // its other half is added as its own card.
+            foreach (var extra in CardDetailsFill.AttachFaces(card, faces))
             {
-                faces[i].TemplateName = card.TemplateName;
-                Cards.Add(faces[i]);
+                extra.TemplateName = card.TemplateName;
+                _setProfile.ApplyDefaults(extra);
+                Cards.Add(extra);
             }
 
             _ = _symbols.PrimeAsync(faces.SelectMany(x => ManaText.SymbolTokens(x.ManaCost, x.RulesText)));
@@ -1631,8 +1640,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // so the status line can honestly say what changed.
             bool hadArt = !string.IsNullOrWhiteSpace(card.ArtPath);
             bool gotArt = await FillArtFromScryfall(card, f.ArtUrl);
+            if (card.BackFace is { } back) await FillArtFromScryfall(back, back.ArtUrl);
             for (int i = 1; i < faces.Count; i++)
-                await FillArtFromScryfall(faces[i], faces[i].ArtUrl);
+                if (Cards.Contains(faces[i])) await FillArtFromScryfall(faces[i], faces[i].ArtUrl);
 
             MarkDirty();
             CommitHistory();
@@ -1642,9 +1652,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 ? " Your art and frame are unchanged."
                 : gotArt ? " Added matching art; your frame is unchanged."
                          : " No art found; your frame is unchanged.";
-            Status = faces.Count > 1
-                ? $"Loaded “{f.Name}” details (+{faces.Count - 1} back face) from Scryfall.{artNote}"
-                : $"Loaded “{f.Name}” details from Scryfall.{artNote}";
+            Status = card.IsDoubleFaced
+                ? $"Loaded “{f.Name}” from Scryfall as one double-faced card — use Show back to flip.{artNote}"
+                : faces.Count > 1
+                    ? $"Loaded “{f.Name}” details from Scryfall (+{faces.Count - 1} card for the other half).{artNote}"
+                    : $"Loaded “{f.Name}” details from Scryfall.{artNote}";
         }
         catch (ScryfallException ex)
         {

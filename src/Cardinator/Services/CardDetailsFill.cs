@@ -28,6 +28,29 @@ public static class CardDetailsFill
         if (!string.IsNullOrWhiteSpace(face.Rarity)) target.Rarity = face.Rarity;
     }
 
+    /// <summary>
+    /// Attaches the extra faces of a looked-up card to <paramref name="card"/>, the same way on every import
+    /// path. A genuinely two-sided card (transform / modal DFC / battle / reversible / double-faced token)
+    /// becomes ONE card with a <see cref="CardModel.BackFace"/> and a default sun/moon indicator. Any other
+    /// multi-face layout (split, flip, aftermath) is printed on a single side, so its extra faces are NOT a
+    /// back face — they're returned for the caller to add as separate cards.
+    /// </summary>
+    /// <returns>The faces that were not absorbed as a back face (empty for a single- or double-faced card).</returns>
+    public static IReadOnlyList<CardModel> AttachFaces(CardModel card, IReadOnlyList<CardModel> faces)
+    {
+        if (faces.Count <= 1) return Array.Empty<CardModel>();
+        if (!ScryfallMapper.IsTwoSidedLayout(faces[0].Layout))
+            return faces.Skip(1).ToList();
+
+        var backUrl = faces[1].ArtUrl;        // transient: Clone() doesn't carry it
+        var back = faces[1].Clone();
+        back.ArtUrl = backUrl;
+        back.TemplateName = card.TemplateName;
+        card.BackFace = back;
+        if (string.IsNullOrWhiteSpace(card.DfcStyle)) card.DfcStyle = "sunmoon";
+        return Array.Empty<CardModel>();
+    }
+
     /// <summary>Applies <paramref name="face"/>'s details to <paramref name="target"/> in place.</summary>
     public static void ApplyScryfall(CardModel target, CardModel face)
     {
