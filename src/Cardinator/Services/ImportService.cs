@@ -53,6 +53,24 @@ public static class ImportService
     /// the exported list. Deck sites (Moxfield, Archidekt, …) block apps from opening links directly, so
     /// the UI uses this to steer the user to the site's Export button rather than attempting a doomed fetch.
     /// </summary>
+    private static string NameKey(string? name)
+        => (name ?? "").Trim().ToLowerInvariant();
+
+    /// <summary>Counts how many incoming cards share a name (case-insensitive) with a card already in the
+    /// project — so re-importing the same list can warn instead of silently appending duplicates (L3).</summary>
+    public static int CountNamesAlreadyIn(IEnumerable<CardModel> existing, IEnumerable<ImportedCard> incoming)
+    {
+        var have = new HashSet<string>((existing ?? Enumerable.Empty<CardModel>()).Select(c => NameKey(c.Name)));
+        return (incoming ?? Enumerable.Empty<ImportedCard>()).Count(i => have.Contains(NameKey(i.Card.Name)));
+    }
+
+    /// <summary>Returns the incoming cards whose names aren't already in the project (keeps order; L3).</summary>
+    public static List<ImportedCard> RemoveNamesAlreadyIn(IEnumerable<CardModel> existing, IEnumerable<ImportedCard> incoming)
+    {
+        var have = new HashSet<string>((existing ?? Enumerable.Empty<CardModel>()).Select(c => NameKey(c.Name)));
+        return (incoming ?? Enumerable.Empty<ImportedCard>()).Where(i => !have.Contains(NameKey(i.Card.Name))).ToList();
+    }
+
     public static bool LooksLikeOnlyLinks(string? content)
     {
         var lines = (content ?? "").Replace("\r", "").Split('\n')

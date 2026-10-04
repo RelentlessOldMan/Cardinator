@@ -1,3 +1,4 @@
+using System;
 using Cardinator.Services;
 
 namespace Cardinator.Tests;
@@ -42,6 +43,31 @@ public class ImportServiceTests
         var r = ImportService.ParseWithReport("Bolt\nAngel\n# note\n\nDeck", null, "T");
         Assert.Equal(2, r.Cards.Count);
         Assert.Equal(0, r.Skipped);   // comment/blank/section-header lines are not "unreadable"
+    }
+
+    [Fact]
+    public void DuplicateHelpers_DetectAndRemoveNamesAlreadyInProject()   // L3
+    {
+        var existing = new[]
+        {
+            new Cardinator.Models.CardModel { Name = "Lightning Bolt" },
+            new Cardinator.Models.CardModel { Name = "Serra Angel" },
+        };
+        var incoming = ImportService.Parse("Lightning Bolt\nserra angel\nBrainstorm", null, "T");
+
+        Assert.Equal(2, ImportService.CountNamesAlreadyIn(existing, incoming));   // case-insensitive
+
+        var fresh = ImportService.RemoveNamesAlreadyIn(existing, incoming);
+        Assert.Single(fresh);
+        Assert.Equal("Brainstorm", fresh[0].Card.Name);
+    }
+
+    [Fact]
+    public void DuplicateHelpers_EmptyProject_NoDuplicates()   // L3
+    {
+        var incoming = ImportService.Parse("Bolt\nAngel", null, "T");
+        Assert.Equal(0, ImportService.CountNamesAlreadyIn(Array.Empty<Cardinator.Models.CardModel>(), incoming));
+        Assert.Equal(2, ImportService.RemoveNamesAlreadyIn(null!, incoming).Count);
     }
 
     [Fact]
