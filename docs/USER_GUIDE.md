@@ -191,5 +191,7 @@ close or open something else over unsaved work.
 - **"No card found."** Check the spelling — lookup is fuzzy but needs to be close.
 - **A card renders blank in the art window.** The art file was moved or deleted. Re-attach it with
   **Change art…**. Cardinator never crashes on missing art — it just shows the empty window.
+- **"Couldn't open project" — the file may be corrupt.** Cardinator saves a copy next to it named
+  `<yourproject>.cardinator.corrupt-backup` so nothing is lost; you can inspect or send that file.
 - **I want a different frame.** Add your own — see [Making your own frames](TEMPLATES.md).
 - **Where did my export go?** Click **Open output folder**, or look in `CardinatorData/output`.
