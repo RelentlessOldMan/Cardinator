@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -32,6 +32,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _defaultTemplate = ""; // the set's saved house frame, inherited by new/imported cards
     private SetProfile _setProfile = new();  // the set's shared metadata defaults (W1), inherited by new/imported cards
     private bool _viewingBack;                // DFC: preview is showing the back face (preview-only flip)
+    private CardModel? _subscribedBack;       // the back face whose edits we're currently tracking
     private bool _isExporting;
     private bool _busy;                     // any long/mutating op in flight (gates re-entrancy + conflicts)
     private double _exportProgress;
@@ -188,12 +189,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         get => _selectedCard;
         set
         {
-            if (_selectedCard != null) _selectedCard.PropertyChanged -= OnCardChanged;
+            DetachCardEvents(_selectedCard);
             _selectedCard = value;
             _viewingBack = false;   // always start a newly-selected card on its front face
             if (_selectedCard != null)
             {
-                _selectedCard.PropertyChanged += OnCardChanged;
+                AttachCardEvents(_selectedCard);
                 var t = Templates.FirstOrDefault(x => x.Name == _selectedCard.TemplateName);
                 if (t != null) { _selectedTemplate = t; OnPropertyChanged(nameof(SelectedTemplate)); }
             }
@@ -328,7 +329,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public bool Dirty
     {
         get => _dirty;
-        private set { _dirty = value; OnPropertyChanged(nameof(WindowTitle)); }
+        internal set { _dirty = value; OnPropertyChanged(nameof(WindowTitle)); }   // internal: tests set a saved baseline
     }
 
     private void MarkDirty() { if (!_loading) Dirty = true; }
@@ -351,10 +352,39 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnCardChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // A back face added/removed/replaced means a different object to track from now on.
+        if (e.PropertyName == nameof(CardModel.BackFace)) SyncBackFaceSubscription(_selectedCard);
         MarkDirty();
         _renderTimer.Stop();
         _renderTimer.Start();   // debounce rapid edits (typing, slider drags)
         QueueUndoCommit();
+    }
+
+    /// <summary>Starts tracking a card's edits — AND its back face's. A back face is a separate
+    /// <see cref="CardModel"/>, so without this every edit made on the flipped preview (pan, zoom, paste,
+    /// clear art) would skip MarkDirty/undo/re-render and be silently lost on close.</summary>
+    private void AttachCardEvents(CardModel? card)
+    {
+        if (card == null) return;
+        card.PropertyChanged += OnCardChanged;
+        SyncBackFaceSubscription(card);
+    }
+
+    private void DetachCardEvents(CardModel? card)
+    {
+        if (card != null) card.PropertyChanged -= OnCardChanged;
+        SyncBackFaceSubscription(null);
+    }
+
+    /// <summary>Points the back-face subscription at <paramref name="card"/>'s current back face (if any),
+    /// detaching whichever one we were tracking before. Idempotent, so it can't double-subscribe.</summary>
+    private void SyncBackFaceSubscription(CardModel? card)
+    {
+        var back = card?.BackFace;
+        if (ReferenceEquals(back, _subscribedBack)) return;
+        if (_subscribedBack != null) _subscribedBack.PropertyChanged -= OnCardChanged;
+        _subscribedBack = back;
+        if (_subscribedBack != null) _subscribedBack.PropertyChanged += OnCardChanged;
     }
 
     // --- undo / redo --------------------------------------------------------
@@ -415,7 +445,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         try
         {
             var cards = System.Text.Json.JsonSerializer.Deserialize<List<CardModel>>(snap.json, SnapOpts) ?? new();
-            if (_selectedCard != null) _selectedCard.PropertyChanged -= OnCardChanged;
+            DetachCardEvents(_selectedCard);
             Cards.Clear();
             foreach (var c in cards) Cards.Add(c);
             _selectedCard = null;
@@ -780,12 +810,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LoadProjectFile(dlg.FileName);
     }
 
-    private void LoadProjectFile(string path)
+    /// <summary>Loads a project file into the window. Returns false (leaving the current project untouched)
+    /// when the file couldn't be read, so callers can avoid mutating state on a failed load.</summary>
+    private bool LoadProjectFile(string path)
     {
         try
         {
             var project = CardProject.Load(path);
-            var projFolder = Path.GetDirectoryName(Path.GetFullPath(path));
+            // Image paths are stored relative to the SET folder. A file opened out of a backups\ folder still
+            // belongs to the set one level up, so resolve against that — otherwise restoring a backup would
+            // point every card at a non-existent backups\art\… file.
+            var projFolder = ProjectBackup.ArtRootFor(path);
+            if (string.IsNullOrEmpty(projFolder)) projFolder = Path.GetDirectoryName(Path.GetFullPath(path));
             _loading = true;
             Cards.Clear();
             foreach (var c in project.Cards)
@@ -818,6 +854,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = $"Opened project with {Cards.Count} card(s)."
                      + (missingArt > 0 ? $"  ⚠ {missingArt} card(s) have missing art (was the art/ folder included?)." : "");
             SeedHistory();
+            return true;
         }
         catch (Exception ex)
         {
@@ -837,6 +874,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 Status = "Couldn't open project: " + ex.Message;
             }
+            return false;
         }
     }
 
@@ -866,13 +904,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         };
         if (dlg.ShowDialog() != true) return;
 
-        LoadProjectFile(dlg.FileName);
-        // Opening a backup loads it under the backup's path; point saving back at the real project file so a
-        // subsequent Save restores it in place (and itself backs up the bad version first).
-        _projectPath = "";
+        // Keep the real project file as the save target so one plain Save restores the backup IN PLACE (that
+        // save itself backs up the bad version first). On a failed load nothing changes — the project that's
+        // still loaded keeps its path and its clean/dirty state.
+        var realPath = _projectPath;
+        var realName = _projectName;
+        if (!LoadProjectFile(dlg.FileName)) return;
+
+        _projectPath = realPath;
+        _projectName = realName;
         Dirty = true;
+        OnPropertyChanged(nameof(ProjectSummary));
         OnPropertyChanged(nameof(WindowTitle));
-        Status = $"Loaded backup “{Path.GetFileName(dlg.FileName)}”. Use Save to restore it as your project.";
+        Status = $"Loaded backup “{Path.GetFileName(dlg.FileName)}”. Use Save to restore it over “{Path.GetFileName(realPath)}”.";
     }
 
     /// <summary>Saves to the remembered path when we have one; otherwise prompts for a location.</summary>

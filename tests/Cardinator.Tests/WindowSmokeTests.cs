@@ -191,6 +191,41 @@ public class WindowSmokeTests
             Assert.Equal(before + 1, main.Cards.Count);        // and re-applied
         });
 
+    [Fact]
+    public void MainWindow_EditingTheBackFace_DirtiesTheProject()   // A2: back-face work must not be lost
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            card.BackFace = new CardModel { Name = "Nightform" };
+            main.Dirty = false;                                // pretend we just saved
+
+            // Pan/zoom the BACK face the way the flipped preview does. Nothing else runs — if the back
+            // face isn't tracked, this edit never dirties the project and is silently lost on close.
+            card.BackFace!.ArtScale = 2.5;
+
+            Assert.True(main.Dirty, "editing the back face did not dirty the project");
+        });
+
+    [Fact]
+    public void MainWindow_ReplacingTheBackFace_RetargetsChangeTracking()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            card.BackFace = new CardModel { Name = "First" };
+            var orphan = card.BackFace!;
+            card.BackFace = new CardModel { Name = "Second" };   // replaced — track the new one instead
+            main.Dirty = false;
+
+            card.BackFace!.ArtOffsetX = 0.4;
+            Assert.True(main.Dirty, "the replacement back face isn't tracked");
+
+            main.Dirty = false;
+            orphan.ArtOffsetX = 0.9;                             // discarded face must no longer dirty
+            Assert.False(main.Dirty, "a discarded back face still dirties the project");
+        });
+
     /// <summary>Runs on an STA thread with an Application whose resources come from App.xaml.</summary>
     private static void OnAppThread(Action action)
     {

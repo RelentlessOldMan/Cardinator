@@ -190,7 +190,21 @@ public sealed class TemplateService
             if (File.Exists(framePath))
             {
                 try { return LoadBitmap(framePath); }
-                catch { SafeDelete(framePath); SafeDelete(framePath + ".hash"); }   // corrupt PNG → regenerate
+                catch
+                {
+                    // A user-imported frame with no FrameSrc is IRREPLACEABLE — frame.png is the only copy of
+                    // their image. Deleting it would let EnsureFrame bake a generic placeholder over it on the
+                    // next pass (silent, permanent loss from one transient decode/read error). Set it aside
+                    // instead and skip the template this run. Procedural and composed frames are reproducible,
+                    // so for those the old delete-and-regenerate is still right.
+                    if (spec.CustomFrame && !CustomFrameComposer.HasSource(spec))
+                    {
+                        SafeSetAside(framePath);
+                        return null;
+                    }
+                    SafeDelete(framePath);
+                    SafeDelete(framePath + ".hash");   // corrupt PNG → regenerate
+                }
             }
         }
         return null;
@@ -224,6 +238,22 @@ public sealed class TemplateService
     private static void SafeDelete(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore */ }
+    }
+
+    /// <summary>Moves a file that couldn't be read out of the way (keeping its bytes) instead of deleting it,
+    /// so an unreadable but irreplaceable user image survives for recovery. Best-effort: if it can't be
+    /// moved, the file is left exactly where it is — never deleted.</summary>
+    private static void SafeSetAside(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            var dest = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
+            for (int i = 2; File.Exists(dest); i++) dest = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}-{i}";
+            File.Move(path, dest);
+            SafeDelete(path + ".hash");
+        }
+        catch { /* leave the file in place — losing it is worse than a skipped template */ }
     }
 
     private static BitmapImage LoadBitmap(string path)

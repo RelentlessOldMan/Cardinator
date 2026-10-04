@@ -170,8 +170,13 @@ setup: the folder is only created the first time you save. (Older single-file pr
 **Your work is protected three ways.** (1) Saves are **atomic** — a crash or full disk mid-save can never
 truncate a good file. (2) Every save first tucks the previous version into a **`backups/`** folder (the last
 15, timestamped); click **Restore…** (top-right) to roll back to an earlier one if a save or an update ever
-goes wrong. (3) If a project file is ever unreadable, Cardinator preserves it as a `.corrupt-backup` instead
-of losing it. And every new version is built to **open files from every older version**.
+goes wrong. Restoring loads that older version with its art intact and keeps pointing at your real project
+file, so a single **Save** puts it back in place (and backs up the bad version first). (3) If a project file
+is ever unreadable, Cardinator preserves it as a `.corrupt-backup` instead of losing it. And every new
+version is built to **open files from every older version**.
+
+Double-faced cards are covered by all of this too: the **back face's art travels with the set** exactly like
+the front's, so a moved, zipped or shared folder still renders both sides.
 
 ---
 
@@ -212,5 +217,12 @@ close or open something else over unsaved work.
   **Change art…**. Cardinator never crashes on missing art — it just shows the empty window.
 - **"Couldn't open project" — the file may be corrupt.** Cardinator saves a copy next to it named
   `<yourproject>.cardinator.corrupt-backup` so nothing is lost; you can inspect or send that file.
+- **I restored a backup — will I lose my art or overwrite the wrong file?** No. A restored backup keeps
+  its art links (they resolve against the set folder, not the `backups/` folder), and **Save** writes back
+  over the project you restored from — no Save-As, no second copy in the wrong place. If the backup itself
+  turns out to be unreadable, the project you already had open is left exactly as it was.
+- **A frame disappeared from the dropdown.** If a frame image can't be read (a bad copy, a sync
+  conflict), Cardinator sets it aside as `frame.png.corrupt-<date>` in that template's folder and skips
+  the frame rather than replacing your image with a generic one — the original bytes are still there.
 - **I want a different frame.** Add your own — see [Making your own frames](TEMPLATES.md).
 - **Where did my export go?** Click **Open output folder**, or look in `CardinatorData/output`.

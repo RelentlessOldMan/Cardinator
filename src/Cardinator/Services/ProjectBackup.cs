@@ -43,6 +43,19 @@ public static class ProjectBackup
         catch { return null; }   // never let backup trouble block a save
     }
 
+    /// <summary>The folder a loaded project's relative image paths should resolve against. Normally the
+    /// file's own folder — but a file opened out of a <c>backups/</c> folder belongs to the SET one level up,
+    /// so its relative art ("art\pic.png") must resolve against the set folder and not against
+    /// <c>backups\art\pic.png</c> (which doesn't exist). Keeps Restore from breaking every art link.</summary>
+    public static string ArtRootFor(string projectFilePath)
+    {
+        var dir = Path.GetDirectoryName(Path.GetFullPath(projectFilePath)) ?? "";
+        var leaf = Path.GetFileName(dir);
+        if (string.Equals(leaf, "backups", System.StringComparison.OrdinalIgnoreCase))
+            return Path.GetDirectoryName(dir) ?? dir;
+        return dir;
+    }
+
     /// <summary>Existing backups for a project, most-recent (by write time) first.</summary>
     public static IReadOnlyList<string> ListBackups(string projectPath)
     {
@@ -51,8 +64,15 @@ public static class ProjectBackup
 
         var name = Path.GetFileNameWithoutExtension(projectPath);
         var ext = Path.GetExtension(projectPath);
-        // Match only this project's backups: "<name>.<something><ext>".
+        // Match only THIS project's backups: "<name>.<timestamp>[-n]<ext>". The glob alone would also match
+        // a sibling project whose name starts with ours plus a dot ("MySet" vs "MySet.v2"), and pruning that
+        // combined pool would delete the sibling's safety net.
+        var stamped = new System.Text.RegularExpressions.Regex(
+            "^" + System.Text.RegularExpressions.Regex.Escape(name) + @"\.\d{8}-\d{6}(-\d+)?"
+            + System.Text.RegularExpressions.Regex.Escape(ext) + "$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         return Directory.EnumerateFiles(dir, $"{name}.*{ext}")
+            .Where(p => stamped.IsMatch(Path.GetFileName(p)))
             .Select(p => new FileInfo(p))
             .OrderByDescending(f => f.LastWriteTimeUtc)
             .ThenByDescending(f => f.Name, System.StringComparer.Ordinal)
