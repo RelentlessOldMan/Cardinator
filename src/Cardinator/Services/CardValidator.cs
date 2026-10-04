@@ -86,16 +86,31 @@ public static class CardValidator
             issues.Add(new(IssueSeverity.Warning, "footer-overlap", "The footer overlaps the description panel.", "footer"));
 
         // --- project-level -------------------------------------------------
+        // Compare on the NORMALIZED number so mixed styles still collide: "5", "005" and "005/20" are the
+        // same card #5 (otherwise a mix of hand- and auto-numbered cards silently hides real duplicates).
         if (project != null && !string.IsNullOrWhiteSpace(card.CollectorNumber))
         {
+            var key = NormalizeCollector(card.CollectorNumber);
             int dupes = project.Count(c => !ReferenceEquals(c, card)
-                && string.Equals((c.CollectorNumber ?? "").Trim(), card.CollectorNumber.Trim(), System.StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(c.CollectorNumber));
+                && !string.IsNullOrWhiteSpace(c.CollectorNumber)
+                && NormalizeCollector(c.CollectorNumber) == key);
             if (dupes > 0)
                 issues.Add(new(IssueSeverity.Warning, "dup-collector", $"Collector number '{card.CollectorNumber}' is used by {dupes + 1} cards.", nameof(card.CollectorNumber)));
         }
 
         return issues;
+    }
+
+    /// <summary>The comparable identity of a collector number: the part before any "/N", with a leading
+    /// zero-run stripped and lowercased — so "5", "005" and "005/20" all compare equal, while non-numeric
+    /// values (promos like "★") compare by their trimmed text.</summary>
+    internal static string NormalizeCollector(string? collector)
+    {
+        var s = (collector ?? "").Trim();
+        if (s.Length == 0) return "";
+        var head = s.Split('/')[0].Trim();
+        var m = Regex.Match(head, @"^0*(\d+)$");
+        return m.Success ? m.Groups[1].Value : head.ToLowerInvariant();
     }
 
     /// <summary>Every symbol token in the card's mana cost and rules/loyalty text, tagged with its field.</summary>
