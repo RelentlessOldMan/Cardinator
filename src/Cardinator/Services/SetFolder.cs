@@ -48,4 +48,30 @@ public static class SetFolder
         }
         return stranded;
     }
+
+    /// <summary>True if <paramref name="folder"/> already holds a <c>.cardinator</c> project other than
+    /// <paramref name="thisProjectPath"/> — used to warn before two sets share one folder's art/ and out/.</summary>
+    public static bool ContainsOtherProject(string folder, string? thisProjectPath)
+    {
+        try
+        {
+            var self = string.IsNullOrEmpty(thisProjectPath) ? null : Path.GetFullPath(thisProjectPath);
+            return Directory.EnumerateFiles(folder, "*.cardinator").Any(f =>
+                self == null || !string.Equals(Path.GetFullPath(f), self, StringComparison.OrdinalIgnoreCase));
+        }
+        catch { return false; }
+    }
+
+    /// <summary>How many cards point at an art file that doesn't exist — for a load-time "N cards are missing
+    /// art" summary (e.g. a set unzipped without its art/ folder).</summary>
+    public static int CountMissingArt(IEnumerable<CardModel> cards)
+    {
+        int missing = 0;
+        foreach (var c in cards)
+        {
+            if (string.IsNullOrWhiteSpace(c.ArtPath)) continue;
+            try { if (!File.Exists(Path.GetFullPath(c.ArtPath))) missing++; } catch { missing++; }
+        }
+        return missing;
+    }
 }

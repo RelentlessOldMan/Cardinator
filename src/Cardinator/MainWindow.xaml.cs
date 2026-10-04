@@ -604,7 +604,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Dirty = false;
             OnPropertyChanged(nameof(ProjectSummary));
             OnPropertyChanged(nameof(WindowTitle));
-            Status = $"Opened project with {Cards.Count} card(s).";
+            int missingArt = SetFolder.CountMissingArt(Cards);
+            Status = $"Opened project with {Cards.Count} card(s)."
+                     + (missingArt > 0 ? $"  ⚠ {missingArt} card(s) have missing art (was the art/ folder included?)." : "");
             SeedHistory();
         }
         catch (Exception ex)
@@ -631,6 +633,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             };
             if (dlg.ShowDialog() != true) return false;
             path = dlg.FileName;
+
+            // Warn before two sets share one folder (their art/ and out/ would mingle / overwrite).
+            var folder = Path.GetDirectoryName(Path.GetFullPath(path));
+            if (folder != null && SetFolder.ContainsOtherProject(folder, path))
+            {
+                var ok = ConfirmDialog.Show(this, "Save set",
+                    "This folder already contains another project — they'll share the same art and output folders "
+                    + "(exports can overwrite each other). Save here anyway, or pick a new folder?",
+                    affirmative: "Save here", cancel: "Cancel");
+                if (ok != ConfirmResult.Affirmative) return false;
+            }
         }
         try
         {
@@ -1294,7 +1307,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnClearArt(object sender, RoutedEventArgs e)
     {
-        if (_selectedCard != null) _selectedCard.ArtPath = "";
+        if (_selectedCard == null) return;
+        _selectedCard.ArtPath = "";
+        _selectedCard.ArtScale = 1.0;   // reset framing too, matching Change art… (so stale pan/zoom isn't reused)
+        _selectedCard.ArtOffsetX = 0;
+        _selectedCard.ArtOffsetY = 0;
     }
 
     private void OnExport(object sender, RoutedEventArgs e)

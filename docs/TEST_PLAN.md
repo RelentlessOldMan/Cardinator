@@ -235,9 +235,9 @@ These drive the fix backlog.
 
 ### Fix order (each change ships with unit tests + coverlet)
 1. ✅ **Portability batch (done, `f919490`):** H1 set-symbol travels, M11 surface non-localized art, M4 apply DefaultTemplate + inherit. *(+ M1 Export-all → `out/` + last-dir, M3 dup-collector normalize)*
-2. **Batch-correctness:** ✅ M1, ✅ M3, ✅ M2 Number-cards renumber-all/blanks-only/cancel guard · ☐ M12 per-set output isolation.
+2. **Batch-correctness:** ✅ M1, ✅ M3, ✅ M2 Number-cards guard, ✅ M12 save-time warning when a folder already holds another project.
 3. ✅ **Validation surfacing (done):** ✅ H2 missing-frame CHECK (+ wired live), ✅ M13 set-symbol CHECK, ✅ M8 stray-Loyalty CHECK · ☐ M5 live RenderInspector (pixel checks) still pending.
 4. **Authoring depth:** ✅ M7 details Cancel (snapshot restore), ✅ M6 non-destructive Ctrl+L, ✅ H3 card-type editing UI (Subtitle/Adventure/Land big-symbols in Edit details…; Layout field confirmed dormant, skipped) · ☐ H4 layout authoring guidance, ☐ M9 DFC handling.
 5. **Big-ticket:** ✅ frames travel with a set — "Share set + frames" zip (`SetPackager`, decided approach) · ☐ whole-set validation report (W4), set profile (W1), multi-set manager (W8).
-6. **Low batch:** L1–L11 as polish.
+6. **Low batch:** ✅ L1 clear-art resets framing, ✅ L4 duplicate-name CHECK, ✅ L8 load-time missing-art summary · ☐ L2, L3, L5, L7, L9, L10, L11.
 

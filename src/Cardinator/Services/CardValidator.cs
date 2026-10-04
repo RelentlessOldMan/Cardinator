@@ -121,6 +121,16 @@ public static class CardValidator
                 issues.Add(new(IssueSeverity.Warning, "dup-collector", $"Collector number '{card.CollectorNumber}' is used by {dupes + 1} cards.", nameof(card.CollectorNumber)));
         }
 
+        // Two cards with the same name usually mean an accidental double-import or duplicate (info, not an
+        // error — legitimate for tokens/basics, so it's gentle).
+        if (project != null && !string.IsNullOrWhiteSpace(card.Name))
+        {
+            int same = project.Count(c => !ReferenceEquals(c, card)
+                && string.Equals((c.Name ?? "").Trim(), card.Name.Trim(), System.StringComparison.OrdinalIgnoreCase));
+            if (same > 0)
+                issues.Add(new(IssueSeverity.Info, "dup-name", $"{same + 1} cards share the name \"{card.Name}\".", nameof(card.Name)));
+        }
+
         return issues;
     }
 
