@@ -768,19 +768,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task ImportListFile(string filePath)
     {
         if (Busy) return;
-        List<ImportedCard> imported;
+        ImportResult parsed;
         string baseDir;
         try
         {
             var content = File.ReadAllText(filePath);
             baseDir = Path.GetDirectoryName(filePath) ?? "";
-            imported = ImportService.Parse(content, baseDir, DefaultTemplateName);
+            parsed = ImportService.ParseWithReport(content, baseDir, DefaultTemplateName);
         }
         catch (Exception ex) { Status = "Import failed: " + ex.Message; return; }
 
-        if (imported.Count == 0) { Status = "No cards found in that file."; return; }
+        if (parsed.Cards.Count == 0)
+        {
+            Status = parsed.Skipped > 0
+                ? $"No cards found in that file ({parsed.Skipped} line(s) couldn't be read)."
+                : "No cards found in that file.";
+            return;
+        }
         _artBaseDir = baseDir;   // only commit the base dir once we know the import actually produced cards
-        await AddImportedAsync(imported, "that file");
+        await AddImportedAsync(parsed.Cards, "that file", parsed.Skipped);
     }
 
     /// <summary>Imports a deck: paste an exported list or fetch a Moxfield deck by link — both land as
@@ -791,14 +797,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var dlg = new DeckListWindow { Owner = this };
         if (dlg.ShowDialog() != true) return;
 
-        var imported = ImportService.Parse(dlg.DeckText, "", DefaultTemplateName);
-        if (imported.Count == 0) { Status = "No cards found in the pasted list."; return; }
-        await AddImportedAsync(imported, "the deck list");
+        var parsed = ImportService.ParseWithReport(dlg.DeckText, "", DefaultTemplateName);
+        if (parsed.Cards.Count == 0)
+        {
+            Status = parsed.Skipped > 0
+                ? $"No cards found in the pasted list ({parsed.Skipped} line(s) couldn't be read)."
+                : "No cards found in the pasted list.";
+            return;
+        }
+        await AddImportedAsync(parsed.Cards, "the deck list", parsed.Skipped);
     }
 
     /// <summary>Adds parsed cards to the project and fills their blank fields + art from Scryfall,
     /// with a live progress bar. Shared by file import and deck-list import.</summary>
-    private async Task AddImportedAsync(List<ImportedCard> imported, string source)
+    private async Task AddImportedAsync(List<ImportedCard> imported, string source, int skipped = 0)
     {
         if (Busy) return;
         Busy = true;
@@ -824,7 +836,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OnPropertyChanged(nameof(ProjectSummary));
             Status = $"Imported {imported.Count} card(s). Scryfall filled {report.Filled}"
                      + (report.ExtraBackFaces.Count > 0 ? $" (+{report.ExtraBackFaces.Count} back face)" : "")
-                     + (report.NotFound.Count > 0 ? $"; {report.NotFound.Count} not found." : ".");
+                     + (report.NotFound.Count > 0 ? $"; {report.NotFound.Count} not found" : "")
+                     + (skipped > 0 ? $"; skipped {skipped} unreadable line(s)" : "")
+                     + ".";
         }
         catch (Exception ex)
         {
@@ -1212,11 +1226,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Busy = true;
         try
         {
-            int matched = ArtMatcher.MatchInto(Cards, dlg.FolderName, overwrite: false);
+            var report = ArtMatcher.MatchIntoWithReport(Cards, dlg.FolderName, overwrite: false);
             _artBaseDir = dlg.FolderName;
-            if (matched > 0) { MarkDirty(); CommitHistory(); }
+            if (report.Total > 0) { MarkDirty(); CommitHistory(); }
             RenderPreview();
-            Status = matched > 0 ? $"Matched art for {matched} card(s)." : "No filename matches found.";
+            if (report.Total == 0)
+            {
+                Status = "No filename matches found.";
+            }
+            else
+            {
+                Status = $"Matched art for {report.Total} card(s)"
+                         + (report.Fuzzy > 0 ? $" ({report.Fuzzy} by name guess — please review)" : "")
+                         + ".";
+                if (report.Fuzzy > 0)
+                {
+                    var names = string.Join("\n", report.Fuzzies.Take(15).Select(m =>
+                        $"  • {m.Card.Name}  →  {Path.GetFileName(m.ArtPath)}"));
+                    if (report.Fuzzy > 15) names += $"\n  …and {report.Fuzzy - 15} more";
+                    ConfirmDialog.Show(this, "Review fuzzy art matches",
+                        $"{report.Exact} card(s) matched exactly. {report.Fuzzy} were matched by a best-guess "
+                        + "name match and may be wrong — please check these:\n\n" + names,
+                        "OK");
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -1345,6 +1378,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnExport(object sender, RoutedEventArgs e)
     {
+        if (Busy) { Status = "Busy — wait for the current export to finish."; return; }
         if (_selectedCard == null) return;
         var template = _selectedTemplate ?? Templates.FirstOrDefault();
         if (template == null) return;

@@ -123,7 +123,8 @@ by card, or import a whole batch.
   set. (Also on the command line via `--search`.)
 - **Match art folder…** — point it at a folder of images and it attaches them to cards by
   matching the filename to the card name (`serra angel.png` → "Serra Angel"). Only fills cards
-  that don't already have art.
+  that don't already have art. Exact filename matches are used silently; any **best-guess** (fuzzy)
+  matches are listed afterwards so you can review the ones it wasn't sure about.
 - **Look up missing** — fills any card that still has only a name.
 - **Number cards** — assigns collector numbers in list order — `001/N`, `002/N`, … (zero-padded to
   the total's width) — so a whole set is numbered in one click.
