@@ -314,10 +314,14 @@
         </Grid>
 
         <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="22,14">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="CancelBtn" Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel"/>
-                <Button x:Name="ApplyBtn" Content="Apply" Style="{StaticResource Primary}" MinWidth="110" Margin="10,0,0,0" Click="OnApply"/>
-            </StackPanel>
+            <Grid>
+                <TextBlock x:Name="SaveStatus" HorizontalAlignment="Left" VerticalAlignment="Center"
+                           FontWeight="SemiBold" Foreground="#5CCB7A" Opacity="0" Text=""/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="CancelBtn" Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel"/>
+                    <Button x:Name="ApplyBtn" Content="Apply" Style="{StaticResource Primary}" MinWidth="110" Margin="10,0,0,0" Click="OnApply"/>
+                </StackPanel>
+            </Grid>
         </Border>
     </Grid>
 </Window>
