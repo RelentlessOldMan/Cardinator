@@ -41,10 +41,11 @@ public static class SetFolder
             catch { stranded++; return p; }   // couldn't copy — keep the original path (won't travel)
         }
 
-        foreach (var c in cards)
+        // Both faces of a double-faced card: the back's art must travel with the set like the front's.
+        foreach (var face in cards.SelectMany(c => c.Faces()))
         {
-            c.ArtPath = Localize(c.ArtPath) ?? "";
-            c.SetSymbolPath = Localize(c.SetSymbolPath) ?? "";
+            face.ArtPath = Localize(face.ArtPath) ?? "";
+            face.SetSymbolPath = Localize(face.SetSymbolPath) ?? "";
         }
         return stranded;
     }
@@ -62,15 +63,16 @@ public static class SetFolder
         catch { return false; }
     }
 
-    /// <summary>How many cards point at an art file that doesn't exist — for a load-time "N cards are missing
-    /// art" summary (e.g. a set unzipped without its art/ folder).</summary>
+    /// <summary>How many card faces point at an art file that doesn't exist — for a load-time "N cards are
+    /// missing art" summary (e.g. a set unzipped without its art/ folder). Counts back faces too, so a
+    /// double-faced card with a broken back link is reported rather than silently rendering blank.</summary>
     public static int CountMissingArt(IEnumerable<CardModel> cards)
     {
         int missing = 0;
-        foreach (var c in cards)
+        foreach (var face in cards.SelectMany(c => c.Faces()))
         {
-            if (string.IsNullOrWhiteSpace(c.ArtPath)) continue;
-            try { if (!File.Exists(Path.GetFullPath(c.ArtPath))) missing++; } catch { missing++; }
+            if (string.IsNullOrWhiteSpace(face.ArtPath)) continue;
+            try { if (!File.Exists(Path.GetFullPath(face.ArtPath))) missing++; } catch { missing++; }
         }
         return missing;
     }

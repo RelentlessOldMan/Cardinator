@@ -154,6 +154,16 @@ public sealed class CardModel : INotifyPropertyChanged
     [JsonIgnore]
     public bool IsDoubleFaced => _backFace != null;
 
+    /// <summary>This card and its back face (when double-faced), front first — one level only, matching the
+    /// model invariant. Use this wherever a per-card operation must cover BOTH faces: art localization,
+    /// relative/absolute path rewriting, missing-art counts and validation. Forgetting the back face is how
+    /// a double-faced card's art silently fails to travel with a saved set.</summary>
+    public IEnumerable<CardModel> Faces()
+    {
+        yield return this;
+        if (_backFace != null) yield return _backFace;
+    }
+
     /// <summary>
     /// Scryfall art URL from the last lookup (the "art crop"), used to offer real art from the
     /// internet. Transient — not saved with the project (the downloaded file is referenced by

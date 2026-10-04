@@ -93,17 +93,25 @@ public sealed class CardProject
     }
 
     /// <summary>Rewrites a card's image paths (art AND set symbol) relative to the set folder, for saving a
-    /// portable project. Both are set-identity images that must travel with the folder.</summary>
+    /// portable project. Both are set-identity images that must travel with the folder. A double-faced
+    /// card's back face is rewritten too, so its art travels with the set like the front's.</summary>
     public static void MakeArtRelative(CardModel card, string projectFolder)
     {
-        card.ArtPath = RelativeArtPath(card.ArtPath, projectFolder);
-        card.SetSymbolPath = RelativeArtPath(card.SetSymbolPath, projectFolder);
+        foreach (var face in card.Faces())
+        {
+            face.ArtPath = RelativeArtPath(face.ArtPath, projectFolder);
+            face.SetSymbolPath = RelativeArtPath(face.SetSymbolPath, projectFolder);
+        }
     }
 
-    /// <summary>Resolves a card's image paths (art AND set symbol) back to absolute after loading.</summary>
+    /// <summary>Resolves a card's image paths (art AND set symbol) back to absolute after loading — both
+    /// faces of a double-faced card.</summary>
     public static void ResolveArt(CardModel card, string projectFolder)
     {
-        card.ArtPath = ResolveArtPath(card.ArtPath, projectFolder);
-        card.SetSymbolPath = ResolveArtPath(card.SetSymbolPath, projectFolder);
+        foreach (var face in card.Faces())
+        {
+            face.ArtPath = ResolveArtPath(face.ArtPath, projectFolder);
+            face.SetSymbolPath = ResolveArtPath(face.SetSymbolPath, projectFolder);
+        }
     }
 }
