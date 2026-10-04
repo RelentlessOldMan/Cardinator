@@ -167,3 +167,77 @@ folder, "duplicate set") would round out the lifecycle.
 6. **Replace-art resets framing (B6):** confirm intended.
 
 *(The higher-impact, set-level gaps are ranked separately at the end of Part 1.)*
+
+---
+
+## Part 4 — Deep-review findings (multi-angle audit)
+
+A three-angle audit (single-card, set-building, portability/transfer) against the code surfaced the
+following, de-duplicated and ranked. 🐞 = confirmed bug · ⚠️ = gap/ease · each has a code-grounded cause.
+These drive the fix backlog.
+
+### High
+- **H1 🐞 Set-symbol image doesn't travel with a set.** `SaveProject`/`LocalizeArtInto`/`CloneWithRelativeArt`
+  only handle `ArtPath`; `CardModel.SetSymbolPath` is saved as a raw absolute path and never
+  copied/relativized/resolved. Move/zip a set → every card's custom set symbol breaks (silently falls back
+  to the drawn pip). *(Both set & transfer reviewers.)*
+- **H2 🐞 Missing frame silently renders the WRONG frame.** `BatchService.ExportAll` and the live preview
+  resolve an unknown `TemplateName` to `templates[0]` with no warning. Open a received project referencing a
+  frame you lack → cards export with an arbitrary installed frame. (Compounds W5 "frames don't travel.")
+- **H3 ⚠️ No editing UI for whole card types.** Adventure, Subtitle, Land-symbol override, and Layout are in
+  `CardModel`/`CardRenderer` but have no `DetailsWindow` fields — only reachable via import or hand-edited
+  JSON. A from-scratch author can't make an adventure/subtitle card in the GUI.
+- **H4 ⚠️ Planeswalker/Saga/Class have no authoring guidance or validation.** Layout is chosen from
+  type-line substrings and parsed from rules-text syntax (`+1:`, `I, II —`, `{cost}: Level N`); wrong
+  formatting silently yields empty/garbled badges, no CHECK.
+
+### Medium
+- **M1 🐞 Export all ignores the set `out/` and doesn't record where it went.** `OnExportAll` has no
+  `InitialDirectory` and never sets `_lastExportDir` (unlike Export PNG / Print sheet). *(Confirms Part-3 #2.)*
+- **M2 🐞 "Number cards" destroys real/imported collector numbers.** `OnNumberCards` overwrites every card's
+  `CollectorNumber` unconditionally — no skip-if-set, no confirm — clobbering printing hints captured on import.
+- **M3 🐞 Duplicate-collector check defeated by mixed formats.** `CardValidator` compares the raw string, so
+  `5` vs `005` vs `005/20` never collide — mixed hand/auto numbering hides real duplicates (the one cross-card
+  check W4 leans on).
+- **M4 🐞 `DefaultTemplate` is saved but never applied on load.** `LoadProjectFile` ignores
+  `project.DefaultTemplate`; new blank cards inherit the alphabetically-first installed frame, not the set's.
+- **M5 🐞 Live CHECKS never runs `RenderInspector`.** `UpdateValidation` calls only `CardValidator`; the
+  `art-blank`/border pixel checks run only in the QA harness/tests. A corrupt-but-existing art file renders a
+  blank window yet shows "✓ No issues". *(Corrects this plan's earlier G1 claim.)*
+- **M6 🐞 Ctrl+L overwrites/blanks hand-typed fields.** Main-window lookup assigns every text field from the
+  face unconditionally; a vanilla result blanks a user-typed Loyalty/P-T. (Art & frame are preserved; text isn't.)
+- **M7 ⚠️ Edit details… has no Cancel/discard.** Binds the live card directly; "Done"/Esc both keep edits —
+  no way to back out a details session.
+- **M8 🐞 Stray Loyalty hides P/T.** `IsPlaneswalker` is true if TypeLine contains "Planeswalker" OR Loyalty
+  is non-blank, so a leftover Loyalty makes a creature render as a planeswalker (P/T box vanishes), no CHECK.
+- **M9 🐞 DFC back faces dropped on more paths.** Beyond details-search (G6): Scryfall-search import adds
+  front-only, and duplicate/print-sheet treat a real back face as just another front (generic back on sheets).
+- **M10 ⚠️ `.cardframe` dropped on the window is rejected.** `OnWindowDrop` handles projects/lists/images but
+  not frame bundles — the core collaboration artifact can't be installed by drag-drop.
+- **M11 🐞 Cross-drive / failed art copy stays absolute silently.** If `LocalizeArtInto`'s copy throws it
+  keeps the original absolute path and Save still "succeeds" — that card won't travel, with no warning.
+- **M12 ⚠️ Two sets in one folder: Export-all PNGs collide.** `BatchService.ExportAll` writes deterministic
+  `NNN_slug.png` into the shared `out/`, so a second set overwrites the first's exports (extends W8).
+- **M13 ⚠️ No set-symbol missing CHECK / validator symbol regex false positives.** `RenderInspector` doesn't
+  check `SetSymbolPath`; `CardValidator.KnownSymbol` is narrower than what renders (verify token list).
+- **M14 ⚠️ Bulk "Set fields on all" can't target a selection** (always all cards) and omits collector /
+  land-symbol / layout — limits per-faction set work.
+
+### Low
+- L1 Clear-art doesn't reset pan/zoom (asymmetric with Change-art). · L2 Fuzzy art-match mis-binds
+  prefix/substring names silently, no report. · L3 Re-importing the same list appends duplicates (no dedupe
+  vs existing cards). · L4 No duplicate-card-NAME check. · L5 Import silently drops empty/unparseable lines
+  (no skipped count). · L6 Collector width is `1/9` not `001/9` below 10 cards (doc mismatch). · L7 Single
+  Export has no in-progress guard during a background Export-all. · L8 Missing whole `art/` on load gives no
+  aggregate warning (only per-card). · L9 Corrupt project shows raw parser message, no backup/restore. ·
+  L10 Deleting a frame still referenced by other cards leaves them pointing at a missing template. · L11
+  Import of a bare frame can't opt into full-art regions.
+
+### Fix order (each change ships with unit tests + coverlet)
+1. **Portability batch:** H1 set-symbol travels, M11 surface non-localized art, M4 apply DefaultTemplate + inherit.
+2. **Batch-correctness:** M1 Export-all → `out/` + last-dir, M3 dup-collector normalize, M2 Number-cards skip/confirm, M12 per-set output isolation.
+3. **Validation surfacing:** H2/M5 missing-frame + live RenderInspector + M13 set-symbol CHECK, M8 stray-Loyalty CHECK.
+4. **Authoring depth:** H3 card-type editing UI, H4 layout authoring guidance, M7 details Cancel, M6 non-destructive Ctrl+L, M9 DFC handling.
+5. **Big-ticket:** frames travel with a set (W5), whole-set validation report (W4), set profile (W1), multi-set manager (W8).
+6. **Low batch:** L1–L11 as polish.
+

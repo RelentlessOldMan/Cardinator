@@ -29,6 +29,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _projectPath = "";     // last saved/opened file, so Ctrl+S can re-save silently
     private string? _projectFolder;       // the set folder (holds the project file + art/ + out/); null until saved/opened
     private string? _lastExportDir;       // where the last PNG/sheet went, so "Open output folder" opens there
+    private string _defaultTemplate = ""; // the set's saved house frame, inherited by new/imported cards
     private bool _isExporting;
     private bool _busy;                     // any long/mutating op in flight (gates re-entrancy + conflicts)
     private double _exportProgress;
@@ -229,7 +230,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void MarkDirty() { if (!_loading) Dirty = true; }
 
-    private string DefaultTemplateName => _selectedTemplate?.Name ?? Templates.FirstOrDefault()?.Name ?? "";
+    // New/imported cards inherit the set's saved house frame when it's still installed; otherwise fall back to
+    // the current selection, then the first installed frame.
+    private string DefaultTemplateName =>
+        (!string.IsNullOrWhiteSpace(_defaultTemplate) && Templates.Any(t => t.Name == _defaultTemplate) ? _defaultTemplate : null)
+        ?? _selectedTemplate?.Name ?? Templates.FirstOrDefault()?.Name ?? "";
 
     // --- rendering ----------------------------------------------------------
 
@@ -533,6 +538,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _projectName = "Untitled Project";
         _projectPath = "";
         _projectFolder = null;   // ad-hoc until the first Save sets up a set folder
+        _defaultTemplate = "";
         _artBaseDir = "";
         AddAndSelect(SampleCards.Blank(DefaultTemplateName));
         _loading = false;
@@ -566,10 +572,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Cards.Clear();
             foreach (var c in project.Cards)
             {
-                // Art is stored relative to the set folder; resolve it back to an absolute path in memory
-                // (older projects saved absolute paths, which ResolveArtPath leaves untouched).
+                // Art + set symbol are stored relative to the set folder; resolve them back to absolute paths in
+                // memory (older projects saved absolute paths, which ResolveArt leaves untouched).
                 if (projFolder != null)
-                    c.ArtPath = CardProject.ResolveArtPath(c.ArtPath, projFolder);
+                    CardProject.ResolveArt(c, projFolder);
                 Cards.Add(c);
             }
             _projectName = string.IsNullOrWhiteSpace(project.Name)
@@ -577,6 +583,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _projectPath = path;
             _projectFolder = projFolder;
             _artBaseDir = project.ArtBaseDir;
+            // Restore the set's default frame so new/imported cards inherit the house style (M4).
+            _defaultTemplate = !string.IsNullOrWhiteSpace(project.DefaultTemplate)
+                               && Templates.Any(t => t.Name == project.DefaultTemplate)
+                ? project.DefaultTemplate : "";
             SelectedCard = Cards.FirstOrDefault();
             _loading = false;
             Dirty = false;
@@ -617,12 +627,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var name = Path.GetFileNameWithoutExtension(path);
             var projFolder = Path.GetDirectoryName(Path.GetFullPath(path))!;
 
-            // Make the set self-contained: copy any external art into <set>\art and repoint the cards at it,
-            // so the folder can be moved/zipped/shared and still render. Exports default to <set>\out.
-            LocalizeArtInto(projFolder);
+            // Make the set self-contained: copy any external art + set-symbol images into <set>\art and repoint
+            // the cards at them, so the folder can be moved/zipped/shared and still render. Exports → <set>\out.
+            int stranded = SetFolder.LocalizeImages(Cards, projFolder);
             try { Directory.CreateDirectory(Path.Combine(projFolder, "out")); } catch { /* best effort */ }
 
-            // Serialize with art paths made relative to the set folder (resolved back to absolute on load).
+            // Serialize with image paths made relative to the set folder (resolved back to absolute on load).
             var project = new CardProject
             {
                 Name = name,
@@ -637,7 +647,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             MarkSavedPoint();   // this history position now matches disk (undo past it re-marks dirty)
             OnPropertyChanged(nameof(ProjectSummary));
             OnPropertyChanged(nameof(WindowTitle));
-            Status = $"Saved project ({Cards.Count} cards) to {Path.GetFileName(path)}. Art in \\art, exports go to \\out.";
+            Status = stranded == 0
+                ? $"Saved project ({Cards.Count} cards) to {Path.GetFileName(path)}. Art in \\art, exports go to \\out."
+                : $"Saved project ({Cards.Count} cards), but {stranded} image(s) couldn't be copied into the set — they won't travel if you move the folder.";
             return true;
         }
         catch (Exception ex)
@@ -648,35 +660,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     /// <summary>Copies each card's art that lives outside this set's <c>art</c> folder into it, and repoints
-    /// the card at the copy — so the saved set folder is self-contained (movable/zippable). Art already inside
-    /// the folder is left alone, so re-saving doesn't duplicate.</summary>
-    private void LocalizeArtInto(string projFolder)
-    {
-        var artDir = Path.Combine(projFolder, "art");
-        var artRoot = Path.GetFullPath(artDir) + Path.DirectorySeparatorChar;
-        try { Directory.CreateDirectory(artDir); } catch { return; }
-
-        foreach (var c in Cards)
-        {
-            if (string.IsNullOrWhiteSpace(c.ArtPath)) continue;
-            string full;
-            try { full = Path.GetFullPath(c.ArtPath); } catch { continue; }
-            if (!File.Exists(full)) continue;
-            if (full.StartsWith(artRoot, StringComparison.OrdinalIgnoreCase)) continue;   // already in this set
-
-            var dest = Path.Combine(artDir,
-                ImageIntake.UniqueFileName(Path.GetFileNameWithoutExtension(full), Path.GetExtension(full)));
-            try { File.Copy(full, dest, overwrite: false); c.ArtPath = dest; }
-            catch { /* keep the original path if the copy fails */ }
-        }
-    }
-
-    /// <summary>A clone of the card whose art path is relative to the set folder (so the saved file is
-    /// portable). Paths outside the folder stay absolute.</summary>
+    /// <summary>A clone of the card whose art + set-symbol paths are relative to the set folder (so the saved
+    /// file is portable). Paths outside the folder stay absolute.</summary>
     private static CardModel CloneWithRelativeArt(CardModel card, string projFolder)
     {
         var clone = card.Clone();
-        clone.ArtPath = CardProject.RelativeArtPath(clone.ArtPath, projFolder);   // e.g. "art\foo.png"
+        CardProject.MakeArtRelative(clone, projFolder);   // art + set symbol → e.g. "art\foo.png"
         return clone;
     }
 
@@ -870,7 +859,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (IsExporting) { Status = "An export is already running…"; return; }
         if (Cards.Count == 0) { Status = "No cards to export."; return; }
-        var dlg = new OpenFolderDialog { Title = "Choose a folder to export all cards into" };
+        var dlg = new OpenFolderDialog { Title = "Choose a folder to export all cards into", InitialDirectory = DefaultOutputDir() };
         if (dlg.ShowDialog() != true) return;
 
         // Deep-clone so edits made during the export can't tear reads on the render thread.
@@ -897,6 +886,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var result = await RunStaAsync(() =>
                 BatchService.ExportAll(cardsSnapshot, templatesSnapshot, folder, symbols, strProgress, pctProgress));
 
+            _lastExportDir = folder;   // so "Open output folder" follows an Export-all
             Status = $"Exported {result.Exported}/{cardsSnapshot.Count} to {folder}."
                      + (result.Errors.Count > 0 ? $" {result.Errors.Count} error(s)." : "");
         }

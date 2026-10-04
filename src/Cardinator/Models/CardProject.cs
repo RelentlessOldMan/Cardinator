@@ -83,4 +83,19 @@ public sealed class CardProject
         }
         catch { return artPath; }
     }
+
+    /// <summary>Rewrites a card's image paths (art AND set symbol) relative to the set folder, for saving a
+    /// portable project. Both are set-identity images that must travel with the folder.</summary>
+    public static void MakeArtRelative(CardModel card, string projectFolder)
+    {
+        card.ArtPath = RelativeArtPath(card.ArtPath, projectFolder);
+        card.SetSymbolPath = RelativeArtPath(card.SetSymbolPath, projectFolder);
+    }
+
+    /// <summary>Resolves a card's image paths (art AND set symbol) back to absolute after loading.</summary>
+    public static void ResolveArt(CardModel card, string projectFolder)
+    {
+        card.ArtPath = ResolveArtPath(card.ArtPath, projectFolder);
+        card.SetSymbolPath = ResolveArtPath(card.SetSymbolPath, projectFolder);
+    }
 }
