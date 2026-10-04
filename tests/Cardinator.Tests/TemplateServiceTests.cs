@@ -46,4 +46,20 @@ public class TemplateServiceTests
         }
         finally { try { Directory.Delete(dir, true); } catch { } }
     }
+
+    [Fact]
+    public void CountReferencing_CountsCardsUsingTheFrame_CaseInsensitive()   // L10
+    {
+        var cards = new[]
+        {
+            new CardModel { Name = "A", TemplateName = "My Frame" },
+            new CardModel { Name = "B", TemplateName = "my frame" },   // case-insensitive
+            new CardModel { Name = "C", TemplateName = "Other" },
+        };
+
+        Assert.Equal(2, TemplateService.CountReferencing(cards, "My Frame"));
+        Assert.Equal(1, TemplateService.CountReferencing(cards, "Other"));
+        Assert.Equal(0, TemplateService.CountReferencing(cards, "Nope"));
+        Assert.Equal(0, TemplateService.CountReferencing(null!, "My Frame"));
+    }
 }
