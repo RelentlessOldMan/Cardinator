@@ -352,18 +352,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnMoveUp(object sender, RoutedEventArgs e) => MoveSelected(-1);
     private void OnMoveDown(object sender, RoutedEventArgs e) => MoveSelected(+1);
 
-    /// <summary>Assigns collector numbers in list order: 001/N, 002/N, … (zero-padded to N's width).</summary>
+    /// <summary>Assigns collector numbers in list order: NNN/N (zero-padded to N's width). Guards against
+    /// silently clobbering existing (e.g. imported real) numbers — offers renumber-all vs blanks-only.</summary>
     private void OnNumberCards(object sender, RoutedEventArgs e)
     {
         int total = Cards.Count;
         if (total == 0) { Status = "No cards to number."; return; }
-        int width = total.ToString().Length;
-        for (int i = 0; i < total; i++)
-            Cards[i].CollectorNumber = $"{(i + 1).ToString().PadLeft(width, '0')}/{total}";
+
+        bool onlyBlanks = false;
+        if (Cards.Any(c => !string.IsNullOrWhiteSpace(c.CollectorNumber)))
+        {
+            var choice = ConfirmDialog.Show(this, "Number cards",
+                "Some cards already have collector numbers. Renumber every card, or only fill in the blank ones?",
+                affirmative: "Renumber all", negative: "Only blanks", cancel: "Cancel");
+            if (choice == ConfirmResult.Cancel) return;
+            onlyBlanks = choice == ConfirmResult.Negative;
+        }
+
+        int changed = CollectorNumbering.Assign(Cards, onlyBlanks);
         MarkDirty();
         CommitHistory();
         RenderPreview();
-        Status = $"Numbered {total} card(s) (001/{total} style).";
+        Status = onlyBlanks
+            ? $"Numbered {changed} blank card(s) (NNN/{total})."
+            : $"Numbered {changed} card(s) (NNN/{total}).";
     }
 
     /// <summary>Sets the same set code / artist / rarity / copyright / frame on every card at once.</summary>
@@ -1203,16 +1215,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (faces.Count == 0) { Status = $"No card found for \"{query}\"."; return; }
 
             var f = faces[0];
-            card.Name = f.Name;
-            card.ManaCost = f.ManaCost;
-            card.TypeLine = f.TypeLine;
-            card.RulesText = f.RulesText;
-            card.Power = f.Power;
-            card.Toughness = f.Toughness;
-            card.Loyalty = f.Loyalty;
-            card.SetCode = f.SetCode;
-            card.CollectorNumber = f.CollectorNumber;
-            card.Rarity = f.Rarity;
+            // Non-destructive: fill from the looked-up face but never blank a field the user already typed.
+            CardDetailsFill.MergeNonEmpty(card, f);
 
             // Double-faced: add the back as a new card in the project.
             for (int i = 1; i < faces.Count; i++)

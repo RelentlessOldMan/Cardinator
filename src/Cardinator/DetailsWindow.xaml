@@ -126,7 +126,11 @@
 
         <!-- footer -->
         <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="22,14">
-            <Button Content="Done" Style="{StaticResource Primary}" MinWidth="110" HorizontalAlignment="Right" Click="OnDone" IsCancel="True"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel" IsCancel="True"
+                        ToolTip="Discard the changes made in this dialog"/>
+                <Button Content="Done" Style="{StaticResource Primary}" MinWidth="110" Margin="10,0,0,0" Click="OnDone" IsDefault="True"/>
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

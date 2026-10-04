@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.IO;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -199,6 +200,15 @@ public sealed class CardModel : INotifyPropertyChanged
     public CardModel Clone() =>
         (CardModel)JsonSerializer.Deserialize<CardModel>(
             JsonSerializer.Serialize(this, JsonOpts), JsonOpts)!;
+
+    /// <summary>Copies every writable property from <paramref name="other"/> into this card, raising change
+    /// notifications via the setters — used to restore a snapshot (e.g. when the details editor is cancelled).</summary>
+    public void CopyFrom(CardModel other)
+    {
+        foreach (var p in typeof(CardModel).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            if (p.CanRead && p.CanWrite && p.GetIndexParameters().Length == 0)
+                p.SetValue(this, p.GetValue(other));
+    }
 
     // --- INotifyPropertyChanged ---------------------------------------------
 
