@@ -112,6 +112,22 @@ public class CardValidatorTests
     });
 
     [Fact]
+    public void RenderInspector_PureBlackArt_IsNotFalselyFlaggedBlank()   // M5 hardening
+    {
+        // A card whose art is legitimately pure black (0,0,0) must NOT be reported as a blank art window —
+        // the backing color is specifically (8,8,10), and only that tight band counts as "unfilled".
+        int w = 750, h = 1050, stride = w * 4;
+        var px = new byte[h * stride];                         // BGR all zero = pure black
+        for (int i = 3; i < px.Length; i += 4) px[i] = 255;    // opaque alpha
+        var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, px, stride);
+
+        var card = new CardModel { Name = "Black", ArtPath = @"C:\real-black-art.png" };
+        var issues = RenderInspector.Inspect(bmp, card, Framed());
+
+        Assert.DoesNotContain(issues, i => i.Code == "art-blank");
+    }
+
+    [Fact]
     public void RenderInspector_NormalCard_HasEvenBorder() => RunSta(() =>
     {
         var c = CleanCreature();

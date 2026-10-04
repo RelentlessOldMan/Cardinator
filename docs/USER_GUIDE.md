@@ -68,8 +68,9 @@ the live preview that updates as you type.*
 
 > **The CHECKS panel** below the preview watches the selected card as you edit and flags problems
 > before you export — missing art, an unrecognized `{symbol}`, a footer overlapping the text box, a
-> region that falls outside the card, or a collector number used by more than one card. A green
-> "✓ No issues" means you're clear.
+> region that falls outside the card, or a collector number used by more than one card. It also looks at
+> the **rendered pixels**, so it even catches art that's assigned but came out **blank** (a moved or
+> corrupt image file). A green "✓ No issues" means you're clear.
 
 > **Undo/redo:** every edit is undoable — use the header **Undo** / **Redo** buttons or **Ctrl+Z** /
 > **Ctrl+Y** (**Ctrl+Shift+Z** also redoes).
@@ -135,7 +136,8 @@ by card, or import a whole batch.
   you set them once instead of per card. Tick **Also apply to existing cards** to fill blanks on the cards
   you already have. Defaults are saved with the project.
 - **Set fields on all…** — a bulk editor: set the **set code, artist, rarity, copyright, frame** and
-  a **custom set-symbol image** on every card at once (leave a field blank to keep each card's own).
+  a **custom set-symbol image** on every card at once (leave a field blank to keep each card's own). If you
+  **multi-select** cards in the list first, it asks whether to apply to just those or the whole set.
 - **Check all cards** — runs the CHECKS across the whole set and lists every card that needs attention
   (missing art/frame, bad symbol, duplicate/stale number, broken special layout…), then jumps to the first.
 - **Share set + frames…** — zips the whole set (project + `art/` + a bundle for each custom frame the
