@@ -78,11 +78,27 @@ public static class CardValidator
 
         // A loyalty value turns ANY card into a planeswalker layout (hiding the power/toughness box). Flag a
         // stray loyalty on a non-planeswalker, which otherwise silently hides P/T.
-        if (!string.IsNullOrWhiteSpace(card.Loyalty)
-            && !(card.TypeLine ?? "").Contains("Planeswalker", System.StringComparison.OrdinalIgnoreCase))
+        bool typeIsPw = (card.TypeLine ?? "").Contains("Planeswalker", System.StringComparison.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(card.Loyalty) && !typeIsPw)
             issues.Add(new(IssueSeverity.Warning, "loyalty-nonplaneswalker",
                 "This card has a loyalty value but isn't a Planeswalker — it renders as one and hides power/toughness.",
                 nameof(card.Loyalty)));
+
+        // Special layouts build their badges by parsing the rules-text syntax; warn when the syntax produced
+        // none, so a mistyped planeswalker/saga/class doesn't silently render without its badges. Uses the
+        // renderer's OWN parsers so this never drifts from what actually draws.
+        if (!string.IsNullOrWhiteSpace(card.RulesText))
+        {
+            if (typeIsPw && !CardRenderer.ParseAbilities(card.RulesText).Any(r => r.cost != null))
+                issues.Add(new(IssueSeverity.Warning, "pw-no-abilities",
+                    "Planeswalker abilities need a loyalty cost like \"+1:\" or \"-3:\" — none were found, so no loyalty badges will show.", nameof(card.RulesText)));
+            else if (card.IsSaga && !CardRenderer.ParseChapters(card.RulesText).Any(r => r.cost != null))
+                issues.Add(new(IssueSeverity.Warning, "saga-no-chapters",
+                    "Saga chapters need markers like \"I —\" or \"I, II —\" — none were found, so no chapter badges will show.", nameof(card.RulesText)));
+            else if (card.IsClass && !CardRenderer.ParseClassLevels(card.RulesText).Any(r => r.cost != null))
+                issues.Add(new(IssueSeverity.Info, "class-no-levels",
+                    "Class level-ups use \"{cost}: Level N\" lines — none were found, so every ability shows at the base level.", nameof(card.RulesText)));
+        }
 
         // --- geometry ------------------------------------------------------
         double W = spec.CanvasWidth, H = spec.CanvasHeight;
