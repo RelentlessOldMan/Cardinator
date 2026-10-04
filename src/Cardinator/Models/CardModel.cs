@@ -181,11 +181,8 @@ public sealed class CardModel : INotifyPropertyChanged
 
     // --- persistence ---------------------------------------------------------
 
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
+    // Shared across all persisted types — see JsonCompat for the backward-compatibility policy.
+    private static JsonSerializerOptions JsonOpts => Cardinator.Services.JsonCompat.Options;
 
     public static CardModel Load(string path)
     {
