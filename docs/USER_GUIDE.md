@@ -118,6 +118,8 @@ by card, or import a whole batch.
   - `Name | C:\art\thing.png` per line (name + art);
   - a **CSV/TSV with a header row**, columns matched by friendly names in any order. See the
     [example CSV](../examples/02-custom-set/cards.csv) and its [column reference](../examples/README.md).
+  - If any lines can't be read they're counted in the status, and if some card names are **already in
+    your project** you're asked whether to **skip the duplicates** or add them anyway.
 - **Scryfall search…** — type a Scryfall query (e.g. `t:dragon c:r`, `set:dom`) and Cardinator
   imports up to 60 matching cards **with their real art** in one go — a fast way to build a themed
   set. (Also on the command line via `--search`.)

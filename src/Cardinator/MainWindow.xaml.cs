@@ -813,6 +813,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task AddImportedAsync(List<ImportedCard> imported, string source, int skipped = 0)
     {
         if (Busy) return;
+
+        // L3: re-importing a list you already loaded would silently append duplicates. Offer to skip them.
+        int dupes = ImportService.CountNamesAlreadyIn(Cards, imported);
+        if (dupes > 0)
+        {
+            var choice = ConfirmDialog.Show(this, "Cards already in project",
+                $"{dupes} of these {imported.Count} card(s) have a name already in your project. "
+                + "Skip the duplicates, or add them anyway?",
+                affirmative: "Skip duplicates", negative: "Add anyway", cancel: "Cancel");
+            if (choice == ConfirmResult.Cancel) { Status = "Import cancelled."; return; }
+            if (choice == ConfirmResult.Affirmative)
+            {
+                imported = ImportService.RemoveNamesAlreadyIn(Cards, imported);
+                if (imported.Count == 0) { Status = "Nothing to import — all cards were duplicates."; return; }
+            }
+        }
+
         Busy = true;
         ProgressIndeterminate = false;   // we know the card count, so show real percentage
         ExportProgress = 0;
