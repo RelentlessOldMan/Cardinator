@@ -17,6 +17,34 @@ public class ImportServiceTests
     }
 
     [Fact]
+    public void ParseWithReport_CountsUnreadableDelimitedRows()   // L5
+    {
+        // Header + 2 good rows + 1 row whose Name column is blank.
+        var content = "name,type\nBolt,Instant\n,Creature\nAngel,Creature";
+        var r = ImportService.ParseWithReport(content, null, "T");
+        Assert.Equal(2, r.Cards.Count);
+        Assert.Equal(1, r.Skipped);
+    }
+
+    [Fact]
+    public void ParseWithReport_CountsPlainLinesThatReduceToNothing()   // L5
+    {
+        // "(ABC) 12" is a printing hint with no name in front -> nothing left after stripping.
+        var content = "Lightning Bolt\n(ABC) 12";
+        var r = ImportService.ParseWithReport(content, null, "T");
+        Assert.Single(r.Cards);
+        Assert.Equal(1, r.Skipped);
+    }
+
+    [Fact]
+    public void ParseWithReport_CleanList_ReportsZeroSkipped()   // L5
+    {
+        var r = ImportService.ParseWithReport("Bolt\nAngel\n# note\n\nDeck", null, "T");
+        Assert.Equal(2, r.Cards.Count);
+        Assert.Equal(0, r.Skipped);   // comment/blank/section-header lines are not "unreadable"
+    }
+
+    [Fact]
     public void Parse_DeckList_ExpandsQuantities()
     {
         var cards = ImportService.Parse("4 Lightning Bolt\n2x Counterspell\nBrainstorm", null, "T");

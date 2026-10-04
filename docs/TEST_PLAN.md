@@ -224,11 +224,13 @@ These drive the fix backlog.
   land-symbol / layout — limits per-faction set work.
 
 ### Low
-- L1 Clear-art doesn't reset pan/zoom (asymmetric with Change-art). · L2 Fuzzy art-match mis-binds
-  prefix/substring names silently, no report. · L3 Re-importing the same list appends duplicates (no dedupe
-  vs existing cards). · L4 No duplicate-card-NAME check. · L5 Import silently drops empty/unparseable lines
-  (no skipped count). · L6 Collector width is `1/9` not `001/9` below 10 cards (doc mismatch). · L7 Single
-  Export has no in-progress guard during a background Export-all. · L8 Missing whole `art/` on load gives no
+- ✅ L1 Clear-art doesn't reset pan/zoom (asymmetric with Change-art). · ✅ L2 Fuzzy art-match mis-binds
+  prefix/substring names silently, no report *(now `MatchIntoWithReport` splits exact vs fuzzy and the UI
+  lists the guesses for review)*. · L3 Re-importing the same list appends duplicates (no dedupe
+  vs existing cards). · ✅ L4 No duplicate-card-NAME check. · ✅ L5 Import silently drops empty/unparseable lines
+  *(now `ParseWithReport` returns a skipped count surfaced in the import status)*. · L6 Collector width is `1/9`
+  not `001/9` below 10 cards (doc mismatch). · ✅ L7 Single Export has no in-progress guard during a background
+  Export-all *(OnExport now bails while Busy)*. · ✅ L8 Missing whole `art/` on load gives no
   aggregate warning (only per-card). · L9 Corrupt project shows raw parser message, no backup/restore. ·
   L10 Deleting a frame still referenced by other cards leaves them pointing at a missing template. · L11
   Import of a bare frame can't opt into full-art regions.
@@ -239,5 +241,5 @@ These drive the fix backlog.
 3. ✅ **Validation surfacing (done):** ✅ H2 missing-frame CHECK (+ wired live), ✅ M13 set-symbol CHECK, ✅ M8 stray-Loyalty CHECK · ☐ M5 live RenderInspector (pixel checks) still pending.
 4. **Authoring depth:** ✅ M7 details Cancel, ✅ M6 non-destructive Ctrl+L, ✅ H3 card-type editing UI, ✅ H4 layout authoring guidance (CHECK flags unparseable PW/Saga/Class syntax, reusing the renderer's own parsers) · ☐ M9 DFC handling.
 5. **Big-ticket:** ✅ frames travel with a set — "Share set + frames" zip (`SetPackager`), ✅ whole-set validation report (W4 — "Check all cards" via `SetValidator`) · ☐ set profile (W1), multi-set manager (W8).
-6. **Low batch:** ✅ L1 clear-art resets framing, ✅ L4 duplicate-name CHECK, ✅ L8 load-time missing-art summary · ☐ L2, L3, L5, L7, L9, L10, L11.
+6. **Low batch:** ✅ L1 clear-art resets framing, ✅ L4 duplicate-name CHECK, ✅ L8 load-time missing-art summary, ✅ L2 fuzzy art-match review report, ✅ L5 import skipped-line count, ✅ L7 single-Export in-progress guard · ☐ L3, L9, L10, L11.
 

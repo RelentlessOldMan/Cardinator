@@ -80,4 +80,35 @@ public class ArtMatcherTests : IDisposable
         var cards = new List<CardModel> { new() { Name = "Anything" } };
         Assert.Equal(0, ArtMatcher.MatchInto(cards, Path.Combine(_dir, "nope"), overwrite: false));
     }
+
+    [Fact]
+    public void MatchIntoWithReport_SeparatesExactFromFuzzy()   // L2
+    {
+        Touch("serra angel.png");            // exact for "Serra Angel"
+        Touch("goblin raider token.png");    // only a fuzzy (contains) match for "Goblin Raider"
+
+        var cards = new List<CardModel>
+        {
+            new() { Name = "Serra Angel" },
+            new() { Name = "Goblin Raider" },
+            new() { Name = "Nothing Here" },
+        };
+
+        var report = ArtMatcher.MatchIntoWithReport(cards, _dir, overwrite: false);
+
+        Assert.Equal(2, report.Total);
+        Assert.Equal(1, report.Exact);
+        Assert.Equal(1, report.Fuzzy);
+        Assert.Equal("Goblin Raider", report.Fuzzies.Single().Card.Name);
+        Assert.EndsWith("goblin raider token.png", report.Fuzzies.Single().ArtPath);
+    }
+
+    [Fact]
+    public void MatchIntoWithReport_MissingFolder_IsEmpty()   // L2
+    {
+        var report = ArtMatcher.MatchIntoWithReport(
+            new List<CardModel> { new() { Name = "X" } }, Path.Combine(_dir, "nope"), overwrite: false);
+        Assert.Equal(0, report.Total);
+        Assert.Empty(report.Fuzzies);
+    }
 }

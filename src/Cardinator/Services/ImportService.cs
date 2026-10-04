@@ -7,6 +7,11 @@ namespace Cardinator.Services;
 /// <summary>A parsed card plus whether its blank fields should be filled from Scryfall.</summary>
 public sealed record ImportedCard(CardModel Card, bool NeedsLookup);
 
+/// <summary>The outcome of parsing a list: the cards, plus how many non-blank/non-comment lines
+/// were dropped because they couldn't be turned into a card (so the UI can tell the user instead
+/// of silently losing them).</summary>
+public sealed record ImportResult(List<ImportedCard> Cards, int Skipped);
+
 /// <summary>
 /// Parses card lists in flexible formats so users can create many cards at once:
 ///  - a plain list of card names (one per line);
@@ -58,7 +63,12 @@ public static class ImportService
             || l.StartsWith("www.", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>Parses a list and returns only the cards (back-compat convenience).</summary>
     public static List<ImportedCard> Parse(string content, string? artBaseDir, string defaultTemplate)
+        => ParseWithReport(content, artBaseDir, defaultTemplate).Cards;
+
+    /// <summary>Parses a list and also reports how many meaningful lines were dropped (L5).</summary>
+    public static ImportResult ParseWithReport(string content, string? artBaseDir, string defaultTemplate)
     {
         content = (content ?? "").TrimStart('﻿');   // strip a UTF-8 BOM so line 0 isn't polluted
         var rawLines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
@@ -67,7 +77,7 @@ public static class ImportService
                         && !l.TrimStart().StartsWith('#')
                         && !l.TrimStart().StartsWith("//"))   // deck-list comment lines
             .ToList();
-        if (lines.Count == 0) return new();
+        if (lines.Count == 0) return new(new(), 0);
 
         var delimiter = DetectDelimiter(lines[0]);
         if (delimiter != '\0' && LooksLikeHeader(lines[0], delimiter))
@@ -101,9 +111,10 @@ public static class ImportService
     private static readonly HashSet<string> SectionHeaders =
         new(StringComparer.OrdinalIgnoreCase) { "deck", "sideboard", "commander", "maybeboard", "companion" };
 
-    private static List<ImportedCard> ParsePlain(List<string> lines, string? artBaseDir, string defaultTemplate)
+    private static ImportResult ParsePlain(List<string> lines, string? artBaseDir, string defaultTemplate)
     {
         var result = new List<ImportedCard>();
+        int skipped = 0;
         foreach (var raw in lines)
         {
             string line = raw.Trim();
@@ -138,7 +149,7 @@ public static class ImportService
                 line = line[..h.Index].Trim();
             }
 
-            if (line.Length == 0) continue;
+            if (line.Length == 0) { skipped++; continue; }   // nothing left after stripping qty/hint/art
             for (int i = 0; i < qty; i++)
             {
                 var card = new CardModel
@@ -152,12 +163,12 @@ public static class ImportService
                 result.Add(new ImportedCard(card, NeedsLookup: true));
             }
         }
-        return result;
+        return new ImportResult(result, skipped);
     }
 
     // --- delimited (CSV/TSV) ------------------------------------------------
 
-    private static List<ImportedCard> ParseDelimited(List<string> lines, char delimiter, string? artBaseDir, string defaultTemplate)
+    private static ImportResult ParseDelimited(List<string> lines, char delimiter, string? artBaseDir, string defaultTemplate)
     {
         var header = SplitLine(lines[0], delimiter).Select(Normalize).ToList();
         var col = new Dictionary<string, int>();
@@ -166,6 +177,7 @@ public static class ImportService
                 col[key] = i;
 
         var result = new List<ImportedCard>();
+        int skipped = 0;
         for (int r = 1; r < lines.Count; r++)
         {
             var fields = SplitLine(lines[r], delimiter);
@@ -177,7 +189,7 @@ public static class ImportService
             }
 
             var name = Get("name");
-            if (name.Length == 0) continue;
+            if (name.Length == 0) { skipped++; continue; }   // data row with no card name
 
             var card = new CardModel
             {
@@ -210,7 +222,7 @@ public static class ImportService
             bool needsLookup = ParseLookupFlag(Get("lookup")) ?? blank;
             result.Add(new ImportedCard(card, needsLookup));
         }
-        return result;
+        return new ImportResult(result, skipped);
     }
 
     private static bool? ParseLookupFlag(string v) => v.ToLowerInvariant() switch
