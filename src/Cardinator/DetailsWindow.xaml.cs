@@ -17,18 +17,26 @@ namespace Cardinator;
 public partial class DetailsWindow : Window
 {
     private readonly CardModel _card;
+    private readonly CardModel _snapshot;   // state on open, so Cancel can discard this session's edits
     private readonly ScryfallClient _scryfall;
 
     public DetailsWindow(CardModel card, ScryfallClient? scryfall = null)
     {
         InitializeComponent();
         _card = card;
+        _snapshot = card.Clone();
         _scryfall = scryfall ?? new ScryfallClient();
         DataContext = card;
         SearchBox.Text = card.Name;   // a convenient default; edit it to search for something else
     }
 
-    private void OnDone(object sender, RoutedEventArgs e) => Close();
+    private void OnDone(object sender, RoutedEventArgs e) => Close();   // keep edits (they're already live)
+
+    private void OnCancel(object sender, RoutedEventArgs e)
+    {
+        _card.CopyFrom(_snapshot);   // discard everything changed in this dialog (incl. a Scryfall fill)
+        Close();
+    }
 
     private async void OnSearch(object sender, RoutedEventArgs e) => await SearchAsync();
 
