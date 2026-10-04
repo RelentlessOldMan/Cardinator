@@ -314,7 +314,10 @@ public partial class FrameDesignWindow : Window
             // A plain baked custom frame (no source) keeps its frame.png untouched.
             AppliedTemplateName = _spec.Name;
             if (Standalone)
-                Title = $"Frame layout — {_spec.Name}  (saved)";   // keep editing; DialogResult is illegal non-modally
+            {
+                Title = $"Frame layout — {_spec.Name}";
+                FlashSaved();   // visible confirmation; DialogResult is illegal non-modally
+            }
             else
                 DialogResult = true;
         }
@@ -329,6 +332,21 @@ public partial class FrameDesignWindow : Window
     {
         if (Standalone) Close();
         else DialogResult = false;
+    }
+
+    /// <summary>Flashes a green "Saved ✓ HH:mm:ss" in the footer so Apply has visible confirmation. Re-runs on
+    /// every Apply (timestamp changes), so even repeated saves read as taking effect.</summary>
+    private void FlashSaved()
+    {
+        SaveStatus.Text = $"Saved ✓   {DateTime.Now:HH:mm:ss}";
+        var anim = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames();
+        anim.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(1.0,
+            System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(80))));
+        anim.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(1.0,
+            System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1800))));
+        anim.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(0.0,
+            System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2600))));
+        SaveStatus.BeginAnimation(OpacityProperty, anim);
     }
 
     // --- interactive text-region layout -------------------------------------

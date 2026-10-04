@@ -422,75 +422,50 @@ public sealed class CardRenderer
         double sym = places.Length == 0 ? 0 : places.Min(p => p.dia);   // one size for all → equal symbols
         if (sym <= 0) return;
 
-        // The coin is just another symbol — same drop shadow as everything else.
-        var coin = RenderCoin(toks, clips, places, full, d, r, n, sym);
-        DrawDropShadowedImage(dc, coin, full);
-    }
-
-    /// <summary>Draws an image with the drop shadow used throughout the land symbols: a 30%-opacity copy offset
-    /// down-right by (2%,3%) of the size, then the image on top. One place so the coin and the single symbols
-    /// get an identical shadow.</summary>
-    private void DrawDropShadowedImage(DrawingContext dc, ImageSource img, Rect r)
-    {
-        double size = r.Width;
-        var shadowRect = new Rect(r.X + size * 0.02, r.Y + size * 0.03, size, size);
-        // One drop shadow for every land symbol: the shape, offset, in the neutral mana-circle tone — never the
-        // image's own colors. A single black-mana pip is already that tone, so it's unchanged; a multi-color coin
-        // now casts the exact same shadow instead of a multi-colored one.
-        var tone = new SolidColorBrush(PipBackground("{B}")); tone.Freeze();
-        dc.PushOpacity(0.30);
-        dc.PushOpacityMask(new ImageBrush(img) { Stretch = Stretch.Fill });
-        dc.DrawRectangle(tone, null, shadowRect);
-        dc.Pop();
-        dc.Pop();
-        dc.DrawImage(img, r);
-    }
-
-    /// <summary>Draws the combined land coin (pieces + seams + ring + silhouettes) to its own bitmap so it can be
-    /// drop-shadowed as a single unit, just like a single big mana symbol.</summary>
-    private BitmapSource RenderCoin(IReadOnlyList<string> toks, Geometry[] clips, (Point c, double dia)[] places,
-                                    Rect full, double d, double r, int n, double sym)
-    {
-        const int SC = 2;                                   // supersample so it stays crisp when drawn back
-        int bw = Math.Max(1, (int)Math.Ceiling(full.Width * SC)), bh = Math.Max(1, (int)Math.Ceiling(full.Height * SC));
-        var cv = new DrawingVisual();
-        using (var g = cv.RenderOpen())
+        // A coin is a circle with a drop shadow — the SAME as a single pip. One shared path draws the shadow;
+        // the only difference is what paints the circle's interior (wedges here, a pip image for singles).
+        DrawShadowedDisc(dc, new Point(cx, cy), r, () =>
         {
-            // Supersampling comes from the bitmap dpi (96*SC); here we only shift the absolute coords used by
-            // clips/places so the coin's top-left lands at the bitmap origin.
-            g.PushTransform(new TranslateTransform(-full.X, -full.Y));
-
             // 1) Fill each piece with that symbol's own circle color (sampled from the pip art).
             for (int i = 0; i < n; i++)
             {
                 var fill = new SolidColorBrush(PipBackground(toks[i])); fill.Freeze();
-                g.PushClip(clips[i]);
-                g.DrawRectangle(fill, null, full);
-                g.Pop();
+                dc.PushClip(clips[i]);
+                dc.DrawRectangle(fill, null, full);
+                dc.Pop();
             }
-            // 2) Thin seams + an outer ring so it reads as one coin.
+            // 2) Thin INTERNAL seams between the colored pieces (no outer ring — the rim is just color → shadow,
+            //    exactly like a pip). Clip the seams to just inside the rim so only the interior dividers show.
             var edge = new Pen(new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Math.Max(1.0, d * 0.012));
-            for (int i = 0; i < n; i++) g.DrawGeometry(null, edge, clips[i]);
-            var ring = new Pen(new SolidColorBrush(Color.FromArgb(0xDD, 0x10, 0x10, 0x12)), Math.Max(1.6, d * 0.022));
-            g.DrawEllipse(null, ring, new Point(full.X + r, full.Y + r), r, r);
-
-            // 3) Only the dark ICON SILHOUETTE in each piece — the bitmap already has the pip background and ring
-            //    removed, so we just stamp it, clipped to the piece so nothing crosses a seam.
+            double inset = Math.Max(1.0, d * 0.012);
+            dc.PushClip(new EllipseGeometry(new Point(cx, cy), r - inset, r - inset));
+            for (int i = 0; i < n; i++) dc.DrawGeometry(null, edge, clips[i]);
+            dc.Pop();
+            // 3) The dark ICON SILHOUETTE in each piece, clipped so nothing crosses a seam.
             for (int i = 0; i < n; i++)
             {
                 var sil = IconSilhouette(toks[i]);
                 if (sil == null) continue;
                 var p = places[i].c;
-                g.PushClip(clips[i]);
-                g.DrawImage(sil, new Rect(p.X - sym / 2, p.Y - sym / 2, sym, sym));
-                g.Pop();
+                dc.PushClip(clips[i]);
+                dc.DrawImage(sil, new Rect(p.X - sym / 2, p.Y - sym / 2, sym, sym));
+                dc.Pop();
             }
-            g.Pop();   // translate
-        }
-        var rtb = new RenderTargetBitmap(bw, bh, 96 * SC, 96 * SC, PixelFormats.Pbgra32);
-        rtb.Render(cv);
-        rtb.Freeze();
-        return rtb;
+        });
+    }
+
+    /// <summary>THE land-symbol drop shadow, shared by single pips and combined coins. A land symbol is a circle;
+    /// this draws its shadow — the circle in the neutral mana-circle tone, offset (2%,3%) of the diameter at 30% —
+    /// then invokes <paramref name="paintInterior"/> to draw the circle's contents on top. Single pips and coins
+    /// differ ONLY in that interior, so the shadow can never drift between them again.</summary>
+    private void DrawShadowedDisc(DrawingContext dc, Point center, double radius, Action paintInterior)
+    {
+        var tone = new SolidColorBrush(PipBackground("{B}")); tone.Freeze();
+        var shadowCenter = new Point(center.X + radius * 2 * 0.02, center.Y + radius * 2 * 0.03);
+        dc.PushOpacity(0.30);
+        dc.DrawEllipse(tone, null, shadowCenter, radius, radius);
+        dc.Pop();
+        paintInterior();
     }
 
     // A mana pip reduced to just its dark icon as a solid silhouette: we render the pip, key every pixel by
@@ -649,7 +624,13 @@ public sealed class CardRenderer
         {
             var img = _symbols.GetSymbol(t);
             if (img != null)
-                DrawDropShadowedImage(dc, img, new Rect(x, y, size, size));
+            {
+                var rect = new Rect(x, y, size, size);
+                // A pip's circle fills its box (Scryfall mana symbols are r=50 in a 100 box), so its circle is
+                // the rect's incircle — same shared shadow as the coin, interior = the pip image.
+                DrawShadowedDisc(dc, new Point(rect.X + size / 2, rect.Y + size / 2), size / 2,
+                    () => dc.DrawImage(img, rect));
+            }
             x += size * (1 + gap);
         }
     }
