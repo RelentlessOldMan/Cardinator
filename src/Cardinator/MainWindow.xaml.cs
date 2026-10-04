@@ -30,6 +30,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string? _projectFolder;       // the set folder (holds the project file + art/ + out/); null until saved/opened
     private string? _lastExportDir;       // where the last PNG/sheet went, so "Open output folder" opens there
     private string _defaultTemplate = ""; // the set's saved house frame, inherited by new/imported cards
+    private SetProfile _setProfile = new();  // the set's shared metadata defaults (W1), inherited by new/imported cards
     private bool _isExporting;
     private bool _busy;                     // any long/mutating op in flight (gates re-entrancy + conflicts)
     private double _exportProgress;
@@ -418,6 +419,37 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Status = $"Applied changes to {Cards.Count} card(s).";
     }
 
+    /// <summary>W1: edit the set's house defaults (inherited by new/imported cards), optionally applying them
+    /// to existing cards too. Unlike "Set fields on all", these persist on the project.</summary>
+    private void OnSetDefaults(object sender, RoutedEventArgs e)
+    {
+        var dlg = new SetDefaultsWindow(_setProfile, _defaultTemplate, Templates.Select(t => t.Name)) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+
+        _setProfile = dlg.Profile;
+        _defaultTemplate = dlg.DefaultFrame;   // "" clears the house frame
+        MarkDirty();
+
+        if (dlg.ApplyToExisting && Cards.Count > 0)
+        {
+            int changed = Cards.Count(c => _setProfile.ApplyDefaults(c));
+            // The default frame fills cards that don't already have one.
+            if (!string.IsNullOrWhiteSpace(_defaultTemplate))
+                foreach (var c in Cards.Where(c => string.IsNullOrWhiteSpace(c.TemplateName)))
+                    c.TemplateName = _defaultTemplate;
+            CommitHistory();
+            RenderPreview();
+            Status = $"Saved set defaults and filled blanks on {changed} existing card(s).";
+        }
+        else
+        {
+            CommitHistory();
+            Status = _setProfile.IsEmpty && string.IsNullOrWhiteSpace(_defaultTemplate)
+                ? "Cleared set defaults."
+                : "Saved set defaults — new and imported cards will inherit them.";
+        }
+    }
+
     /// <summary>Applies bulk field changes to every card and refreshes the live preview. A null value
     /// leaves that field unchanged; an empty string clears it. Exposed for testing the live re-render.</summary>
     internal void ApplyBulkEdit(string? setCode, string? artist, string? rarity,
@@ -535,6 +567,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (_selectedTemplate != null && string.IsNullOrEmpty(card.TemplateName))
             card.TemplateName = _selectedTemplate.Name;
+        _setProfile.ApplyDefaults(card);   // W1: inherit the set's shared metadata (blank fields only)
         Cards.Add(card);
         SelectedCard = card;
     }
@@ -580,6 +613,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _projectPath = "";
         _projectFolder = null;   // ad-hoc until the first Save sets up a set folder
         _defaultTemplate = "";
+        _setProfile = new SetProfile();
         _artBaseDir = "";
         AddAndSelect(SampleCards.Blank(DefaultTemplateName));
         _loading = false;
@@ -628,6 +662,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _defaultTemplate = !string.IsNullOrWhiteSpace(project.DefaultTemplate)
                                && Templates.Any(t => t.Name == project.DefaultTemplate)
                 ? project.DefaultTemplate : "";
+            // Restore the set's shared metadata defaults (W1); resolve its symbol path back to absolute.
+            _setProfile = project.Profile ?? new SetProfile();
+            if (projFolder != null)
+                _setProfile.SetSymbolPath = CardProject.ResolveArtPath(_setProfile.SetSymbolPath, projFolder);
             SelectedCard = Cards.FirstOrDefault();
             _loading = false;
             Dirty = false;
@@ -701,11 +739,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             try { Directory.CreateDirectory(Path.Combine(projFolder, "out")); } catch { /* best effort */ }
 
             // Serialize with image paths made relative to the set folder (resolved back to absolute on load).
+            // The set-symbol in the profile travels with the folder like card art — store it relative.
+            var savedProfile = _setProfile.Clone();
+            savedProfile.SetSymbolPath = CardProject.RelativeArtPath(savedProfile.SetSymbolPath, projFolder);
+
             var project = new CardProject
             {
                 Name = name,
                 ArtBaseDir = _artBaseDir,
                 DefaultTemplate = DefaultTemplateName,
+                Profile = savedProfile,
                 Cards = Cards.Select(c => CloneWithRelativeArt(c, projFolder)).ToList(),
             };
             project.Save(path);
@@ -849,7 +892,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ExportProgress = 0;
         try
         {
-            foreach (var item in imported) Cards.Add(item.Card);
+            foreach (var item in imported) { _setProfile.ApplyDefaults(item.Card); Cards.Add(item.Card); }   // W1 inherit set defaults
             SelectedCard = imported[0].Card;
             OnPropertyChanged(nameof(ProjectSummary));
 

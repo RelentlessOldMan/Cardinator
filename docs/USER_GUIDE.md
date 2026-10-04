@@ -130,6 +130,10 @@ by card, or import a whole batch.
 - **Look up missing** — fills any card that still has only a name.
 - **Number cards** — assigns collector numbers in list order — `001/N`, `002/N`, … (zero-padded to
   the total's width) — so a whole set is numbered in one click.
+- **Set defaults…** — the set's **house defaults** (set code, rarity, copyright, artist, set-symbol image,
+  and default frame). Every **new or imported** card inherits these for any field it doesn't already have, so
+  you set them once instead of per card. Tick **Also apply to existing cards** to fill blanks on the cards
+  you already have. Defaults are saved with the project.
 - **Set fields on all…** — a bulk editor: set the **set code, artist, rarity, copyright, frame** and
   a **custom set-symbol image** on every card at once (leave a field blank to keep each card's own).
 - **Check all cards** — runs the CHECKS across the whole set and lists every card that needs attention

@@ -84,6 +84,8 @@
                                 ToolTip="Assign collector numbers (001/N …) in list order"/>
                         <Button Content="Check all cards" Click="OnCheckAll" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
                                 ToolTip="Run the checks across the whole set and list every card that needs attention"/>
+                        <Button Content="Set defaults…" Click="OnSetDefaults" Margin="0,0,0,6"
+                                ToolTip="The set's house defaults (set code / rarity / copyright / artist / symbol / frame) that new and imported cards inherit"/>
                         <Button Content="Set fields on all…" Click="OnBulkEdit" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
                                 ToolTip="Set the same set code / artist / rarity / copyright / frame on every card"/>
                         <Button Content="Export all…" Click="OnExportAll" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"/>

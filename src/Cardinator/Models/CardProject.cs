@@ -18,6 +18,10 @@ public sealed class CardProject
     /// <summary>Template applied to imported cards that don't specify one.</summary>
     public string DefaultTemplate { get; set; } = "";
 
+    /// <summary>The set's shared defaults (set code / rarity / copyright / artist / symbol) applied to new
+    /// and imported cards (W1). Always present so callers never null-check it.</summary>
+    public SetProfile Profile { get; set; } = new();
+
     public List<CardModel> Cards { get; set; } = new();
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -38,6 +42,7 @@ public sealed class CardProject
         project.Name ??= "Untitled Project";
         project.ArtBaseDir ??= "";
         project.DefaultTemplate ??= "";
+        project.Profile ??= new SetProfile();
         return project;
     }
 

@@ -250,3 +250,10 @@ the set total) is intended and the User Guide already describes it accurately.
 5. **Big-ticket:** ✅ frames travel with a set — "Share set + frames" zip (`SetPackager`), ✅ whole-set validation report (W4 — "Check all cards" via `SetValidator`) · ☐ set profile (W1), multi-set manager (W8).
 6. **Low batch:** ✅ L1 clear-art resets framing, ✅ L4 duplicate-name CHECK, ✅ L8 load-time missing-art summary, ✅ L2 fuzzy art-match review report, ✅ L5 import skipped-line count, ✅ L7 single-Export in-progress guard, ✅ L10 delete-frame-in-use warning, ✅ L3 re-import duplicate prompt, ✅ L9 corrupt-project backup + friendly dialog, ✅ L11 full-art option on bare-frame import.
 
+### Agreed roadmap (post-1.1.0)
+- ✅ **W1 set profile (done, 1.1.1):** `SetProfile` on the project (set code / rarity / copyright / artist / symbol) + default frame; a **Set defaults…** dialog; new/imported cards inherit blanks; optional apply-to-existing; persisted + back-compat (old files without a profile load fine).
+- ☐ **Multi-sets (W8): will NOT build** — a set is already a self-contained folder; user switches via Save/Open one at a time. Decision: keep the save/load switch safe (unsaved-changes prompt already fires); no manager/recent-list UI.
+- ☐ **M9 double-faced cards (big, after W1):** model a card as one entity with a **front + back face** and a **Flip** toggle in preview/edit; export both sides; print-sheet pairs the real back. Face indicators drawn by us (no WotC assets): **generic flip arrow AND sun/moon (transform)** both selectable per card. Import of a real DFC fills both faces into one card instead of two.
+- ☐ **Horizontal / landscape cards (future, note):** Battles/Sieges, Planes, Schemes use a rotated canvas (≈1050×750). Needs a template **orientation** flag + rotated region layout. **Intersects DFC:** MOM Battle cards are double-faced (horizontal Siege front → vertical creature back), so the two faces can differ in orientation — design DFC's face model to allow a per-face canvas size so this drops in later.
+- ☐ **M5 live RenderInspector** (pixel checks in the live CHECKS panel) and ☐ **M14 bulk-edit on a selection** — fold in around W1.
+
