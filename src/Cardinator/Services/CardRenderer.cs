@@ -770,17 +770,20 @@ public sealed class CardRenderer
     private static void DrawArtPlaceholder(DrawingContext dc, Rect rect)
     {
         dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xEC, 0xED, 0xF0)), null, rect);
+        double maxW = Math.Max(10, rect.Width - 60);
         var ft = new FormattedText(
             "Add art — Change art…, paste, or drag an image in",
             CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
             new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             20, new SolidColorBrush(Color.FromRgb(0xA6, 0xAA, 0xB2)), 1.0)
         {
-            MaxTextWidth = Math.Max(10, rect.Width - 60),
+            MaxTextWidth = maxW,
             TextAlignment = TextAlignment.Center,
             Trimming = TextTrimming.CharacterEllipsis,
         };
-        dc.DrawText(ft, new Point(rect.X + (rect.Width - ft.Width) / 2, rect.Y + (rect.Height - ft.Height) / 2));
+        // Centre the (maxW-wide) text box in the art window; TextAlignment.Center then centres each line
+        // within it. Previously this ALSO shifted by ft.Width — double-centring that pushed the text right.
+        dc.DrawText(ft, new Point(rect.X + (rect.Width - maxW) / 2, rect.Y + (rect.Height - ft.Height) / 2));
     }
 
     /// <summary>Loads (and caches) the decoded art image, keyed by path + file stamp.</summary>

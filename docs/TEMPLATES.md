@@ -73,8 +73,14 @@ on every frame you have installed, including your own imports.)*
 
 ## Tweaking a frame's style
 
-Start from a default and fiddle. Copy a folder under `CardinatorData/templates/`, **delete its
-`frame.png`** (so it regenerates), and edit `template.json`. The handy style knobs:
+**The easy way (no JSON):** select a frame and click **Design…** — mix and match every knob below with
+a live preview, then **Apply**. To keep the original untouched, click **Save as new…** instead: it
+writes a brand-new, fully editable frame under a name you choose. Built-in frames are protected — if you
+**Apply** changes to one, Cardinator offers to save a copy rather than overwrite the shared original, and
+**Delete…** only removes your *own* frames (built-ins would just be recreated on the next launch).
+
+**By hand:** copy a folder under `CardinatorData/templates/`, **delete its `frame.png`** (so it
+regenerates), and edit `template.json`. The handy style knobs:
 
 - **`frameStyle`** — `"classic"` (gradient border + beveled panels), `"clean"` (flat/modern),
   `"ornate"` (metallic band, banner, corner scrollwork + gems, stone texture), `"faded"` (edges
@@ -251,11 +257,12 @@ Cardinator supports two looks, both driven by `template.json`:
 If you have your own frame image (a transparent PNG whose center is the art window), you don't need
 to write JSON by hand:
 
-- **In the app:** click **Import…** next to the Frame dropdown, choose your PNG. Cardinator creates
-  the template and selects it. It writes a starter `template.json` you can then tune. The same
-  **Import…** button also installs a **template bundle** (a `.cardframe` file — see
-  [Sharing templates](#sharing-templates) below), which brings in a frame *with* its tuned regions,
-  fonts and colors already set.
+- **In the app:** click **Import…** beneath the Frame dropdown. The dialog gives you two clear choices:
+  a **Choose file…** button (pick a **PNG**, a **.cardframe**, or a **.zip** bundle from your PC) or a
+  box to **paste a web link**. A bare PNG becomes a template with a starter `template.json` you can tune;
+  a **`.cardframe` / `.zip` bundle** brings in a frame *with* its tuned regions, fonts and colors already
+  set (see [Sharing templates](#sharing-templates) below). Either way the file is **copied into
+  `CardinatorData/templates`**, so you can move or delete the original afterwards.
 - **From a file or URL (command line):**
 
   ```powershell

@@ -33,6 +33,14 @@ public static class RenderInspector
             int i = y * stride + x * 4;
             return px[i] > 240 && px[i + 1] > 240 && px[i + 2] > 240;
         }
+        // The dark fill the renderer paints into an empty/failed art window (CardBacking = RGB 8,8,10).
+        // Matched tightly so genuinely dark ART isn't mistaken for an unfilled window.
+        bool NearArtBacking(int x, int y)
+        {
+            if (x < 0 || y < 0 || x >= w || y >= h) return false;
+            int i = y * stride + x * 4;
+            return px[i] <= 18 && px[i + 1] <= 16 && px[i + 2] <= 16;   // B,G,R of (8,8,10) with a little tolerance
+        }
 
         // --- border thickness on each side (measured at the mid-point, away from the rounded corners) ---
         double scale = w / (double)spec.CanvasWidth;
@@ -55,17 +63,19 @@ public static class RenderInspector
             Side("top", top); Side("bottom", bot); Side("left", left); Side("right", right);
         }
 
-        // --- empty art window (art assigned but the window rendered blank white) ---
+        // --- empty art window (art assigned but the window rendered blank) ---
+        // "Blank" is the window left at its empty state: the old white, OR the dark CardBacking the renderer
+        // now paints so uncovered areas never flash white. Either way means the art didn't draw.
         if (!string.IsNullOrWhiteSpace(card.ArtPath) && spec.ArtWindow != null && spec.ArtWindow.W > 4)
         {
             var aw = spec.ArtWindow;
             int x0 = (int)((aw.X + aw.W * 0.25) * scale), x1 = (int)((aw.X + aw.W * 0.75) * scale);
             int y0 = (int)((aw.Y + aw.H * 0.25) * scale), y1 = (int)((aw.Y + aw.H * 0.75) * scale);
-            int total = 0, white = 0;
+            int total = 0, empty = 0;
             for (int y = y0; y <= y1; y += System.Math.Max(1, (y1 - y0) / 12))
                 for (int x = x0; x <= x1; x += System.Math.Max(1, (x1 - x0) / 12))
-                { total++; if (NearWhite(x, y)) white++; }
-            if (total > 0 && white >= total * 0.92)
+                { total++; if (NearWhite(x, y) || NearArtBacking(x, y)) empty++; }
+            if (total > 0 && empty >= total * 0.92)
                 issues.Add(new(IssueSeverity.Error, "art-blank", "Art is assigned but the art window rendered blank (art failed to load?)."));
         }
 

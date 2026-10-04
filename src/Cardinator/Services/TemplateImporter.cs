@@ -143,7 +143,7 @@ public static class TemplateImporter
     }
 
     /// <summary>Picks a templates/&lt;slug&gt; folder, adding -2, -3… if that slug already exists.</summary>
-    private static string UniqueTemplateDir(string slug)
+    public static string UniqueTemplateDir(string slug)
     {
         var baseDir = Path.Combine(AppPaths.TemplatesDir, slug);
         if (!Directory.Exists(baseDir)) return baseDir;

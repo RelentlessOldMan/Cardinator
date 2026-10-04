@@ -34,6 +34,24 @@ public sealed class TemplateService
         }
     }
 
+    private static HashSet<string>? _builtInSlugs;
+
+    /// <summary>True if <paramref name="slug"/> is a shipped frame — a procedural built-in or a bundled
+    /// raster template. These self-heal on launch, so the UI protects them from deletion.</summary>
+    public static bool IsBuiltIn(string slug)
+    {
+        _builtInSlugs ??= BuildBuiltInSlugSet();
+        return _builtInSlugs.Contains(slug);
+    }
+
+    private static HashSet<string> BuildBuiltInSlugSet()
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var spec in BuiltInTemplates.All()) set.Add(Slug(spec.Name));
+        foreach (var s in SampleTemplates.BundledSlugs()) set.Add(s);
+        return set;
+    }
+
     private IReadOnlyList<Template> LoadAllCore()
     {
         try { EnsureDefaults(); } catch { /* best-effort; enumeration below still tries */ }

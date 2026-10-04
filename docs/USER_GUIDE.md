@@ -23,36 +23,41 @@ export.**
 
 ![Cardinator main window](images/app-main.png)
 
-*Left: your cards + batch tools. Middle: the editor (name/search, frame, artwork, export). Right:
+*Left: your cards + batch tools. Middle: the editor (name, frame, artwork, export). Right:
 the live preview that updates as you type.*
 
-1. **Type a card name** in the box at the top and click **Search** (or press **Ctrl+L**).
-   Cardinator fetches it from Scryfall and fills in the name, mana cost, type, rules text,
-   power/toughness — **and the real card artwork** (pulled from Scryfall) if the card doesn't
-   already have art. You can always swap the art for your own afterwards. *(No internet? Just type
-   the fields yourself — see step 5.)*
-2. **Pick a frame** from the **Frame** dropdown (Crimson Red, Ocean Blue, Forest Green, Gold
-   Multicolor, Slate Artifact, Planeswalker, **Full Art**…). Choose **Full Art** for a card whose
-   text sits directly on the artwork. Click **Design…** next to the dropdown to open the frame
-   designer — mix and match the frame's style, connected panels, textured background, bottom taper,
-   top emblem, royal sub-border, border thickness and colors, all with a **live preview**. Have your
-   own frame image? Click **Import…** to turn a transparent PNG into a template — see
-   [Making your own frames](TEMPLATES.md).
+1. **Name your card.** The **CARD NAME** box is just your card's title — type whatever you like.
+2. **Pick a frame** from the **Frame** dropdown (on its own row so long names aren't clipped), with
+   **Design…**, **Import…**, **Export…** and **Delete…** beneath it. Choose **Full Art** for a card
+   whose text sits directly on the artwork. Click **Design…** to open the frame designer — mix and
+   match the frame's style, connected panels, textured background, bottom taper, top emblem, royal
+   sub-border, border thickness and colors, all with a **live preview** (and **Save as new…** to keep
+   the original). Have your own frame image? Click **Import…** — see
+   [Making your own frames](TEMPLATES.md). Each card remembers its own frame, so a set can mix frames.
 3. **Add your art.** Three easy ways:
    - **Change art…** to browse for an image file, or
-   - **Paste** — copy an image (or an image file, or even an image URL) and click Paste, or
+   - **Paste** — copy an image (including one copied from a web browser), an image file, or an image
+     URL, and click Paste, or
    - **Drag an image file straight onto the window.**
-4. **Position the art.** Drag on the preview to **pan**, scroll to **zoom**. (For fine control,
-   open **Edit details…** and use the Art zoom / Pan sliders.)
+4. **Position the art.** Drag on the preview to **pan**, scroll to **zoom** (hold **Ctrl** for fine
+   zoom). Click the preview, then nudge with the **arrow keys** (hold **Shift** for 10px steps) and
+   zoom with **+ / -**. (The Art zoom / Pan sliders in **Edit details…** work too.)
 5. **Tweak anything** by hand in **Edit details…** — every field is editable, so you can change
    the rules text, add flavor text, set rarity, artist, etc. — or make a completely original card
    with no Scryfall lookup at all.
 
    ![Edit details dialog](images/app-details.png)
-6. **Export PNG…** saves a print-quality **1500×2100** image (into `CardinatorData/output` by
-   default) — pick **PNG or JPEG** in the save dialog. Or click **Copy image** to drop the finished
-   card straight onto your clipboard for pasting into Discord/chat. For print services that need a
-   **bleed margin** or a specific **DPI**, use the `--render` command-line options (see the
+
+   **Borrow a real card's stats:** inside **Edit details…**, use **Fill from Scryfall** — type any
+   real card name and it fills the mana cost, type, rules text, power/toughness and printing info,
+   while leaving your card's **name, art and frame untouched**. (So "Boogie Woogie" can have Lightning
+   Bolt's stats.) *(No internet? Just type the fields yourself.)* **Ctrl+L** still does a quick
+   look-up of the selected card by its own name.
+6. **Export PNG…** saves a print-quality **1500×2100** image — pick **PNG or JPEG** in the save
+   dialog. Exports default to your set's `out` folder (or wherever you last saved one), and **Open
+   output folder** opens that same place. Or click **Copy image** to drop the finished card straight
+   onto your clipboard for pasting into Discord/chat. For print services that need a **bleed margin**
+   or a specific **DPI**, use the `--render` command-line options (see the
    [command-line reference](CLI.md)); there's also a **card back** for double-sided printing
    (`--cardback`).
 
@@ -128,8 +133,13 @@ by card, or import a whole batch.
   a mirrored back page after each front page (flip on the long edge), **No** writes fronts only.
 
 Editing is fully **undoable** (**Ctrl+Z** / **Ctrl+Y**, or the header Undo/Redo buttons), across the
-whole project. Use **New / Open / Save** in the top-right to manage projects. A project is a single
-`.cardinator` file you can re-open and keep editing.
+whole project. Use **New / Open / Save** in the top-right to manage projects.
+
+**Saving a set.** When you **Save**, Cardinator writes a **set folder**: the `.cardinator` project file
+plus an `art/` subfolder (your images are copied in) and an `out/` subfolder (where Export and Print
+sheet default). The whole folder is self-contained — **move, zip or share it** and every card still
+finds its art, because art is stored as a path relative to the folder. A one-off single card needs no
+setup: the folder is only created the first time you save. (Older single-file projects still open fine.)
 
 ---
 

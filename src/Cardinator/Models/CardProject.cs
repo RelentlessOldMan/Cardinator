@@ -46,4 +46,41 @@ public sealed class CardProject
         // Atomic write: a crash/disk-full while overwriting must never corrupt the user's whole project.
         Cardinator.Services.IoUtil.AtomicWriteText(path, JsonSerializer.Serialize(this, JsonOpts));
     }
+
+    // --- portable art paths (per-set folder) -----------------------------------
+    // A saved set is a folder holding the project file + art/ + out/. Art is stored RELATIVE to that folder
+    // so the whole set can be moved/zipped/shared; it's resolved back to absolute when loaded. These are pure
+    // string transforms (no I/O) so they're easy to unit-test.
+
+    /// <summary>The art path to persist: relative to <paramref name="projectFolder"/> when the art lives inside
+    /// it (e.g. "art\foo.png"); otherwise the path is left as-is (absolute, or already relative/empty).</summary>
+    public static string RelativeArtPath(string? artPath, string projectFolder)
+    {
+        if (string.IsNullOrWhiteSpace(artPath)) return artPath ?? "";
+        try
+        {
+            if (!Path.IsPathRooted(artPath)) return artPath;   // already relative — keep
+            var full = Path.GetFullPath(artPath);
+            var root = Path.GetFullPath(projectFolder);
+            var rootPrefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
+            return full.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase)
+                ? Path.GetRelativePath(root, full)
+                : artPath;
+        }
+        catch { return artPath; }
+    }
+
+    /// <summary>The absolute art path to use in memory: a relative stored path is resolved against
+    /// <paramref name="projectFolder"/>; an absolute (or empty) path is returned unchanged.</summary>
+    public static string ResolveArtPath(string? artPath, string projectFolder)
+    {
+        if (string.IsNullOrWhiteSpace(artPath)) return artPath ?? "";
+        try
+        {
+            return Path.IsPathRooted(artPath)
+                ? artPath
+                : Path.GetFullPath(Path.Combine(projectFolder, artPath));
+        }
+        catch { return artPath; }
+    }
 }

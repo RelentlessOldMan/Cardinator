@@ -20,3 +20,7 @@ commit-msg.tmp
 
 # Local MCP server config (machine-specific paths / personal channels)
 .mcp.json
+
+# Test coverage output
+TestResults/
+**/TestResults/

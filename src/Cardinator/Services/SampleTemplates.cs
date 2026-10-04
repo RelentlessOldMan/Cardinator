@@ -16,6 +16,32 @@ public static class SampleTemplates
     private static bool _done;
     private static readonly object _lock = new();
 
+    /// <summary>The slugs of the templates bundled in the exe (e.g. the pcc_* alchemy frames). Used to
+    /// protect them (and the procedural built-ins) from deletion in the UI.</summary>
+    public static IReadOnlyCollection<string> BundledSlugs()
+    {
+        var slugs = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var asm = Assembly.GetExecutingAssembly();
+            foreach (var res in asm.GetManifestResourceNames())
+            {
+                int i = res.IndexOf(Marker, System.StringComparison.Ordinal);
+                if (i < 0) continue;
+                var rest = res[(i + Marker.Length)..];
+
+                string file;
+                if (rest.EndsWith(".frame.png", System.StringComparison.OrdinalIgnoreCase)) file = "frame.png";
+                else if (rest.EndsWith(".template.json", System.StringComparison.OrdinalIgnoreCase)) file = "template.json";
+                else continue;
+                var slug = rest[..^(file.Length + 1)];
+                if (slug.Length > 0) slugs.Add(slug);
+            }
+        }
+        catch { /* best-effort; an empty set just means nothing extra is protected */ }
+        return slugs;
+    }
+
     /// <summary>Writes any bundled template files that aren't already on disk. Safe to call repeatedly.</summary>
     public static void EnsureExtracted()
     {

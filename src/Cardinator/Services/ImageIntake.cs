@@ -1,5 +1,6 @@
 using System.IO;
 using System.Net.Http;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace Cardinator.Services;
@@ -47,6 +48,31 @@ public static class ImageIntake
         var clean = TextUtil.SafeFileName(baseName, "art");
         if (!ext.StartsWith('.')) ext = "." + ext;
         return clean + "-" + ShortId() + ext;
+    }
+
+    /// <summary>
+    /// Fixes a bitmap whose alpha channel is entirely zero — the lossy DIB round-trip you get when pasting
+    /// an image copied from a browser (Chrome/Edge), which otherwise saves/composites as solid black. If any
+    /// pixel is non-transparent the image is returned unchanged; if every pixel is transparent the alpha is
+    /// forced opaque so the real RGB shows. Pure (no clipboard/UI), so it's unit-testable.
+    /// </summary>
+    public static BitmapSource RepairZeroAlpha(BitmapSource src)
+    {
+        BitmapSource bgra = src.Format == PixelFormats.Bgra32
+            ? src
+            : new FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
+
+        int w = bgra.PixelWidth, h = bgra.PixelHeight, stride = w * 4;
+        var px = new byte[h * stride];
+        bgra.CopyPixels(px, stride, 0);
+
+        for (int i = 3; i < px.Length; i += 4)
+            if (px[i] != 0) { if (bgra.CanFreeze) bgra.Freeze(); return bgra; }   // alpha present → leave alone
+
+        for (int i = 3; i < px.Length; i += 4) px[i] = 255;                        // all transparent → opaque
+        var fixedBmp = BitmapSource.Create(w, h, bgra.DpiX, bgra.DpiY, PixelFormats.Bgra32, null, px, stride);
+        fixedBmp.Freeze();
+        return fixedBmp;
     }
 
     /// <summary>Saves a bitmap into the art cache as a PNG and returns its full path.</summary>

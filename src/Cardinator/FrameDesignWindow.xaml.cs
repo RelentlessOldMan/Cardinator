@@ -19,7 +19,7 @@ namespace Cardinator;
 public partial class FrameDesignWindow : Window
 {
     private readonly TemplateSpec _spec;      // a working copy
-    private readonly string _templateDir;
+    private string _templateDir;              // where Apply writes; repointed by "Save as new…" (standalone)
     private readonly SymbolService _symbols = new();
     private readonly CardRenderer _renderer;
     private readonly CardModel _previewCard;
@@ -33,6 +33,10 @@ public partial class FrameDesignWindow : Window
     /// <summary>When opened via Show() (e.g. the --editframe CLI) rather than ShowDialog(): Apply saves
     /// in place and keeps the window open, and Cancel just closes — DialogResult is never touched.</summary>
     public bool Standalone { get; set; }
+
+    /// <summary>True when the open frame is a shipped built-in: Apply then steers the user to "Save as new…"
+    /// rather than silently overwriting a frame that would self-heal on the next launch anyway.</summary>
+    public bool IsBuiltIn { get; set; }
 
     // Custom frames use the baked frame.png as-is — the procedural style knobs don't regenerate it.
     private readonly bool _isCustom;
@@ -286,32 +290,26 @@ public partial class FrameDesignWindow : Window
 
     private void OnApply(object sender, RoutedEventArgs e)
     {
+        // Editing a shipped built-in overwrites the frame everyone starts from (it persists — self-healing
+        // only recreates a built-in that's gone missing). Steer the user to save a new, editable copy that
+        // leaves the original pristine; they can still choose to overwrite.
+        if (IsBuiltIn)
+        {
+            var choice = ConfirmDialog.Show(this, "Built-in frame",
+                $"“{_spec.Name}” is a built-in frame. Saving your own copy keeps the original intact and gives "
+                + "you a frame you can freely edit and delete.",
+                affirmative: "Save as new…", negative: "Overwrite built-in", cancel: "Cancel");
+            if (choice == ConfirmResult.Cancel) return;
+            if (choice == ConfirmResult.Affirmative) { OnSaveAsNew(sender, e); return; }
+            // Negative → fall through and overwrite the built-in in place.
+        }
+
         ReadControlsInto(_spec);
         _spec.Normalize();
 
         try
         {
-            Directory.CreateDirectory(_templateDir);   // in case this is a template with no on-disk folder yet
-            _spec.Save(Path.Combine(_templateDir, "template.json"));
-            var framePath = Path.Combine(_templateDir, "frame.png");
-            if (_isCustom && _frameSrcImage != null && CustomFrameComposer.HasSource(_spec))
-            {
-                // Composited custom frame: rebuild frame.png from the source with the current fit knobs.
-                var srcPath = Path.Combine(_templateDir, _spec.FrameSrc);
-                if (File.Exists(srcPath))
-                {
-                    CustomFrameComposer.Generate(_spec, srcPath, framePath);
-                    try { File.WriteAllText(framePath + ".hash", CustomFrameComposer.FitHash(_spec, srcPath)); } catch { }
-                }
-            }
-            else if (!_isCustom)
-            {
-                // Procedural frames regenerate from the spec, so drop the cache to show the change.
-                if (File.Exists(framePath)) File.Delete(framePath);
-                var hashPath = framePath + ".hash";
-                if (File.Exists(hashPath)) File.Delete(hashPath);
-            }
-            // A plain baked custom frame (no source) keeps its frame.png untouched.
+            WriteTemplate(_templateDir, _templateDir);   // save in place
             AppliedTemplateName = _spec.Name;
             if (Standalone)
             {
@@ -326,6 +324,92 @@ public partial class FrameDesignWindow : Window
             ConfirmDialog.Show(this, "Frame design", "Could not save the template:\n" + ex.Message,
                 affirmative: "OK");
         }
+    }
+
+    /// <summary>Saves the current edits as a BRAND-NEW template folder, leaving the original untouched.
+    /// Prompts for a name, copies the frame's source bytes into the new folder, and selects it.</summary>
+    private void OnSaveAsNew(object sender, RoutedEventArgs e)
+    {
+        ReadControlsInto(_spec);
+        _spec.Normalize();
+
+        var baseName = string.IsNullOrWhiteSpace(_spec.Name) ? "Custom" : _spec.Name;
+        var ask = new InputDialog("Save frame as a new template",
+            "Enter a name for the new frame. Your original frame stays unchanged.",
+            baseName + " copy") { Owner = this };
+        if (ask.ShowDialog() != true) return;
+        var newName = ask.Value;
+        if (newName.Length == 0) { return; }
+
+        try
+        {
+            var srcDir = _templateDir;
+            var newDir = TemplateImporter.UniqueTemplateDir(TextUtil.Slug(newName));
+            _spec.Name = newName;
+            WriteTemplate(newDir, srcDir);               // copies source/frame bytes from srcDir into newDir
+
+            AppliedTemplateName = newName;
+            if (Standalone)
+            {
+                // Keep editing, but now pointed at the new copy so further Applies save to it.
+                _templateDir = newDir;
+                NameBox.Text = newName;
+                Title = $"Frame layout — {newName}";
+                FlashSaved();
+            }
+            else
+                DialogResult = true;   // the main window refreshes its list and selects the new template
+        }
+        catch (Exception ex)
+        {
+            ConfirmDialog.Show(this, "Frame design", "Could not save the new template:\n" + ex.Message,
+                affirmative: "OK");
+        }
+    }
+
+    /// <summary>Writes <see cref="_spec"/> + its frame.png into <paramref name="destDir"/>. When saving a copy
+    /// (destDir != srcDir) the frame's raw source (or baked frame.png) is copied over from <paramref name="srcDir"/>
+    /// so the new template is fully self-contained. Saving in place (destDir == srcDir) behaves exactly as before.</summary>
+    private void WriteTemplate(string destDir, string srcDir)
+    {
+        Directory.CreateDirectory(destDir);   // in case this is a template with no on-disk folder yet
+        bool sameDir = string.Equals(
+            Path.GetFullPath(destDir).TrimEnd(Path.DirectorySeparatorChar),
+            Path.GetFullPath(srcDir).TrimEnd(Path.DirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+        var framePath = Path.Combine(destDir, "frame.png");
+
+        if (_isCustom && _frameSrcImage != null && CustomFrameComposer.HasSource(_spec))
+        {
+            // Composited custom frame: rebuild frame.png from the source with the current fit knobs.
+            var destSrc = Path.Combine(destDir, _spec.FrameSrc);
+            if (!sameDir)
+            {
+                var fromSrc = Path.Combine(srcDir, _spec.FrameSrc);
+                if (File.Exists(fromSrc)) File.Copy(fromSrc, destSrc, overwrite: true);
+            }
+            if (File.Exists(destSrc))
+            {
+                CustomFrameComposer.Generate(_spec, destSrc, framePath);
+                try { File.WriteAllText(framePath + ".hash", CustomFrameComposer.FitHash(_spec, destSrc)); } catch { }
+            }
+        }
+        else if (!_isCustom)
+        {
+            // Procedural frames regenerate from the spec, so drop the cache to show the change.
+            if (File.Exists(framePath)) File.Delete(framePath);
+            var hashPath = framePath + ".hash";
+            if (File.Exists(hashPath)) File.Delete(hashPath);
+        }
+        else if (!sameDir)
+        {
+            // A plain baked custom frame (no source): copy its frame.png into the new folder as-is.
+            var fromFrame = Path.Combine(srcDir, "frame.png");
+            if (File.Exists(fromFrame)) File.Copy(fromFrame, framePath, overwrite: true);
+        }
+        // (same-dir baked custom keeps its existing frame.png untouched — unchanged from before.)
+
+        _spec.Save(Path.Combine(destDir, "template.json"));
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)

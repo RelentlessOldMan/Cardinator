@@ -22,6 +22,21 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="22,18">
             <StackPanel>
+                <TextBlock Text="Fill from Scryfall" Style="{StaticResource GroupHeader}"/>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="SearchBox" Grid.Column="0" Height="34" KeyDown="OnSearchKeyDown"
+                             ToolTip="Type a real card name to pull its stats — this does NOT change your card's name"/>
+                    <Button x:Name="SearchBtn" Grid.Column="1" Content="Search" Margin="8,0,0,0" Height="34"
+                            MinWidth="90" Style="{StaticResource Primary}" Click="OnSearch"/>
+                </Grid>
+                <TextBlock x:Name="SearchStatus"
+                           Text="Looks up a real card and fills the fields below. Your card's name, art and frame are left as-is."
+                           Foreground="{StaticResource Subtle}" FontSize="11" TextWrapping="Wrap" Margin="2,0,0,20"/>
+
                 <TextBlock Text="Card text" Style="{StaticResource GroupHeader}"/>
 
                 <TextBlock Text="Mana cost" Style="{StaticResource SectionLabel}"/>
