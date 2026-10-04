@@ -31,9 +31,11 @@ public static class CardValidator
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Validate one card against its resolved template. Pass the other cards in the project to
-    /// enable cross-card checks (duplicate collector numbers).</summary>
+    /// enable cross-card checks (duplicate collector numbers), and the installed template names to flag a
+    /// card whose frame isn't installed (a set shared without its custom frames).</summary>
     public static IReadOnlyList<ValidationIssue> Validate(
-        CardModel card, TemplateSpec templateSpec, IReadOnlyCollection<CardModel>? project = null)
+        CardModel card, TemplateSpec templateSpec, IReadOnlyCollection<CardModel>? project = null,
+        IReadOnlyCollection<string>? installedTemplates = null)
     {
         var issues = new List<ValidationIssue>();
         var spec = templateSpec.WithSubBorderApplied();   // same regions the renderer actually draws
@@ -51,6 +53,19 @@ public static class CardValidator
             catch { issues.Add(new(IssueSeverity.Error, "art-badpath", $"Artwork path is invalid: {card.ArtPath}", nameof(card.ArtPath))); }
         }
 
+        // Set symbol: if one is assigned but the file is gone, the card silently falls back to a drawn pip.
+        if (!string.IsNullOrWhiteSpace(card.SetSymbolPath))
+        {
+            try { if (!File.Exists(Path.GetFullPath(card.SetSymbolPath))) issues.Add(new(IssueSeverity.Warning, "symbol-missing", $"Set-symbol image not found: {card.SetSymbolPath}", nameof(card.SetSymbolPath))); }
+            catch { issues.Add(new(IssueSeverity.Warning, "symbol-badpath", $"Set-symbol path is invalid: {card.SetSymbolPath}", nameof(card.SetSymbolPath))); }
+        }
+
+        // The frame must still be installed — a set shared/moved without its custom frames would otherwise
+        // render with an arbitrary substitute and no warning.
+        if (installedTemplates != null && !string.IsNullOrWhiteSpace(card.TemplateName)
+            && !installedTemplates.Contains(card.TemplateName))
+            issues.Add(new(IssueSeverity.Error, "frame-missing", $"Frame \"{card.TemplateName}\" isn't installed — the card will render with a substitute frame.", nameof(card.TemplateName)));
+
         // Unknown mana symbols in the cost or rules text.
         foreach (var (val, field) in SymbolTokens(card))
             if (!KnownSymbol.IsMatch(val))
@@ -60,6 +75,14 @@ public static class CardValidator
         bool hasP = !string.IsNullOrWhiteSpace(card.Power), hasT = !string.IsNullOrWhiteSpace(card.Toughness);
         if (hasP ^ hasT)
             issues.Add(new(IssueSeverity.Warning, "half-pt", "Only one of power/toughness is set.", nameof(card.Power)));
+
+        // A loyalty value turns ANY card into a planeswalker layout (hiding the power/toughness box). Flag a
+        // stray loyalty on a non-planeswalker, which otherwise silently hides P/T.
+        if (!string.IsNullOrWhiteSpace(card.Loyalty)
+            && !(card.TypeLine ?? "").Contains("Planeswalker", System.StringComparison.OrdinalIgnoreCase))
+            issues.Add(new(IssueSeverity.Warning, "loyalty-nonplaneswalker",
+                "This card has a loyalty value but isn't a Planeswalker — it renders as one and hides power/toughness.",
+                nameof(card.Loyalty)));
 
         // --- geometry ------------------------------------------------------
         double W = spec.CanvasWidth, H = spec.CanvasHeight;

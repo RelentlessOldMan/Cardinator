@@ -467,7 +467,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        var issues = CardValidator.Validate(card, template.Spec, Cards);
+        var issues = CardValidator.Validate(card, template.Spec, Cards, Templates.Select(t => t.Name).ToList());
         int errors = issues.Count(i => i.Severity == IssueSeverity.Error);
         int warns = issues.Count(i => i.Severity == IssueSeverity.Warning);
 
@@ -898,6 +898,37 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             IsExporting = false;
             Busy = false;
+        }
+    }
+
+    /// <summary>Zips the whole set — project file + art/ + a bundle for each custom frame the cards use — so it
+    /// can be handed to someone else who doesn't have your frames. Requires the project to be saved first.</summary>
+    private void OnExportSetBundle(object sender, RoutedEventArgs e)
+    {
+        if (Cards.Count == 0) { Status = "No cards to share."; return; }
+        if (string.IsNullOrEmpty(_projectPath) || !File.Exists(_projectPath))
+        {
+            Status = "Save the project first — Share set bundles the saved set folder.";
+            return;
+        }
+        var dlg = new SaveFileDialog
+        {
+            Title = "Share set + frames",
+            Filter = "Zip archive (*.zip)|*.zip",
+            FileName = SafeName(_projectName) + "-set.zip",
+            InitialDirectory = DefaultOutputDir(),
+        };
+        if (dlg.ShowDialog() != true) return;
+        try
+        {
+            var names = Cards.Select(c => c.TemplateName).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
+            int frames = SetPackager.ExportSetWithFrames(_projectPath, names, AppPaths.TemplatesDir, dlg.FileName);
+            _lastExportDir = Path.GetDirectoryName(dlg.FileName);
+            Status = $"Shared set to {Path.GetFileName(dlg.FileName)} ({Cards.Count} cards, {frames} custom frame(s) included).";
+        }
+        catch (Exception ex)
+        {
+            Status = "Couldn't share set: " + ex.Message;
         }
     }
 

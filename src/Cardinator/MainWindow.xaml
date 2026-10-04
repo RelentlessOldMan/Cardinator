@@ -85,7 +85,9 @@
                         <Button Content="Set fields on all…" Click="OnBulkEdit" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
                                 ToolTip="Set the same set code / artist / rarity / copyright / frame on every card"/>
                         <Button Content="Export all…" Click="OnExportAll" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"/>
-                        <Button Content="Print sheet…" Click="OnExportSheet" IsEnabled="{Binding CanExport}"/>
+                        <Button Content="Print sheet…" Click="OnExportSheet" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"/>
+                        <Button Content="Share set + frames…" Click="OnExportSetBundle" IsEnabled="{Binding CanExport}"
+                                ToolTip="Zip the whole set (project + art + its custom frames) to send to someone else"/>
                     </StackPanel>
 
                     <Border Background="{StaticResource Bg}" CornerRadius="8" Padding="4">

@@ -234,10 +234,10 @@ These drive the fix backlog.
   Import of a bare frame can't opt into full-art regions.
 
 ### Fix order (each change ships with unit tests + coverlet)
-1. **Portability batch:** H1 set-symbol travels, M11 surface non-localized art, M4 apply DefaultTemplate + inherit.
-2. **Batch-correctness:** M1 Export-all → `out/` + last-dir, M3 dup-collector normalize, M2 Number-cards skip/confirm, M12 per-set output isolation.
-3. **Validation surfacing:** H2/M5 missing-frame + live RenderInspector + M13 set-symbol CHECK, M8 stray-Loyalty CHECK.
+1. ✅ **Portability batch (done, `f919490`):** H1 set-symbol travels, M11 surface non-localized art, M4 apply DefaultTemplate + inherit. *(+ M1 Export-all → `out/` + last-dir, M3 dup-collector normalize)*
+2. **Batch-correctness (partial):** ✅ M1, ✅ M3 (above) · ☐ M2 Number-cards skip/confirm, ☐ M12 per-set output isolation.
+3. ✅ **Validation surfacing (done):** ✅ H2 missing-frame CHECK (+ wired live), ✅ M13 set-symbol CHECK, ✅ M8 stray-Loyalty CHECK · ☐ M5 live RenderInspector (pixel checks) still pending.
 4. **Authoring depth:** H3 card-type editing UI, H4 layout authoring guidance, M7 details Cancel, M6 non-destructive Ctrl+L, M9 DFC handling.
-5. **Big-ticket:** frames travel with a set (W5), whole-set validation report (W4), set profile (W1), multi-set manager (W8).
+5. **Big-ticket:** ✅ frames travel with a set — "Share set + frames" zip (`SetPackager`, decided approach) · ☐ whole-set validation report (W4), set profile (W1), multi-set manager (W8).
 6. **Low batch:** L1–L11 as polish.
 
