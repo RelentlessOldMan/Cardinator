@@ -352,6 +352,35 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnMoveUp(object sender, RoutedEventArgs e) => MoveSelected(-1);
     private void OnMoveDown(object sender, RoutedEventArgs e) => MoveSelected(+1);
 
+    /// <summary>Runs the checks across the whole set, lists every card that needs attention, and jumps to the
+    /// first one — so problems in a big set surface without clicking through each card.</summary>
+    private void OnCheckAll(object sender, RoutedEventArgs e)
+    {
+        if (Cards.Count == 0) { Status = "No cards to check."; return; }
+
+        var names = Templates.Select(t => t.Name).ToList();
+        TemplateSpec ResolveSpec(CardModel c) =>
+            (Templates.FirstOrDefault(t => t.Name == c.TemplateName) ?? Templates.FirstOrDefault())?.Spec
+            ?? new TemplateSpec();
+
+        var problems = SetValidator.ValidateAll(Cards, ResolveSpec, names);
+        if (problems.Count == 0)
+        {
+            Status = $"✓ All {Cards.Count} card(s) pass the checks.";
+            return;
+        }
+
+        const int show = 15;
+        var lines = problems.Take(show).Select(p =>
+            $"• {p.Card.Name}: {p.Issues[0].Message}" + (p.Issues.Count > 1 ? $"  (+{p.Issues.Count - 1} more)" : ""));
+        var more = problems.Count > show ? $"\n…and {problems.Count - show} more card(s)." : "";
+        ConfirmDialog.Show(this, $"{problems.Count} of {Cards.Count} card(s) need attention",
+            string.Join("\n", lines) + more, affirmative: "OK");
+
+        SelectedCard = problems[0].Card;   // jump to the first problem
+        Status = $"{problems.Count} of {Cards.Count} card(s) have issues.";
+    }
+
     /// <summary>Assigns collector numbers in list order: NNN/N (zero-padded to N's width). Guards against
     /// silently clobbering existing (e.g. imported real) numbers — offers renumber-all vs blanks-only.</summary>
     private void OnNumberCards(object sender, RoutedEventArgs e)

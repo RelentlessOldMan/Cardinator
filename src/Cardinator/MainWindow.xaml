@@ -82,6 +82,8 @@
                                 ToolTip="Fetch mana cost, type, rules text and art for cards that don't have them yet"/>
                         <Button Content="Number cards" Click="OnNumberCards" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
                                 ToolTip="Assign collector numbers (001/N …) in list order"/>
+                        <Button Content="Check all cards" Click="OnCheckAll" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
+                                ToolTip="Run the checks across the whole set and list every card that needs attention"/>
                         <Button Content="Set fields on all…" Click="OnBulkEdit" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
                                 ToolTip="Set the same set code / artist / rarity / copyright / frame on every card"/>
                         <Button Content="Export all…" Click="OnExportAll" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"/>
