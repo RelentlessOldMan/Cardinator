@@ -129,6 +129,10 @@ by card, or import a whole batch.
   the total's width) — so a whole set is numbered in one click.
 - **Set fields on all…** — a bulk editor: set the **set code, artist, rarity, copyright, frame** and
   a **custom set-symbol image** on every card at once (leave a field blank to keep each card's own).
+- **Check all cards** — runs the CHECKS across the whole set and lists every card that needs attention
+  (missing art/frame, bad symbol, duplicate/stale number, broken special layout…), then jumps to the first.
+- **Share set + frames…** — zips the whole set (project + `art/` + a bundle for each custom frame the
+  cards use) so you can hand it to someone who doesn't have your frames (save the project first).
 - **Move ↑ / ↓** — reorder the selected card in the list (this is also the print/collector order).
 - **Copy** — duplicate the selected card (the sidebar button next to Add/Delete).
 - **Export all…** — renders every card to PNGs in a folder you choose. Runs in the background
