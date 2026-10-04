@@ -15,7 +15,17 @@ namespace Cardinator;
 /// </summary>
 public partial class App : Application
 {
-    internal const string Version = "Cardinator 1.3";
+    /// <summary>App name + version shown in the header, title bar and Help. Derived from the assembly
+    /// version (set by &lt;Version&gt; in Cardinator.csproj) so there is ONE source of truth that can never
+    /// drift from the real build — critical for correct bug reports.</summary>
+    internal static readonly string Version = "Cardinator " + VersionNumber();
+
+    /// <summary>The three-part build number (e.g. "1.1.4") read from the assembly.</summary>
+    internal static string VersionNumber()
+    {
+        var v = typeof(App).Assembly.GetName().Version;
+        return v is null ? "?" : $"{v.Major}.{v.Minor}.{v.Build}";
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
