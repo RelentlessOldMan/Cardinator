@@ -641,7 +641,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch (Exception ex)
         {
             _loading = false;
-            Status = "Couldn't open project: " + ex.Message;
+            // The file exists but couldn't be parsed — preserve it before the user does anything that
+            // might overwrite it, and point them at the backup (L9).
+            var backup = IoUtil.BackupCorrupt(path);
+            if (backup != null)
+            {
+                ConfirmDialog.Show(this, "Couldn't open project",
+                    $"“{Path.GetFileName(path)}” couldn't be read — it may be corrupt or from a newer version.\n\n"
+                    + $"A copy was saved as “{Path.GetFileName(backup)}” so nothing is lost.\n\n"
+                    + "Details: " + ex.Message, affirmative: "OK");
+                Status = $"Couldn't open project (backed up as {Path.GetFileName(backup)}).";
+            }
+            else
+            {
+                Status = "Couldn't open project: " + ex.Message;
+            }
         }
     }
 

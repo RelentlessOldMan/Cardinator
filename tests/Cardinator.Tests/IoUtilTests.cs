@@ -41,4 +41,35 @@ public class IoUtilTests
         }
         finally { try { Directory.Delete(dir, true); } catch { } }
     }
+
+    [Fact]
+    public void BackupCorrupt_CopiesAsideAndIsIdempotent()   // L9
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "cardinator_io_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "set.cardinator");
+        try
+        {
+            File.WriteAllText(path, "{ broken json");
+            var backup = IoUtil.BackupCorrupt(path);
+
+            Assert.NotNull(backup);
+            Assert.Equal(path + ".corrupt-backup", backup);
+            Assert.Equal("{ broken json", File.ReadAllText(backup!));
+
+            // Calling again must not overwrite the preserved backup even if the original changed.
+            File.WriteAllText(path, "different");
+            var again = IoUtil.BackupCorrupt(path);
+            Assert.Equal(backup, again);
+            Assert.Equal("{ broken json", File.ReadAllText(backup!));   // first copy kept
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
+    }
+
+    [Fact]
+    public void BackupCorrupt_MissingFile_ReturnsNull()   // L9
+    {
+        var missing = Path.Combine(Path.GetTempPath(), "cardinator_nope_" + Guid.NewGuid().ToString("N") + ".cardinator");
+        Assert.Null(IoUtil.BackupCorrupt(missing));
+    }
 }
