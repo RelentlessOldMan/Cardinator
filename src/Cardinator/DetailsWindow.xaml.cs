@@ -33,6 +33,16 @@ public partial class DetailsWindow : Window
 
     private void OnDone(object sender, RoutedEventArgs e) => Close();   // keep edits (they're already live)
 
+    private void OnBrowseArt(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Choose artwork for this face",
+            Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All files|*.*",
+        };
+        if (dlg.ShowDialog() == true) _card.ArtPath = dlg.FileName;   // two-way bound; updates the field + preview
+    }
+
     private void OnCancel(object sender, RoutedEventArgs e)
     {
         _card.CopyFrom(_snapshot);   // discard everything changed in this dialog (incl. a Scryfall fill)

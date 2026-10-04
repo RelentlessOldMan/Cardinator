@@ -127,12 +127,10 @@ public static class SelfTest
             if (report.NotFound.Count > 0)
                 Console.WriteLine("Not found: " + string.Join(", ", report.NotFound));
 
+            // ExportAll renders each card's back face itself (writes -back.png), so no flattening here.
             var models = cards.Select(c => c.Card).ToList();
-            if (report.ExtraBackFaces.Count > 0)
-            {
-                models.AddRange(report.ExtraBackFaces);
-                Console.WriteLine($"Added {report.ExtraBackFaces.Count} double-faced back(s).");
-            }
+            int dfcCount = models.Count(c => c.IsDoubleFaced);
+            if (dfcCount > 0) Console.WriteLine($"{dfcCount} double-faced card(s) — backs export as -back.png.");
 
             if (!string.IsNullOrWhiteSpace(artDir))
             {
@@ -172,9 +170,10 @@ public static class SelfTest
 
             var progress = new Progress<string>(Console.WriteLine);
             var report = Task.Run(() => BatchService.FillFromScryfallAsync(cards, progress)).GetAwaiter().GetResult();
+            if (report.NotFound.Count > 0) Console.WriteLine("Not found: " + string.Join(", ", report.NotFound));
 
-            var models = cards.Select(c => c.Card).ToList();
-            models.AddRange(report.ExtraBackFaces);
+            // Single-sided sheet: expand double-faced cards so both faces get their own printable slot.
+            var models = BatchService.ExpandFaces(cards.Select(c => c.Card).ToList());
             if (!string.IsNullOrWhiteSpace(artDir))
                 Console.WriteLine($"Art match: {ArtMatcher.MatchInto(models, artDir!, false)} card(s).");
 

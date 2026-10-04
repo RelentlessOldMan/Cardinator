@@ -145,6 +145,22 @@
 
                     <Button Content="Edit details…" Click="OnEditDetails" Margin="0,0,0,16"/>
 
+                    <TextBlock Text="DOUBLE-FACED" Style="{StaticResource SectionLabel}"/>
+                    <StackPanel Margin="0,0,0,16">
+                        <UniformGrid Rows="1" Columns="2" Margin="0,0,0,8">
+                            <Button x:Name="DfcToggleBtn" Content="Make double-faced" Click="OnToggleDfc" Margin="0,0,3,0"
+                                    ToolTip="Add or remove a back face (a front/back card that flips)"/>
+                            <Button x:Name="DfcEditBackBtn" Content="Edit back face…" Click="OnEditBackFace" Margin="3,0,0,0"
+                                    ToolTip="Edit the back face's fields and art"/>
+                        </UniformGrid>
+                        <UniformGrid Rows="1" Columns="2">
+                            <Button x:Name="DfcFlipBtn" Content="Show back" Click="OnFlipPreview" Margin="0,0,3,0"
+                                    ToolTip="Flip the preview between the front and back face"/>
+                            <ComboBox x:Name="DfcStyleBox" Margin="3,0,0,0" SelectionChanged="OnDfcStyleChanged"
+                                      ToolTip="Corner indicator drawn on a double-faced card"/>
+                        </UniformGrid>
+                    </StackPanel>
+
                     <TextBlock Text="CHECKS" Style="{StaticResource SectionLabel}"/>
                     <Border Background="{StaticResource Bg}" CornerRadius="8" Padding="10,8" Margin="0,0,0,16">
                         <StackPanel>

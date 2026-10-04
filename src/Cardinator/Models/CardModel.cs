@@ -41,6 +41,8 @@ public sealed class CardModel : INotifyPropertyChanged
     private double _artOffsetX;
     private double _artOffsetY;
     private string _templateName = "";
+    private string _dfcStyle = "";
+    private CardModel? _backFace;
 
     /// <summary>Card title, e.g. "Edward Elric, The Fullmetal Alchemist".</summary>
     public string Name { get => _name; set => Set(ref _name, value); }
@@ -115,6 +117,42 @@ public sealed class CardModel : INotifyPropertyChanged
 
     /// <summary>Name of the template to render with (matches a folder under templates/).</summary>
     public string TemplateName { get => _templateName; set => Set(ref _templateName, value); }
+
+    // --- double-faced cards (DFC) ------------------------------------------------
+
+    /// <summary>The corner indicator for a double-faced card (our own glyphs — no third-party assets):
+    /// "" / "none" = no glyph, "arrow" = a generic flip arrow on both faces, "sunmoon" = a sun on the
+    /// front and a crescent moon on the back. Only drawn when the card is double-faced.</summary>
+    public string DfcStyle
+    {
+        get => _dfcStyle;
+        set { Set(ref _dfcStyle, value); if (_backFace != null) _backFace.DfcStyle = value; }   // keep both faces in sync
+    }
+
+    /// <summary>The optional back face of a double-faced card, or null for a normal single-faced card.
+    /// It is itself a <see cref="CardModel"/> so the entire renderer is reused; the invariant is enforced
+    /// that its own <see cref="BackFace"/> is null (one level only) and <see cref="IsBackFace"/> is true.
+    /// Set-level fields (set code, collector number, rarity, copyright) are the front's; the back inherits
+    /// them at render/export time.</summary>
+    public CardModel? BackFace
+    {
+        get => _backFace;
+        set
+        {
+            if (value != null) { value._backFace = null; value.IsBackFace = true; value._dfcStyle = _dfcStyle; }
+            Set(ref _backFace, value);
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDoubleFaced)));
+        }
+    }
+
+    /// <summary>Transient: true on a back-face card so the renderer draws the back glyph (moon) rather than
+    /// the front glyph. Implied by being a <see cref="BackFace"/>, so it is never persisted.</summary>
+    [JsonIgnore]
+    public bool IsBackFace { get; set; }
+
+    /// <summary>True when this card has a back face (is double-faced).</summary>
+    [JsonIgnore]
+    public bool IsDoubleFaced => _backFace != null;
 
     /// <summary>
     /// Scryfall art URL from the last lookup (the "art crop"), used to offer real art from the
@@ -203,7 +241,8 @@ public sealed class CardModel : INotifyPropertyChanged
     public void CopyFrom(CardModel other)
     {
         foreach (var p in typeof(CardModel).GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            if (p.CanRead && p.CanWrite && p.GetIndexParameters().Length == 0)
+            if (p.CanRead && p.CanWrite && p.GetIndexParameters().Length == 0
+                && p.Name != nameof(IsBackFace))   // transient role flag — a cloned snapshot has it cleared; never copy it
                 p.SetValue(this, p.GetValue(other));
     }
 

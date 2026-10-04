@@ -129,8 +129,18 @@ public static class SheetExporter
             }, mirror: false);
             pages.Add(front);
 
-            var backPage = RenderPage(page, marginX, marginY, gridW, gridH,
-                slot => pageStart + slot < cards.Count ? back : null, mirror: true);
+            var backPage = RenderPage(page, marginX, marginY, gridW, gridH, slot =>
+            {
+                int index = pageStart + slot;
+                if (index >= cards.Count) return null;
+                // A double-faced card prints its REAL back face; everything else gets the generic card back.
+                if (cards[index].BackFace is { } bf)
+                {
+                    var bt = (bf.TemplateName is { Length: > 0 } n && byName.TryGetValue(n, out var t)) ? t : fallback;
+                    return renderer.RenderToBitmap(bf, bt, supersample: 1);
+                }
+                return back;
+            }, mirror: true);
             pages.Add(backPage);
 
             progress?.Report($"Composed sheet {p + 1}/{pageCount} (front + back)");

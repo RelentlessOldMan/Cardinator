@@ -16,6 +16,34 @@ public class BatchSheetTests
     };
 
     [Fact]
+    public void ExportAll_WritesBackFacePng_ForDoubleFacedCard()   // DFC
+        => TestHelpers.RunSta(() =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "cardinator_dfc_batch_" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var templates = new TemplateService().LoadAll();
+                var cards = new List<CardModel>
+                {
+                    new()
+                    {
+                        Name = "Werewolf", TypeLine = "Creature — Human", Power = "2", Toughness = "2",
+                        TemplateName = templates[0].Name, DfcStyle = "sunmoon",
+                        BackFace = new CardModel { Name = "Nightform", TypeLine = "Creature — Werewolf", Power = "4", Toughness = "4" },
+                    },
+                };
+
+                var result = BatchService.ExportAll(cards, templates, dir, new SymbolService());
+
+                Assert.Equal(1, result.Exported);
+                var files = Directory.GetFiles(dir, "*.png").Select(Path.GetFileName).ToList();
+                Assert.Contains(files, f => f!.EndsWith("_werewolf.png"));
+                Assert.Contains(files, f => f!.EndsWith("_werewolf-back.png"));   // the back face too
+            }
+            finally { try { Directory.Delete(dir, true); } catch { } }
+        });
+
+    [Fact]
     public void ExportAll_WritesOnePngPerCard_AtFullResolution()
         => TestHelpers.RunSta(() =>
         {

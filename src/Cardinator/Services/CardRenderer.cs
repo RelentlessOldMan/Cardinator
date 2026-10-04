@@ -128,6 +128,103 @@ public sealed class CardRenderer
 
         if (footerPlacement == "border")
             DrawFooter(dc, card, spec, onBorder: true);
+
+        DrawDfcIndicator(dc, card, spec, W, H);
+    }
+
+    /// <summary>Draws the double-faced corner indicator (our own glyphs — no third-party assets): a generic
+    /// flip arrow on both faces ("arrow"), or a sun on the front and a crescent moon on the back ("sunmoon").
+    /// A small round badge in the top-left corner, over the border so it's visible on any style.</summary>
+    /// <summary>The top-left badge (center, radius) for the DFC indicator, or null when the card shows none.
+    /// Shared by the drawing and by the title layout, which indents past it so the name isn't covered.</summary>
+    private static (Point c, double r)? DfcBadge(CardModel card, TemplateSpec spec)
+    {
+        var style = (card.DfcStyle ?? "").Trim().ToLowerInvariant();
+        bool isDfc = card.IsDoubleFaced || card.IsBackFace;
+        if (!isDfc || style is "" or "none") return null;
+        double W = spec.CanvasWidth;
+        double r = W * 0.034;
+        double t = Math.Max(0, spec.BorderThickness);
+        return (new Point(t + r + W * 0.012, t + r + W * 0.012), r);
+    }
+
+    private static void DrawDfcIndicator(DrawingContext dc, CardModel card, TemplateSpec spec, double W, double H)
+    {
+        var badge = DfcBadge(card, spec);
+        if (badge is null) return;
+        var (c, r) = badge.Value;
+        var style = (card.DfcStyle ?? "").Trim().ToLowerInvariant();
+
+        // Badge: dark translucent disc with a soft light rim, so it reads on art or frame alike.
+        var badgeFill = new SolidColorBrush(Color.FromArgb(0xDD, 0x18, 0x18, 0x1C));
+        var rim = new Pen(new SolidColorBrush(Color.FromArgb(0xFF, 0xED, 0xE6, 0xD0)), Math.Max(1.5, r * 0.10));
+        dc.DrawEllipse(badgeFill, rim, c, r, r);
+
+        if (style == "sunmoon")
+        {
+            if (card.IsBackFace) DrawMoon(dc, c, r); else DrawSun(dc, c, r);
+        }
+        else // "arrow" (or any unknown style falls back to the universal flip cue)
+        {
+            DrawFlipArrow(dc, c, r);
+        }
+    }
+
+    private static void DrawSun(DrawingContext dc, Point c, double r)
+    {
+        var gold = new SolidColorBrush(Color.FromRgb(0xF0, 0xCB, 0x5A));
+        double disc = r * 0.42;
+        dc.DrawEllipse(gold, null, c, disc, disc);
+        var ray = new Pen(gold, Math.Max(1.4, r * 0.11)) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+        for (int i = 0; i < 8; i++)
+        {
+            double a = i * Math.PI / 4;
+            var p1 = new Point(c.X + Math.Cos(a) * disc * 1.35, c.Y + Math.Sin(a) * disc * 1.35);
+            var p2 = new Point(c.X + Math.Cos(a) * r * 0.82, c.Y + Math.Sin(a) * r * 0.82);
+            dc.DrawLine(ray, p1, p2);
+        }
+    }
+
+    private static void DrawMoon(DrawingContext dc, Point c, double r)
+    {
+        var silver = new SolidColorBrush(Color.FromRgb(0xE8, 0xEC, 0xF2));
+        double mr = r * 0.62;
+        var full = new EllipseGeometry(c, mr, mr);
+        // Subtract an offset disc to carve the crescent.
+        var cut = new EllipseGeometry(new Point(c.X + mr * 0.55, c.Y - mr * 0.18), mr * 0.92, mr * 0.92);
+        var crescent = new CombinedGeometry(GeometryCombineMode.Exclude, full, cut);
+        crescent.Freeze();
+        dc.DrawGeometry(silver, null, crescent);
+    }
+
+    private static void DrawFlipArrow(DrawingContext dc, Point c, double r)
+    {
+        // Two curved arrows forming a circular "this transforms" cue.
+        var brush = new SolidColorBrush(Color.FromRgb(0xED, 0xE6, 0xD0));
+        var pen = new Pen(brush, Math.Max(1.6, r * 0.14)) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+        double ar = r * 0.5;
+        for (int half = 0; half < 2; half++)
+        {
+            double sweepStart = half == 0 ? -40 : 140;   // two opposing ~150° arcs
+            double a0 = sweepStart * Math.PI / 180, a1 = (sweepStart + 150) * Math.PI / 180;
+            var start = new Point(c.X + Math.Cos(a0) * ar, c.Y + Math.Sin(a0) * ar);
+            var end = new Point(c.X + Math.Cos(a1) * ar, c.Y + Math.Sin(a1) * ar);
+            var fig = new PathFigure { StartPoint = start };
+            fig.Segments.Add(new ArcSegment(end, new Size(ar, ar), 0, true, SweepDirection.Clockwise, true));
+            var geo = new PathGeometry(); geo.Figures.Add(fig); geo.Freeze();
+            dc.DrawGeometry(null, pen, geo);
+            // Arrowhead at the end of each arc, tangent to the circle.
+            double tan = a1 + Math.PI / 2;
+            double hs = r * 0.26;
+            var tip = new Point(end.X + Math.Cos(tan) * hs * 0.2, end.Y + Math.Sin(tan) * hs * 0.2);
+            var b1 = new Point(end.X + Math.Cos(tan + 2.4) * hs, end.Y + Math.Sin(tan + 2.4) * hs);
+            var b2 = new Point(end.X + Math.Cos(tan - 2.4) * hs, end.Y + Math.Sin(tan - 2.4) * hs);
+            var head = new PathFigure { StartPoint = tip, IsClosed = true };
+            head.Segments.Add(new LineSegment(b1, false));
+            head.Segments.Add(new LineSegment(b2, false));
+            var hg = new PathGeometry(); hg.Figures.Add(head); hg.Freeze();
+            dc.DrawGeometry(brush, null, hg);
+        }
     }
 
     /// <summary>The chunky black card edge every real card has — drawn last, over all styles.</summary>
@@ -892,12 +989,16 @@ public sealed class CardRenderer
 
         // Title, left-aligned, auto-shrunk to fit remaining width. Keep a clear gap before the mana
         // symbols so the name never crowds them (the title only ever shrinks, never grows past default).
+        // When a double-faced indicator sits in the top-left, indent the name past it so it isn't covered.
+        double titleLeft = bar.X + pad;
+        if (DfcBadge(card, spec) is { } b && b.c.X + b.r + 10 > titleLeft)
+            titleLeft = b.c.X + b.r + 10;
         double titleManaGap = 22;
-        double titleMaxW = (manaWidth > 0 ? manaX - titleManaGap : bar.Right - pad) - (bar.X + pad);
+        double titleMaxW = (manaWidth > 0 ? manaX - titleManaGap : bar.Right - pad) - titleLeft;
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(spec.TitleFont.Color));
         var ft = FitText(card.Name, spec.TitleFont, spec.TitleFont.Size, 16, titleMaxW, brush);
         double ty = bar.Y + (bar.Height - ft.Height) / 2;
-        DrawGlyphRun(dc, ft, new Point(bar.X + pad, ty), spec.TitleFont);
+        DrawGlyphRun(dc, ft, new Point(titleLeft, ty), spec.TitleFont);
     }
 
     /// <summary>A small dark name-plate under the title holding the card's subtitle (drawn only when set).

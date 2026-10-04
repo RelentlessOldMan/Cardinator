@@ -31,6 +31,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string? _lastExportDir;       // where the last PNG/sheet went, so "Open output folder" opens there
     private string _defaultTemplate = ""; // the set's saved house frame, inherited by new/imported cards
     private SetProfile _setProfile = new();  // the set's shared metadata defaults (W1), inherited by new/imported cards
+    private bool _viewingBack;                // DFC: preview is showing the back face (preview-only flip)
     private bool _isExporting;
     private bool _busy;                     // any long/mutating op in flight (gates re-entrancy + conflicts)
     private double _exportProgress;
@@ -81,9 +82,100 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Dirty = false;
         SeedHistory();
 
+        DfcStyleBox.ItemsSource = DfcStyleOptions;
+        RefreshDfcControls();
+
         // Download authentic Scryfall symbols in the background; re-render as they arrive.
         _symbols.Updated += OnSymbolsUpdated;
         _ = _symbols.PrimeAsync();
+    }
+
+    // --- double-faced cards (DFC) -------------------------------------------
+
+    /// <summary>Display label ↔ stored DfcStyle value for the indicator dropdown.</summary>
+    private sealed record DfcStyleOption(string Label, string Value) { public override string ToString() => Label; }
+    private static readonly DfcStyleOption[] DfcStyleOptions =
+    {
+        new("No indicator", "none"),
+        new("Flip arrow", "arrow"),
+        new("Sun / moon", "sunmoon"),
+    };
+
+    private bool _syncingDfcControls;
+
+    /// <summary>Syncs the DFC buttons + style dropdown to the selected card's state.</summary>
+    private void RefreshDfcControls()
+    {
+        _syncingDfcControls = true;
+        try
+        {
+            bool dfc = _selectedCard?.IsDoubleFaced == true;
+            DfcToggleBtn.Content = dfc ? "Remove back face" : "Make double-faced";
+            DfcEditBackBtn.IsEnabled = dfc;
+            DfcFlipBtn.IsEnabled = dfc;
+            DfcFlipBtn.Content = _viewingBack ? "Show front" : "Show back";
+            var style = (_selectedCard?.DfcStyle ?? "").Trim().ToLowerInvariant();
+            if (style.Length == 0) style = "none";
+            DfcStyleBox.SelectedItem = DfcStyleOptions.FirstOrDefault(o => o.Value == style) ?? DfcStyleOptions[0];
+        }
+        finally { _syncingDfcControls = false; }
+    }
+
+    private void OnToggleDfc(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCard == null) return;
+        if (_selectedCard.IsDoubleFaced)
+        {
+            if (ConfirmDialog.Show(this, "Remove back face",
+                    $"Remove the back face “{_selectedCard.BackFace!.Name}”? This can't be undone except with Undo.",
+                    affirmative: "Remove", cancel: "Cancel") != ConfirmResult.Affirmative)
+                return;
+            _selectedCard.BackFace = null;
+            _viewingBack = false;
+            Status = "Removed the back face.";
+        }
+        else
+        {
+            // New blank back face inheriting the front's frame + set defaults, so it's ready to edit.
+            var back = new CardModel { TemplateName = _selectedCard.TemplateName };
+            _setProfile.ApplyDefaults(back);
+            if (string.IsNullOrWhiteSpace(_selectedCard.DfcStyle)) _selectedCard.DfcStyle = "sunmoon";   // a sensible default glyph
+            _selectedCard.BackFace = back;
+            Status = "Added a back face — use “Edit back face…”. Click “Show back” to preview it.";
+        }
+        MarkDirty();
+        CommitHistory();
+        RefreshDfcControls();
+        RenderPreview();
+    }
+
+    private void OnEditBackFace(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCard?.BackFace == null) return;
+        new DetailsWindow(_selectedCard.BackFace, _scryfall) { Owner = this }.ShowDialog();
+        MarkDirty();
+        CommitHistory();
+        RenderPreview();
+    }
+
+    private void OnFlipPreview(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCard?.BackFace == null) return;
+        _viewingBack = !_viewingBack;
+        RefreshDfcControls();
+        RenderPreview();
+    }
+
+    private void OnDfcStyleChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingDfcControls || _selectedCard == null) return;
+        if (DfcStyleBox.SelectedItem is DfcStyleOption opt && _selectedCard.DfcStyle != opt.Value)
+        {
+            _selectedCard.DfcStyle = opt.Value;   // setter also syncs the back face
+            MarkDirty();
+            QueueUndoCommit();
+            RenderPreview();
+        }
     }
 
     // --- bindable state -----------------------------------------------------
@@ -98,6 +190,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             if (_selectedCard != null) _selectedCard.PropertyChanged -= OnCardChanged;
             _selectedCard = value;
+            _viewingBack = false;   // always start a newly-selected card on its front face
             if (_selectedCard != null)
             {
                 _selectedCard.PropertyChanged += OnCardChanged;
@@ -107,11 +200,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasSelection));
             OnPropertyChanged(nameof(CanEditSelected));
+            RefreshDfcControls();
             RenderPreview();
         }
     }
 
     public bool HasSelection => _selectedCard != null;
+
+    /// <summary>The face the preview currently shows — the back when flipped (DFC), otherwise the front.</summary>
+    private CardModel? ActiveFace =>
+        _viewingBack && _selectedCard?.BackFace != null ? _selectedCard.BackFace : _selectedCard;
+
+    /// <summary>The loaded template a given face renders with (its own frame, falling back to the current one).</summary>
+    private Template? TemplateFor(CardModel card) =>
+        Templates.FirstOrDefault(t => t.Name == card.TemplateName) ?? _selectedTemplate ?? Templates.FirstOrDefault();
 
     /// <summary>Short app version shown in the header (e.g. "v1.1.4"), so the running build is obvious.</summary>
     public string AppVersion => "v" + App.VersionNumber();
@@ -539,34 +641,35 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// <see cref="RenderInspector"/> for the CHECKS panel (M5). Skipped during live drag to stay smooth.</param>
     private void RenderPreview(bool inspect)
     {
-        if (_selectedCard == null) { PreviewImage = null; UpdateValidation(null); return; }
-        var template = _selectedTemplate ?? Templates.FirstOrDefault();
+        var card = ActiveFace;
+        if (card == null) { PreviewImage = null; UpdateValidation(null); return; }
+        var template = TemplateFor(card);
         if (template == null) return;
         BitmapSource? inspectBmp = null;
         try
         {
-            PreviewImage = _renderer.RenderToBitmap(_selectedCard, template, supersample: 1, previewHints: true);
+            PreviewImage = _renderer.RenderToBitmap(card, template, supersample: 1, previewHints: true);
             // A clean render (no placeholder hint) so the pixel inspector sees the true art window / border.
             if (inspect)
-                inspectBmp = _renderer.RenderToBitmap(_selectedCard, template, supersample: 1, previewHints: false);
+                inspectBmp = _renderer.RenderToBitmap(card, template, supersample: 1, previewHints: false);
         }
         catch (Exception ex)
         {
             Status = "Preview error: " + ex.Message;
         }
-        UpdateValidation(inspectBmp);
+        UpdateValidation(inspectBmp, card, template);
     }
 
-    private void UpdateValidation() => UpdateValidation(null);
+    private void UpdateValidation() => UpdateValidation(null, null, null);
 
-    /// <summary>Runs the automated checks on the selected card and updates the CHECKS panel — the friend sees
+    /// <summary>Runs the automated checks on the active face and updates the CHECKS panel — the friend sees
     /// problems (missing art, bad symbols, overlaps, duplicate collector numbers) as they happen, not on
     /// export. When <paramref name="inspectBmp"/> is supplied, the pixel-level checks (blank art window,
     /// missing/thin border) are merged in too (M5).</summary>
-    private void UpdateValidation(BitmapSource? inspectBmp)
+    private void UpdateValidation(BitmapSource? inspectBmp, CardModel? face = null, Template? faceTemplate = null)
     {
-        var card = _selectedCard;
-        var template = _selectedTemplate ?? Templates.FirstOrDefault();
+        var card = face ?? ActiveFace;
+        var template = faceTemplate ?? (card != null ? TemplateFor(card) : null);
         if (card == null || template == null)
         {
             ValidationSummary = ""; ValidationDetails = ""; HasValidationIssues = false;
@@ -978,14 +1081,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var progress = new Progress<string>(s => Status = s);
             var percent = new Progress<double>(p => ExportProgress = p * 100);
             var report = await BatchService.FillFromScryfallAsync(imported, progress, percent: percent);
-            foreach (var back in report.ExtraBackFaces) Cards.Add(back);
             _ = _symbols.PrimeAsync(Cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
             MarkDirty();
             CommitHistory();   // fields filled on non-selected cards don't trip OnCardChanged, so commit explicitly
             RenderPreview();
             OnPropertyChanged(nameof(ProjectSummary));
+            int dfc = imported.Count(i => i.Card.IsDoubleFaced);   // DFCs now import as one card with a back face
             Status = $"Imported {imported.Count} card(s). Scryfall filled {report.Filled}"
-                     + (report.ExtraBackFaces.Count > 0 ? $" (+{report.ExtraBackFaces.Count} back face)" : "")
+                     + (dfc > 0 ? $" ({dfc} double-faced)" : "")
                      + (report.NotFound.Count > 0 ? $"; {report.NotFound.Count} not found" : "")
                      + (skipped > 0 ? $"; skipped {skipped} unreadable line(s)" : "")
                      + ".";
@@ -1056,14 +1159,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var progress = new Progress<string>(s => Status = s);
             var percent = new Progress<double>(p => ExportProgress = p * 100);
             var report = await BatchService.FillFromScryfallAsync(items, progress, percent: percent);
-            foreach (var back in report.ExtraBackFaces) Cards.Add(back);
             _ = _symbols.PrimeAsync(Cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
             MarkDirty();
             CommitHistory();   // fields filled in place don't trip OnCardChanged for non-selected cards
             RenderPreview();
             OnPropertyChanged(nameof(ProjectSummary));
+            int dfc = items.Count(i => i.Card.IsDoubleFaced);   // DFCs fill as one card with a back face
             Status = $"Filled {report.Filled} card(s)"
-                     + (report.ExtraBackFaces.Count > 0 ? $" (+{report.ExtraBackFaces.Count} back face)" : "")
+                     + (dfc > 0 ? $" ({dfc} double-faced)" : "")
                      + (report.NotFound.Count > 0 ? $"; {report.NotFound.Count} not found." : ".");
         }
         catch (Exception ex)
@@ -1186,7 +1289,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 var pages = doubleSided
                     ? SheetExporter.ComposeDoubleSided(cardsSnapshot, templatesSnapshot, symbols, PageSpec.Letter, BackRenderer.Render(supersample: 1), strProgress)
-                    : SheetExporter.Compose(cardsSnapshot, templatesSnapshot, symbols, PageSpec.Letter, strProgress);
+                    // Single-sided: expand DFC cards so both faces get a printable slot.
+                    : SheetExporter.Compose(BatchService.ExpandFaces(cardsSnapshot), templatesSnapshot, symbols, PageSpec.Letter, strProgress);
                 return SheetExporter.Save(pages, folder);
             });
             ExportProgress = 100;
@@ -1534,22 +1638,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// into the portable art cache so the project stays self-contained if the source later moves.</summary>
     private void SetArt(string path)
     {
-        if (_selectedCard == null) return;
+        var card = ActiveFace;
+        if (card == null) return;
         var local = ImageIntake.EnsureLocalCopy(path);
-        _selectedCard.ArtPath = local;
-        _selectedCard.ArtScale = 1.0;
-        _selectedCard.ArtOffsetX = 0;
-        _selectedCard.ArtOffsetY = 0;
-        Status = "Loaded art: " + Path.GetFileName(local);
+        card.ArtPath = local;
+        card.ArtScale = 1.0;
+        card.ArtOffsetX = 0;
+        card.ArtOffsetY = 0;
+        Status = "Loaded art: " + Path.GetFileName(local) + (_viewingBack ? " (back face)" : "");
     }
 
     private void OnClearArt(object sender, RoutedEventArgs e)
     {
-        if (_selectedCard == null) return;
-        _selectedCard.ArtPath = "";
-        _selectedCard.ArtScale = 1.0;   // reset framing too, matching Change art… (so stale pan/zoom isn't reused)
-        _selectedCard.ArtOffsetX = 0;
-        _selectedCard.ArtOffsetY = 0;
+        var card = ActiveFace;
+        if (card == null) return;
+        card.ArtPath = "";
+        card.ArtScale = 1.0;   // reset framing too, matching Change art… (so stale pan/zoom isn't reused)
+        card.ArtOffsetX = 0;
+        card.ArtOffsetY = 0;
     }
 
     private void OnExport(object sender, RoutedEventArgs e)
@@ -1571,12 +1677,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var bmp = _renderer.RenderToBitmap(_selectedCard, template, supersample: 2);
             CardExporter.Save(bmp, dlg.FileName);   // PNG or JPEG by extension
             _lastExportDir = Path.GetDirectoryName(dlg.FileName);   // so "Open output folder" opens here
-            Status = $"Exported {Path.GetFileName(dlg.FileName)} ({bmp.PixelWidth}x{bmp.PixelHeight}).";
+
+            // Double-faced: write the back alongside as "<name>-back<ext>".
+            if (_selectedCard.BackFace is { } back)
+            {
+                var backPath = BackFacePath(dlg.FileName);
+                CardExporter.Save(_renderer.RenderToBitmap(back, TemplateFor(back) ?? template, supersample: 2), backPath);
+                Status = $"Exported {Path.GetFileName(dlg.FileName)} + {Path.GetFileName(backPath)} (front & back).";
+            }
+            else
+            {
+                Status = $"Exported {Path.GetFileName(dlg.FileName)} ({bmp.PixelWidth}x{bmp.PixelHeight}).";
+            }
         }
         catch (Exception ex)
         {
             Status = "Export failed: " + ex.Message;
         }
+    }
+
+    /// <summary>Turns "…/Name.png" into "…/Name-back.png" for a double-faced card's second side.</summary>
+    private static string BackFacePath(string frontPath)
+    {
+        var dir = Path.GetDirectoryName(frontPath) ?? "";
+        return Path.Combine(dir, Path.GetFileNameWithoutExtension(frontPath) + "-back" + Path.GetExtension(frontPath));
     }
 
     // --- drag-to-pan / wheel-zoom art on the preview ------------------------
@@ -1589,7 +1713,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnPreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         PreviewImageControl.Focus();   // so the arrow keys nudge the art after you click the preview
-        if (_selectedCard == null || string.IsNullOrWhiteSpace(_selectedCard.ArtPath)) return;
+        if (ActiveFace is not { ArtPath: { Length: > 0 } }) return;
         _isPanning = true;
         _panStart = e.GetPosition(PreviewImageControl);
         PreviewImageControl.CaptureMouse();
@@ -1597,13 +1721,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnPreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (!_isPanning || _selectedCard == null) return;
+        var card = ActiveFace;
+        if (!_isPanning || card == null) return;
         var p = e.GetPosition(PreviewImageControl);
         var (w, h) = DisplayedCardSize();
         if (w <= 0 || h <= 0) return;
 
-        _selectedCard.ArtOffsetX = Clamp(_selectedCard.ArtOffsetX + (p.X - _panStart.X) / w, -0.5, 0.5);
-        _selectedCard.ArtOffsetY = Clamp(_selectedCard.ArtOffsetY + (p.Y - _panStart.Y) / h, -0.5, 0.5);
+        card.ArtOffsetX = Clamp(card.ArtOffsetX + (p.X - _panStart.X) / w, -0.5, 0.5);
+        card.ArtOffsetY = Clamp(card.ArtOffsetY + (p.Y - _panStart.Y) / h, -0.5, 0.5);
         _panStart = p;
         RenderPreviewLive();   // live feedback while dragging (the debounce timer alone never fires mid-drag)
     }
@@ -1617,30 +1742,33 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnPreviewWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
     {
-        if (_selectedCard == null || string.IsNullOrWhiteSpace(_selectedCard.ArtPath)) return;
+        var card = ActiveFace;
+        if (card is not { ArtPath: { Length: > 0 } }) return;
         // Finer by default; Ctrl = ultra-fine, Shift = coarse. (Was a fixed 0.08/notch — too jumpy.)
         var mods = System.Windows.Input.Keyboard.Modifiers;
         double per = mods.HasFlag(System.Windows.Input.ModifierKeys.Control) ? 0.01
                    : mods.HasFlag(System.Windows.Input.ModifierKeys.Shift) ? 0.08
                    : 0.03;
-        _selectedCard.ArtScale = Clamp(_selectedCard.ArtScale + e.Delta / 120.0 * per, 0.5, 3.0);
+        card.ArtScale = Clamp(card.ArtScale + e.Delta / 120.0 * per, 0.5, 3.0);
         RenderPreviewLive();
     }
 
     /// <summary>Nudges the art by a fraction of the card (dx/dy in 0..1 card-space). Used by the arrow keys.</summary>
     private void NudgeArt(double dx, double dy)
     {
-        if (_selectedCard == null) return;
-        _selectedCard.ArtOffsetX = Clamp(_selectedCard.ArtOffsetX + dx, -0.5, 0.5);
-        _selectedCard.ArtOffsetY = Clamp(_selectedCard.ArtOffsetY + dy, -0.5, 0.5);
+        var card = ActiveFace;
+        if (card == null) return;
+        card.ArtOffsetX = Clamp(card.ArtOffsetX + dx, -0.5, 0.5);
+        card.ArtOffsetY = Clamp(card.ArtOffsetY + dy, -0.5, 0.5);
         RenderPreview();
     }
 
     /// <summary>Zooms the art by a small step (used by the +/- keys).</summary>
     private void ZoomArt(double delta)
     {
-        if (_selectedCard == null) return;
-        _selectedCard.ArtScale = Clamp(_selectedCard.ArtScale + delta, 0.5, 3.0);
+        var card = ActiveFace;
+        if (card == null) return;
+        card.ArtScale = Clamp(card.ArtScale + delta, 0.5, 3.0);
         RenderPreview();
     }
 
@@ -1680,7 +1808,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// <summary>Pastes art from the clipboard: a bitmap, a copied image file, or an image URL.</summary>
     private async Task PasteArtAsync()
     {
-        if (_selectedCard == null) return;
+        if (ActiveFace == null) return;
         try
         {
             // A real bitmap on the clipboard (e.g. a browser's "Copy image"). Read it robustly: the plain
@@ -1787,7 +1915,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             var image = files.FirstOrDefault(ImageIntake.LooksLikeImagePath);
             if (image == null) { Status = "That file type isn't an image, project, or card list."; return; }
-            if (_selectedCard == null) { Status = "Select a card first, then drop art onto it."; return; }
+            if (ActiveFace == null) { Status = "Select a card first, then drop art onto it."; return; }
             SetArt(image);
         }
         catch (Exception ex)
@@ -1798,12 +1926,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnCopyImage(object sender, RoutedEventArgs e)
     {
-        if (_selectedCard == null) return;
-        var template = _selectedTemplate ?? Templates.FirstOrDefault();
+        var card = ActiveFace;
+        if (card == null) return;
+        var template = TemplateFor(card);
         if (template == null) return;
         try
         {
-            var bmp = _renderer.RenderToBitmap(_selectedCard, template, supersample: 2);
+            var bmp = _renderer.RenderToBitmap(card, template, supersample: 2);
             if (bmp.CanFreeze) bmp.Freeze();
             SetClipboardImageWithRetry(bmp);
             Status = "Copied the card image to the clipboard.";
@@ -1851,7 +1980,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Nudge/zoom the art with the keyboard — but only when the preview is focused (click it first),
         // so arrow keys still navigate the card list and move the caret in text fields.
         if (PreviewImageControl.IsKeyboardFocusWithin
-            && _selectedCard != null && !string.IsNullOrWhiteSpace(_selectedCard.ArtPath))
+            && ActiveFace is { ArtPath: { Length: > 0 } })
         {
             bool shift = mods.HasFlag(System.Windows.Input.ModifierKeys.Shift);
             double sx = (shift ? 10.0 : 1.0) / 750.0, sy = (shift ? 10.0 : 1.0) / 1050.0;   // 1px (or 10px) of the card
