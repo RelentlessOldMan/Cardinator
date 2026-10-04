@@ -113,8 +113,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public bool HasSelection => _selectedCard != null;
 
-    /// <summary>Short app version shown in the header (e.g. "v1.3"), so the running build is obvious.</summary>
-    public string AppVersion => "v" + (App.Version.Split(' ').LastOrDefault() ?? "");
+    /// <summary>Short app version shown in the header (e.g. "v1.1.4"), so the running build is obvious.</summary>
+    public string AppVersion => "v" + App.VersionNumber();
 
     /// <summary>True when the project has at least one card (gates batch/export actions).</summary>
     public bool HasCards => Cards.Count > 0;
@@ -220,7 +220,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public string ProjectSummary => $"{_projectName} — {Cards.Count} {(Cards.Count == 1 ? "card" : "cards")}";
 
-    public string WindowTitle => (_dirty ? "● " : "") + _projectName + " — Cardinator";
+    public string WindowTitle => (_dirty ? "● " : "") + _projectName + " — Cardinator " + AppVersion;
 
     /// <summary>Tracks unsaved edits so we can warn before losing work and mark the title bar.</summary>
     public bool Dirty
