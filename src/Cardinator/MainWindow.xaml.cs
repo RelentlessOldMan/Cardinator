@@ -1131,7 +1131,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 }
                 else
                 {
-                    name = TemplateImporter.CreateFromFile(Path.GetFileNameWithoutExtension(path), path);
+                    var fullArt = AskFrameFullArt();
+                    if (fullArt == null) { Status = "Import cancelled."; return; }
+                    name = TemplateImporter.CreateFromFile(Path.GetFileNameWithoutExtension(path), path, fullArt.Value);
                     Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
                 }
             }
@@ -1140,8 +1142,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 var url = prompt.Value;
                 if (url.Length == 0) { Status = "Nothing to import — choose a file or paste a link."; return; }
                 if (!ImageIntake.IsHttpUrl(url)) { Status = "That doesn't look like a web link."; return; }
+                var fullArt = AskFrameFullArt();
+                if (fullArt == null) { Status = "Import cancelled."; return; }
                 Status = "Downloading frame…";
-                name = await TemplateImporter.CreateFromUrlAsync("", url);
+                name = await TemplateImporter.CreateFromUrlAsync("", url, fullArt.Value);
                 Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
             }
             RefreshTemplates(name);
@@ -1150,6 +1154,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Status = "Couldn't import: " + ex.Message;
         }
+    }
+
+    /// <summary>Asks whether a bare imported frame image is a full-art frame (text on the art) or a standard
+    /// framed layout, so the new template gets the right default regions (L11). Returns null on cancel.</summary>
+    private bool? AskFrameFullArt()
+    {
+        var choice = ConfirmDialog.Show(this, "Frame type",
+            "Is this a full-art frame (the art fills the whole card and the text sits on top), "
+            + "or a standard frame with a separate art window?",
+            affirmative: "Full-art", negative: "Standard frame", cancel: "Cancel");
+        return choice switch
+        {
+            ConfirmResult.Affirmative => true,
+            ConfirmResult.Negative => false,
+            _ => null,
+        };
     }
 
     /// <summary>Exports the selected template as a shareable bundle (frame.png + template.json in one file).</summary>

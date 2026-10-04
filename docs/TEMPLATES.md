@@ -259,8 +259,10 @@ to write JSON by hand:
 
 - **In the app:** click **Import…** beneath the Frame dropdown. The dialog gives you two clear choices:
   a **Choose file…** button (pick a **PNG**, a **.cardframe**, or a **.zip** bundle from your PC) or a
-  box to **paste a web link**. A bare PNG becomes a template with a starter `template.json` you can tune;
-  a **`.cardframe` / `.zip` bundle** brings in a frame *with* its tuned regions, fonts and colors already
+  box to **paste a web link**. A bare PNG becomes a template with a starter `template.json` you can tune —
+  the app asks whether it's a **full-art** frame (art fills the card, text sits on top with a shadow) or a
+  **standard** frame with a separate art window, and sets the starting regions accordingly. A
+  **`.cardframe` / `.zip` bundle** brings in a frame *with* its tuned regions, fonts and colors already
   set (see [Sharing templates](#sharing-templates) below). Either way the file is **copied into
   `CardinatorData/templates`**, so you can move or delete the original afterwards.
 - **From a file or URL (command line):**
