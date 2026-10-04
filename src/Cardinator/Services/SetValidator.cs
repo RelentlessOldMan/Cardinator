@@ -25,6 +25,19 @@ public static class SetValidator
             var issues = CardValidator.Validate(card, resolveSpec(card), cards, installedTemplates)
                 .Where(i => i.Severity != IssueSeverity.Info)
                 .ToList();
+
+            // A double-faced card's BACK is rendered and exported like any other face, so check it too —
+            // otherwise missing back art or a bad symbol on the back passes "Check all cards" silently.
+            // Issues are labelled so the user knows which side to fix. Duplicate-name/collector checks run
+            // against the fronts only (the back isn't its own card in the set).
+            if (card.BackFace is { } back)
+            {
+                var backIssues = CardValidator.Validate(back, resolveSpec(back), cards, installedTemplates)
+                    .Where(i => i.Severity != IssueSeverity.Info && i.Code != "dup-name" && i.Code != "dup-collector")
+                    .Select(i => new ValidationIssue(i.Severity, i.Code, "Back face: " + i.Message));
+                issues.AddRange(backIssues);
+            }
+
             if (issues.Count > 0) result.Add(new CardIssues(card, issues));
         }
         return result;

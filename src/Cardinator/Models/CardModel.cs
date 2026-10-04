@@ -252,8 +252,13 @@ public sealed class CardModel : INotifyPropertyChanged
     {
         foreach (var p in typeof(CardModel).GetProperties(BindingFlags.Public | BindingFlags.Instance))
             if (p.CanRead && p.CanWrite && p.GetIndexParameters().Length == 0
-                && p.Name != nameof(IsBackFace))   // transient role flag — a cloned snapshot has it cleared; never copy it
+                && p.Name != nameof(IsBackFace)      // transient role flag — a cloned snapshot has it cleared; never copy it
+                && p.Name != nameof(BackFace))       // copied as a deep clone below, never shared by reference
                 p.SetValue(this, p.GetValue(other));
+
+        // A straight reflection copy would alias the OTHER card's back face (and the setter would then
+        // re-flag and re-sync that instance), leaving two cards silently sharing one mutable back.
+        BackFace = other.BackFace?.Clone();
     }
 
     // --- INotifyPropertyChanged ---------------------------------------------

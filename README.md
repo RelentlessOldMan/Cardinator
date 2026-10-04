@@ -86,10 +86,10 @@ Full walkthrough → **[User Guide](docs/USER_GUIDE.md)**.
 
 ## Make many at once
 
-Cardinator works on a **project** (the list on the left). **Import list / CSV…** loads a batch — a
+Cardinator works on a **project** (the list on the left). **Import file…** loads a batch — a
 list of names, `Name | art.png` lines, or a CSV/TSV with a header row (see the
 [example deck](examples/01-real-cards-custom-art/deck.csv)) — or import a whole **Scryfall search**.
-Then **Look up missing** fills blanks from Scryfall, **Match art folder…** attaches art by filename,
+Then **Fill blanks from Scryfall** fills what's missing, **Add art from folder…** attaches art by filename,
 **Set fields on all…** bulk-edits set/artist/rarity/frame, and **Export all…** / **Print sheet…**
 render everything (3×3 pages at real size + optional card backs). A live **CHECKS** panel flags
 problems as you type, and every edit is undoable.
@@ -137,7 +137,8 @@ output are all checked in.** Click a thumbnail for that example's guide.
 
 - **Card types:** creatures, spells, **planeswalkers** (loyalty box + ability badges), **sagas**
   (chapter markers), **classes** (level badges), **adventures** (spell sub-box), and
-  **double-faced cards** (imported as front + back). Split cards import as two cards.
+  **double-faced cards** (one card with two faces: flip the preview, a drawn corner indicator, both sides
+  exported). Split cards import as two cards.
 - **Mana:** `{2}{R}{W}`, `{X}`, `{T}`, `{C}`, hybrids `{R/W}`, Phyrexian `{U/P}` — inline in rules
   text too. Loose input like `2RW` is normalized automatically.
 - **Symbols:** authentic Scryfall SVG art, cached locally after first use; clean drawn pips as an

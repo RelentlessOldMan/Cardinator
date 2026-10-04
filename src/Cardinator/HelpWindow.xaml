@@ -47,7 +47,7 @@
             <StackPanel>
 
                 <TextBlock Text="Make a card" Style="{StaticResource GroupHeader}"/>
-                <TextBlock Style="{StaticResource Body}"><Run Text="1."/>  Type a card name and click <Run FontWeight="SemiBold" Text="Search"/> (or press Ctrl+L) to auto-fill from Scryfall — or just type the fields yourself for an original card.</TextBlock>
+                <TextBlock Style="{StaticResource Body}"><Run Text="1."/>  Type a card name and press <Run FontWeight="SemiBold" Text="Ctrl+L"/> to auto-fill from Scryfall — or just type the fields yourself for an original card.</TextBlock>
                 <TextBlock Style="{StaticResource Body}"><Run Text="2."/>  Pick a <Run FontWeight="SemiBold" Text="Frame"/> from the dropdown.</TextBlock>
                 <TextBlock Style="{StaticResource Body}"><Run Text="3."/>  Add your <Run FontWeight="SemiBold" Text="artwork"/> (see below), then drag the preview to pan and scroll to zoom.</TextBlock>
                 <TextBlock Style="{StaticResource Body}"><Run Text="4."/>  Open <Run FontWeight="SemiBold" Text="Edit details…"/> to change any field (rules, flavor, rarity, artist, stats).</TextBlock>
@@ -67,7 +67,7 @@
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Saga"/> — type line says Saga → chapter markers (I, II, III).</TextBlock>
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Class"/> — type line says Class → level badges.</TextBlock>
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Adventure"/> — fill the Adventure fields → a spell sub-box on the creature.</TextBlock>
-                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Double-faced"/> — looking one up adds the back as a second card.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Double-faced"/> — one card with two faces. Looking up a real double-faced card brings both sides; or click <Run FontWeight="SemiBold" Text="Make double-faced"/>, then <Run FontWeight="SemiBold" Text="Edit back face…"/> to fill it in and <Run FontWeight="SemiBold" Text="Show back"/> to flip the preview. Pick a corner indicator (flip arrow or sun/moon). Export writes both sides, and a double-sided print sheet pairs the real back.</TextBlock>
 
                 <TextBlock Text="Keyboard shortcuts" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
                 <Grid>
@@ -102,11 +102,14 @@
                 <TextBlock Style="{StaticResource Body}">Below the preview, CHECKS watches the selected card and flags problems before export — missing art, an unknown <Run FontFamily="Consolas" Text="{}{symbol}"/>, a footer overlapping the text box, a region off the card, or a collector number used twice. "<Run Text="✓ No issues"/>" means you're clear.</TextBlock>
 
                 <TextBlock Text="Many cards at once" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
-                <TextBlock Style="{StaticResource Body}">Use the <Run FontWeight="SemiBold" Text="Batch"/> section: <Run FontWeight="SemiBold" Text="Import list / CSV"/> (names or a spreadsheet), <Run FontWeight="SemiBold" Text="Match art folder"/>, <Run FontWeight="SemiBold" Text="Look up missing"/>, <Run FontWeight="SemiBold" Text="Export all"/>, and <Run FontWeight="SemiBold" Text="Print sheet"/> (3×3 at real size; it can add card backs for double-sided printing). Save the whole set as one project file.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">Use the <Run FontWeight="SemiBold" Text="Batch"/> section: <Run FontWeight="SemiBold" Text="Import file…"/> (names or a spreadsheet), <Run FontWeight="SemiBold" Text="Import deck…"/> (a Moxfield deck URL or a pasted list), <Run FontWeight="SemiBold" Text="Add art from folder…"/>, <Run FontWeight="SemiBold" Text="Fill blanks from Scryfall"/>, <Run FontWeight="SemiBold" Text="Check all cards"/>, <Run FontWeight="SemiBold" Text="Export all…"/>, and <Run FontWeight="SemiBold" Text="Print sheet"/> (3×3 at real size; it can add card backs for double-sided printing). Save the whole set as one project file.</TextBlock>
                 <TextBlock Style="{StaticResource Body}"><Run FontWeight="SemiBold" Text="Number cards"/> auto-numbers the set (001/N, 002/N…), and <Run FontWeight="SemiBold" Text="Set fields on all…"/> bulk-edits the set code, artist, rarity, copyright, frame and set-symbol image across every card at once.</TextBlock>
 
+                <TextBlock Text="If something goes wrong" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
+                <TextBlock Style="{StaticResource Body}">Your work is protected three ways: saves are atomic (a crash mid-save can’t truncate a good file), every save keeps the previous version in a <Run FontFamily="Consolas" Text="backups"/> folder (the last 15) — click <Run FontWeight="SemiBold" Text="Restore…"/> to roll one back, then <Run FontWeight="SemiBold" Text="Save"/> to put it in place — and an unreadable project file is preserved rather than lost. The title bar shows <Run Text="●"/> while you have unsaved changes, and the version number is in the header and the title bar when you report a problem.</TextBlock>
+
                 <TextBlock Text="Where your files live" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
-                <TextBlock Style="{StaticResource Body}">Everything is in the <Run FontFamily="Consolas" Text="CardinatorData"/> folder next to the app: exported cards in <Run FontFamily="Consolas" Text="output"/>, frames in <Run FontFamily="Consolas" Text="templates"/>, cached symbols in <Run FontFamily="Consolas" Text="symbols"/>. Move the app + that folder together to keep everything.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">A saved set is its own folder: the project file plus <Run FontFamily="Consolas" Text="art"/> (your images, copied in) and <Run FontFamily="Consolas" Text="out"/> (where Export and Print sheet default) — move, zip or share the folder and every card still finds its art. Shared files live in <Run FontFamily="Consolas" Text="CardinatorData"/> next to the app: frames in <Run FontFamily="Consolas" Text="templates"/>, cached symbols in <Run FontFamily="Consolas" Text="symbols"/>. Move the app + that folder together to keep everything.</TextBlock>
 
             </StackPanel>
         </ScrollViewer>
