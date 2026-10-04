@@ -17,6 +17,10 @@ public sealed class CardRenderer
 {
     private readonly SymbolService _symbols;
 
+    // Opaque card backing (matches the black card edge) so exports are never see-through inside the card.
+    private static readonly SolidColorBrush CardBacking = MakeFrozen(Color.FromRgb(0x08, 0x08, 0x0A));
+    private static SolidColorBrush MakeFrozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+
     // Decoded-art cache so live preview doesn't re-read/decode the image on every keystroke.
     private readonly Dictionary<string, (long stamp, BitmapImage img)> _artCache = new();
     private const int ArtCacheMax = 12;
@@ -64,6 +68,12 @@ public sealed class CardRenderer
         cardClip.Freeze();
         dc.PushClip(cardClip);
 
+        // Opaque backing inside the card silhouette. Custom frame sources keep their own transparency,
+        // so any area that's transparent in the source and not covered by art would otherwise export
+        // see-through — looks black on screen over the dark app, but wrong in a viewer / when printed.
+        // Procedural frames are opaque on top of this, so it only shows where the frame is transparent.
+        dc.DrawRectangle(CardBacking, null, new Rect(0, 0, W, H));
+
         // Full-art, borderless and overlay let the art cover the whole card; framed styles clip to the window.
         bool fullBleed = ArtText(spec);
         var artRegion = fullBleed ? new Region { X = 0, Y = 0, W = W, H = H } : spec.ArtWindow;
@@ -78,6 +88,7 @@ public sealed class CardRenderer
 
         DrawTitleAndMana(dc, card, spec);
         DrawLegendaryCrown(dc, card, spec);
+        DrawSubtitle(dc, card, spec);
         DrawTypeLine(dc, card, spec);
 
         if (card.IsPlaneswalker)
@@ -88,6 +99,8 @@ public sealed class CardRenderer
             DrawBadgedRows(dc, ParseClassLevels(card.RulesText), spec);
         else if (card.IsAdventure)
             DrawAdventure(dc, card, spec);
+        else if (card.ShowBigLandSymbol)
+            DrawBigLandSymbol(dc, card, spec);
         else
         {
             // Creatures nest a P/T box in the bottom-right — reserve that space so rules text wraps around
@@ -330,9 +343,12 @@ public sealed class CardRenderer
         }
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
 
-        // Two tidy tiny lines (collector, then artist), kept small on the card face.
+        // Two tidy tiny lines (collector, then artist), kept small on the card face — or one joined
+        // line when the template asks for a single-line footer.
         var lines = new[] { BuildCollectorLine(card), BuildCreditLine(card) }
             .Where(s => s.Length > 0).ToList();
+        if (spec.FooterSingleLine && lines.Count > 1)
+            lines = new List<string> { string.Join("   •   ", lines) };
         if (lines.Count == 0) return;
 
         double lh = font.Size + 2;
@@ -369,10 +385,381 @@ public sealed class CardRenderer
 
     // --- art ----------------------------------------------------------------
 
+    /// <summary>Draws a basic land's big centered mana symbol(s) in the text-box region (e.g. a large {G}
+    /// for a Forest). One, two, or three symbols; arranged in a row (default) or combined into a single
+    /// disc split vertically/horizontally, as a yin-yang (2), or as pie wedges — per card.LandSymbolStyle.</summary>
+    private void DrawBigLandSymbol(DrawingContext dc, CardModel card, TemplateSpec spec)
+    {
+        var toks = card.BigLandSymbols;
+        if (toks.Count == 0) return;
+
+        var region = spec.EffectiveTextBox;
+        if (region == null) return;
+        var box = new Rect(region.X, region.Y, region.W, region.H);
+
+        string style = (card.LandSymbolStyle ?? "").Trim().ToLowerInvariant();
+        if (style is "" or "row" || toks.Count == 1)
+        {
+            DrawLandSymbolRow(dc, toks, box);
+            return;
+        }
+
+        // Combined coin: one circle cut 2 or 3 ways, each piece its own color, with that color's whole
+        // symbol centered in the fattest part of the piece. Every symbol is the SAME size (the largest that
+        // fits the smallest piece) and clipped to its piece so nothing crosses a seam or runs off the edge.
+        int n = toks.Count;
+        double d = Math.Min(box.Height * 0.82, box.Width * 0.82);
+        if (d <= 0) return;
+        double cx = box.X + box.Width / 2, cy = box.Y + box.Height / 2, r = d / 2;
+        var full = new Rect(cx - r, cy - r, d, d);
+
+        // 3-way "curvy" swirl placement is unreliable; a clean 3-wedge pie is the dependable 3-way cut.
+        bool curvy = style is "yinyang" or "swirl" or "curvy";
+        if (curvy && n >= 3) style = "pie";
+
+        var clips = CombinedClips(style, n, full);
+        var places = RegionPlacements(style, n, full);
+        double sym = places.Length == 0 ? 0 : places.Min(p => p.dia);   // one size for all → equal symbols
+        if (sym <= 0) return;
+
+        // The coin is just another symbol — same drop shadow as everything else.
+        var coin = RenderCoin(toks, clips, places, full, d, r, n, sym);
+        DrawDropShadowedImage(dc, coin, full);
+    }
+
+    /// <summary>Draws an image with the drop shadow used throughout the land symbols: a 30%-opacity copy offset
+    /// down-right by (2%,3%) of the size, then the image on top. One place so the coin and the single symbols
+    /// get an identical shadow.</summary>
+    private void DrawDropShadowedImage(DrawingContext dc, ImageSource img, Rect r)
+    {
+        double size = r.Width;
+        var shadowRect = new Rect(r.X + size * 0.02, r.Y + size * 0.03, size, size);
+        // One drop shadow for every land symbol: the shape, offset, in the neutral mana-circle tone — never the
+        // image's own colors. A single black-mana pip is already that tone, so it's unchanged; a multi-color coin
+        // now casts the exact same shadow instead of a multi-colored one.
+        var tone = new SolidColorBrush(PipBackground("{B}")); tone.Freeze();
+        dc.PushOpacity(0.30);
+        dc.PushOpacityMask(new ImageBrush(img) { Stretch = Stretch.Fill });
+        dc.DrawRectangle(tone, null, shadowRect);
+        dc.Pop();
+        dc.Pop();
+        dc.DrawImage(img, r);
+    }
+
+    /// <summary>Draws the combined land coin (pieces + seams + ring + silhouettes) to its own bitmap so it can be
+    /// drop-shadowed as a single unit, just like a single big mana symbol.</summary>
+    private BitmapSource RenderCoin(IReadOnlyList<string> toks, Geometry[] clips, (Point c, double dia)[] places,
+                                    Rect full, double d, double r, int n, double sym)
+    {
+        const int SC = 2;                                   // supersample so it stays crisp when drawn back
+        int bw = Math.Max(1, (int)Math.Ceiling(full.Width * SC)), bh = Math.Max(1, (int)Math.Ceiling(full.Height * SC));
+        var cv = new DrawingVisual();
+        using (var g = cv.RenderOpen())
+        {
+            // Supersampling comes from the bitmap dpi (96*SC); here we only shift the absolute coords used by
+            // clips/places so the coin's top-left lands at the bitmap origin.
+            g.PushTransform(new TranslateTransform(-full.X, -full.Y));
+
+            // 1) Fill each piece with that symbol's own circle color (sampled from the pip art).
+            for (int i = 0; i < n; i++)
+            {
+                var fill = new SolidColorBrush(PipBackground(toks[i])); fill.Freeze();
+                g.PushClip(clips[i]);
+                g.DrawRectangle(fill, null, full);
+                g.Pop();
+            }
+            // 2) Thin seams + an outer ring so it reads as one coin.
+            var edge = new Pen(new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Math.Max(1.0, d * 0.012));
+            for (int i = 0; i < n; i++) g.DrawGeometry(null, edge, clips[i]);
+            var ring = new Pen(new SolidColorBrush(Color.FromArgb(0xDD, 0x10, 0x10, 0x12)), Math.Max(1.6, d * 0.022));
+            g.DrawEllipse(null, ring, new Point(full.X + r, full.Y + r), r, r);
+
+            // 3) Only the dark ICON SILHOUETTE in each piece — the bitmap already has the pip background and ring
+            //    removed, so we just stamp it, clipped to the piece so nothing crosses a seam.
+            for (int i = 0; i < n; i++)
+            {
+                var sil = IconSilhouette(toks[i]);
+                if (sil == null) continue;
+                var p = places[i].c;
+                g.PushClip(clips[i]);
+                g.DrawImage(sil, new Rect(p.X - sym / 2, p.Y - sym / 2, sym, sym));
+                g.Pop();
+            }
+            g.Pop();   // translate
+        }
+        var rtb = new RenderTargetBitmap(bw, bh, 96 * SC, 96 * SC, PixelFormats.Pbgra32);
+        rtb.Render(cv);
+        rtb.Freeze();
+        return rtb;
+    }
+
+    // A mana pip reduced to just its dark icon as a solid silhouette: we render the pip, key every pixel by
+    // darkness (pastel background → transparent, dark icon kept), mask off the pip's outline ring, and recolor
+    // what's left to one consistent near-black. Cached per token. Guarantees no pip background can ever show.
+    private readonly Dictionary<string, BitmapSource?> _iconSil = new();
+    private BitmapSource? IconSilhouette(string token)
+    {
+        if (_iconSil.TryGetValue(token, out var cached)) return cached;
+        BitmapSource? result = null;
+        try
+        {
+            var img = _symbols.GetSymbol(token);
+            if (img != null)
+            {
+                const int S = 160;
+                var dv = new DrawingVisual();
+                using (var dc = dv.RenderOpen()) dc.DrawImage(img, new Rect(0, 0, S, S));
+                var rtb = new RenderTargetBitmap(S, S, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(dv);
+                var straight = new FormatConvertedBitmap(rtb, PixelFormats.Bgra32, null, 0);   // un-premultiply
+                var px = new byte[S * S * 4];
+                straight.CopyPixels(px, S * 4, 0);
+                const byte sr = 0x15, sg = 0x15, sb = 0x17;   // one silhouette color for every symbol
+                double cc = (S - 1) / 2.0, rin = S * 0.44, rin2 = rin * rin;   // inner circle drops the pip ring
+                for (int y = 0; y < S; y++)
+                    for (int x = 0; x < S; x++)
+                    {
+                        int i = (y * S + x) * 4;
+                        byte b = px[i], g = px[i + 1], r = px[i + 2], a = px[i + 3];
+                        double lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;    // bright bg ~1, dark icon ~0
+                        // Hard key with a thin anti-aliased ramp: lum<=0.24 is pure icon (keep), lum>=0.46 is
+                        // pastel background (drop to FULLY transparent — no faint dark halo disc).
+                        double t = Math.Clamp((0.46 - lum) / (0.46 - 0.24), 0, 1);
+                        double dx = x - cc, dy = y - cc;
+                        if (dx * dx + dy * dy > rin2) t = 0;                         // outside the rim → drop ring
+                        byte outA = (byte)Math.Round((a / 255.0) * t * 255);
+                        px[i] = (byte)(sb * outA / 255);          // premultiplied Pbgra32
+                        px[i + 1] = (byte)(sg * outA / 255);
+                        px[i + 2] = (byte)(sr * outA / 255);
+                        px[i + 3] = outA;
+                    }
+                result = BitmapSource.Create(S, S, 96, 96, PixelFormats.Pbgra32, null, px, S * 4);
+                result.Freeze();
+            }
+        }
+        catch { /* leave null → symbol just omitted */ }
+        _iconSil[token] = result;
+        return result;
+    }
+
+    // For each piece: the center and diameter of the largest circle that fits in its fat part — so a symbol
+    // placed there is centered and never runs past a seam or the rim.
+    private static (Point c, double dia)[] RegionPlacements(string style, int n, Rect full)
+    {
+        double cx = full.X + full.Width / 2, cy = full.Y + full.Height / 2, r = full.Width / 2;
+        var res = new (Point, double)[n];
+        bool curvy = style is "yinyang" or "swirl" or "curvy";
+
+        if (curvy && n == 2)
+        {
+            // Symbol sits in each round lobe (centered r/2 above/below), not the tail.
+            res[0] = (new Point(cx, cy - r / 2), r * 0.82);
+            res[1] = (new Point(cx, cy + r / 2), r * 0.82);
+            return res;
+        }
+        if (style == "pie")
+        {
+            // Incircle of a sector of angle θ=2π/n: center at r/(1+sin) along the bisector, radius r·sin/(1+sin).
+            double theta = 2 * Math.PI / n, s = Math.Sin(theta / 2);
+            double dist = r / (1 + s), rho = r * s / (1 + s);
+            double start = -Math.PI / 2;
+            for (int i = 0; i < n; i++)
+            {
+                double mid = start + theta * (i + 0.5);
+                res[i] = (new Point(cx + dist * Math.Cos(mid), cy + dist * Math.Sin(mid)), 2 * rho * 0.92);
+            }
+            return res;
+        }
+        if (style == "splith")
+        {
+            double h = full.Height / n;
+            for (int i = 0; i < n; i++)
+            {
+                double yc = full.Y + (i + 0.5) * h, dyy = yc - cy;
+                double chord = Math.Abs(dyy) < r ? 2 * Math.Sqrt(r * r - dyy * dyy) : 0;
+                res[i] = (new Point(cx, yc), Math.Min(h, chord) * 0.86);
+            }
+            return res;
+        }
+        // splitv (default): vertical slices
+        double w = full.Width / n;
+        for (int i = 0; i < n; i++)
+        {
+            double xc = full.X + (i + 0.5) * w, dxx = xc - cx;
+            double chord = Math.Abs(dxx) < r ? 2 * Math.Sqrt(r * r - dxx * dxx) : 0;
+            res[i] = (new Point(xc, cy), Math.Min(w, chord) * 0.86);
+        }
+        return res;
+    }
+
+    // Dominant (background) color of a mana pip, sampled once from its art and cached.
+    private readonly Dictionary<string, Color> _pipBg = new();
+    private Color PipBackground(string token)
+    {
+        if (_pipBg.TryGetValue(token, out var cached)) return cached;
+        var color = Color.FromRgb(0x80, 0x80, 0x80);
+        try
+        {
+            var img = _symbols.GetSymbol(token);
+            if (img != null)
+            {
+                const int S = 24;
+                var dv = new DrawingVisual();
+                using (var dc = dv.RenderOpen()) dc.DrawImage(img, new Rect(0, 0, S, S));
+                var rtb = new RenderTargetBitmap(S, S, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(dv);
+                var px = new byte[S * S * 4];
+                rtb.CopyPixels(px, S * 4, 0);
+                // Most common BRIGHT opaque color, bucketed — that's the pastel ring, never the dark icon.
+                // (A big icon like the forest tree can out-cover the ring, so dark pixels must be excluded or
+                //  the fill comes out black.)
+                var buckets = new Dictionary<int, (int count, long r, long g, long b)>();
+                for (int i = 0; i < px.Length; i += 4)
+                {
+                    byte b = px[i], g = px[i + 1], rr = px[i + 2], a = px[i + 3];
+                    if (a < 200) continue;
+                    double lum = (0.299 * rr + 0.587 * g + 0.114 * b) / 255.0;
+                    if (lum < 0.38) continue;   // skip the dark icon; keep the pastel background
+                    int key = (rr >> 4 << 8) | (g >> 4 << 4) | (b >> 4);
+                    var e = buckets.TryGetValue(key, out var v) ? v : (0, 0, 0, 0);
+                    buckets[key] = (e.count + 1, e.r + rr, e.g + g, e.b + b);
+                }
+                if (buckets.Count > 0)
+                {
+                    var best = buckets.Values.OrderByDescending(v => v.count).First();
+                    color = Color.FromRgb((byte)(best.r / best.count), (byte)(best.g / best.count), (byte)(best.b / best.count));
+                }
+            }
+        }
+        catch { /* fall back to grey */ }
+        _pipBg[token] = color;
+        return color;
+    }
+
+    /// <summary>Symbols laid out side by side, centered, auto-scaled to fit (handles 1–3+).</summary>
+    private void DrawLandSymbolRow(DrawingContext dc, IReadOnlyList<string> toks, Rect box)
+    {
+        const double gap = 0.14;    // spacing between symbols, as a fraction of symbol size
+        double size = Math.Min(box.Height * 0.76, box.Width * 0.84 / (toks.Count + (toks.Count - 1) * gap));
+        if (size <= 0) return;
+        double totalW = toks.Count * size + (toks.Count - 1) * size * gap;
+        double x = box.X + (box.Width - totalW) / 2;
+        double y = box.Y + (box.Height - size) / 2;
+        foreach (var t in toks)
+        {
+            var img = _symbols.GetSymbol(t);
+            if (img != null)
+                DrawDropShadowedImage(dc, img, new Rect(x, y, size, size));
+            x += size * (1 + gap);
+        }
+    }
+
+    /// <summary>Clip geometries (one per symbol) that split a disc for the combined land-symbol styles.</summary>
+    private static Geometry[] CombinedClips(string style, int n, Rect full)
+    {
+        var clips = new Geometry[n];
+        double cx = full.X + full.Width / 2, cy = full.Y + full.Height / 2, r = full.Width / 2;
+        var disc = new EllipseGeometry(new Point(cx, cy), r, r); disc.Freeze();
+
+        bool curvy = style is "yinyang" or "swirl" or "curvy";
+
+        if (curvy && n == 3)
+        {
+            // Mitsudomoe / 3-way yin-yang: three comma regions. Each is bounded by a semicircle divider out
+            // to the rim, a 120° rim arc, and the next divider back to center — all curving the same way.
+            var pts = new Point[3];
+            for (int i = 0; i < 3; i++)
+            {
+                double th = -Math.PI / 2 + i * 2 * Math.PI / 3;
+                pts[i] = new Point(cx + r * Math.Cos(th), cy + r * Math.Sin(th));
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                var pi = pts[i]; var pj = pts[(i + 1) % 3];
+                var fig = new PathFigure { StartPoint = new Point(cx, cy), IsClosed = true };
+                fig.Segments.Add(new ArcSegment(pi, new Size(r / 2, r / 2), 0, false, SweepDirection.Clockwise, true));
+                fig.Segments.Add(new ArcSegment(pj, new Size(r, r), 0, false, SweepDirection.Clockwise, true));
+                fig.Segments.Add(new ArcSegment(new Point(cx, cy), new Size(r / 2, r / 2), 0, false, SweepDirection.Counterclockwise, true));
+                var pg = new PathGeometry(); pg.Figures.Add(fig);
+                var g = new CombinedGeometry(GeometryCombineMode.Intersect, disc, pg); g.Freeze();
+                clips[i] = g;
+            }
+            return clips;
+        }
+
+        if (curvy && n == 2)
+        {
+            // Classic S-curve, built symmetrically so BOTH halves are solid (don't derive one as
+            // disc-minus-the-other — nested Exclude geometry misbehaves as a clip).
+            var leftRect = new RectangleGeometry(new Rect(full.X, full.Y, full.Width / 2, full.Height));
+            var rightRect = new RectangleGeometry(new Rect(cx, full.Y, full.Width / 2, full.Height));
+            var top = new EllipseGeometry(new Point(cx, cy - r / 2), r / 2, r / 2);
+            var bot = new EllipseGeometry(new Point(cx, cy + r / 2), r / 2, r / 2);
+            // yin: left half + top lobe − bottom lobe
+            Geometry a = new CombinedGeometry(GeometryCombineMode.Intersect, disc, leftRect);
+            a = new CombinedGeometry(GeometryCombineMode.Union, a, top);
+            a = new CombinedGeometry(GeometryCombineMode.Exclude, a, bot);
+            a = new CombinedGeometry(GeometryCombineMode.Intersect, a, disc);
+            a.Freeze();
+            // yang: right half + bottom lobe − top lobe
+            Geometry b = new CombinedGeometry(GeometryCombineMode.Intersect, disc, rightRect);
+            b = new CombinedGeometry(GeometryCombineMode.Union, b, bot);
+            b = new CombinedGeometry(GeometryCombineMode.Exclude, b, top);
+            b = new CombinedGeometry(GeometryCombineMode.Intersect, b, disc);
+            b.Freeze();
+            clips[0] = a; clips[1] = b;
+            return clips;
+        }
+
+        if (style == "splith")
+        {
+            double h = full.Height / n;
+            for (int i = 0; i < n; i++)
+            {
+                var slice = new RectangleGeometry(new Rect(full.X, full.Y + i * h, full.Width, h));
+                var g = new CombinedGeometry(GeometryCombineMode.Intersect, disc, slice); g.Freeze();
+                clips[i] = g;
+            }
+            return clips;
+        }
+
+        if (style == "pie")
+        {
+            double start = -Math.PI / 2;     // first wedge points up
+            for (int i = 0; i < n; i++)
+            {
+                double a0 = start + 2 * Math.PI * i / n, a1 = start + 2 * Math.PI * (i + 1) / n;
+                clips[i] = Wedge(new Point(cx, cy), r, a0, a1);
+            }
+            return clips;
+        }
+
+        // default "splitv": vertical slices
+        double w = full.Width / n;
+        for (int i = 0; i < n; i++)
+        {
+            var slice = new RectangleGeometry(new Rect(full.X + i * w, full.Y, w, full.Height));
+            var g = new CombinedGeometry(GeometryCombineMode.Intersect, disc, slice); g.Freeze();
+            clips[i] = g;
+        }
+        return clips;
+    }
+
+    private static Geometry Wedge(Point c, double r, double a0, double a1)
+    {
+        var p0 = new Point(c.X + r * Math.Cos(a0), c.Y + r * Math.Sin(a0));
+        var p1 = new Point(c.X + r * Math.Cos(a1), c.Y + r * Math.Sin(a1));
+        var fig = new PathFigure { StartPoint = c, IsClosed = true };
+        fig.Segments.Add(new LineSegment(p0, true));
+        fig.Segments.Add(new ArcSegment(p1, new Size(r, r), 0, (a1 - a0) > Math.PI, SweepDirection.Clockwise, true));
+        var pg = new PathGeometry(); pg.Figures.Add(fig); pg.Freeze();
+        return pg;
+    }
+
     private void DrawArt(DrawingContext dc, CardModel card, Region win, bool previewHints)
     {
         var rect = ToRect(win);
-        dc.DrawRectangle(Brushes.White, null, rect);   // backing so window is never empty
+        dc.DrawRectangle(CardBacking, null, rect);   // dark backing so any uncovered area never flashes white
 
         BitmapImage? img = null;
         if (!string.IsNullOrWhiteSpace(card.ArtPath))
@@ -529,6 +916,48 @@ public sealed class CardRenderer
         DrawGlyphRun(dc, ft, new Point(bar.X + pad, ty), spec.TitleFont);
     }
 
+    /// <summary>A small dark name-plate under the title holding the card's subtitle (drawn only when set).
+    /// Works on any frame; position is the spec's SubtitleBar or a plate derived just below the title bar.</summary>
+    private void DrawSubtitle(DrawingContext dc, CardModel card, TemplateSpec spec)
+    {
+        if (string.IsNullOrWhiteSpace(card.Subtitle)) return;
+
+        Rect plate;
+        if (spec.SubtitleBar != null)
+            plate = ToRect(spec.SubtitleBar);
+        else
+        {
+            var title = ToRect(spec.TitleBar);
+            double h = Math.Max(40, title.Height * 0.66);   // room for the beveled band + recessed text
+            double w = title.Width * 0.64;
+            // Sit just below the title bar (slight overlap only), so it reads as a second plate.
+            plate = new Rect(title.X + (title.Width - w) / 2, title.Bottom - h * 0.10, w, h);
+        }
+        // Drawn the exact same way as the P/T box — just a flatter box with capsule-rounded corners.
+        var inner = DrawPtStylePlate(dc, plate, spec, Math.Min(plate.Height / 2, 22));
+
+        // Text sits in the recessed center; pick a contrasting color for whatever color sits behind it.
+        Color textBg = IsComposable(spec) ? TemplateSpec.ParseColor(spec.Colors.Panel)
+            : ArtText(spec) ? Color.FromRgb(0x10, 0x12, 0x18)
+            : TemplateSpec.ParseColor(spec.Colors.Frame);
+        double lum = (0.299 * textBg.R + 0.587 * textBg.G + 0.114 * textBg.B) / 255.0;
+        var textColor = lum > 0.55 ? Color.FromRgb(0x1A, 0x16, 0x0C) : Color.FromRgb(0xF2, 0xED, 0xE4);
+
+        // Inherit the frame's title font so the subtitle matches the card's typography (italic, a bit smaller).
+        var subFont = new FontSpec
+        {
+            Family = spec.TitleFont.Family, Size = spec.SubtitleFont.Size,
+            Bold = spec.SubtitleFont.Bold, Italic = spec.SubtitleFont.Italic,
+            Align = spec.SubtitleFont.Align, Color = spec.SubtitleFont.Color,   // color comes from the brush below
+        };
+        var brush = new SolidColorBrush(textColor); brush.Freeze();
+        const double pad = 14;
+        var ft = FitText(card.Subtitle, subFont, subFont.Size, 9, Math.Max(10, inner.Width - 2 * pad), brush);
+        double tx = inner.X + (inner.Width - ft.Width) / 2;
+        double ty = inner.Y + (inner.Height - ft.Height) / 2;
+        DrawGlyphRun(dc, ft, new Point(tx, ty), subFont);
+    }
+
     // --- single-line regions (type line, power/toughness) -------------------
 
     private static void DrawSingleLine(DrawingContext dc, string text, Region region, FontSpec font, double padX)
@@ -652,7 +1081,9 @@ public sealed class CardRenderer
     private static Rect PtRect(TemplateSpec spec)
     {
         var rect = ToRect(spec.PtBox);
-        if (ArtText(spec)) return rect;
+        // Art-forward cards and custom frames keep the template's exact placement (so the P/T box can be
+        // positioned freely in the layout editor). Procedural framed cards auto-nest it bottom-right.
+        if (ArtText(spec) || spec.CustomFrame) return rect;
         const double margin = 8;
         var tb = ToRect(spec.EffectiveTextBox);
         double left = tb.Right - margin - rect.Width;
@@ -670,9 +1101,18 @@ public sealed class CardRenderer
     private static void DrawPtBox(DrawingContext dc, CardModel card, TemplateSpec spec)
     {
         var rect = PtRect(spec);
+        var inner = DrawPtStylePlate(dc, rect, spec);
+        DrawCentered(dc, $"{card.Power}/{card.Toughness}", inner, NumeralFont(spec.PtFont));
+    }
+
+    /// <summary>Draws the P/T-box plate style (beveled band + recessed center, or the simple fill+bevel
+    /// variant) into <paramref name="rect"/> and returns the inner rect where centered text should go.
+    /// Shared by the P/T box and the subtitle plate so they look identical.</summary>
+    private static Rect DrawPtStylePlate(DrawingContext dc, Rect rect, TemplateSpec spec, double? cornerRadius = null)
+    {
         bool onArt = ArtText(spec);
         var borderColor = TemplateSpec.ParseColor(spec.Colors.PanelBorder);
-        double r = Math.Max(7, spec.PanelRadius);
+        double r = cornerRadius ?? Math.Max(7, spec.PanelRadius);
 
         // Modern style: a thick 3D beveled box that matches the nameplates — a raised frame-colored band
         // (bright top, dark bottom) around a recessed text area, with an inner bevel.
@@ -694,8 +1134,7 @@ public sealed class CardRenderer
             innerFillm.Freeze();
             dc.DrawRoundedRectangle(innerFillm, new Pen(new SolidColorBrush(DarkenC(frame2m, 0.28)), 1.4), innerm, irm, irm);
             dc.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(60, 0, 0, 0)), 1), new Point(innerm.X + 3, innerm.Y + 1.5), new Point(innerm.Right - 3, innerm.Y + 1.5));
-            DrawCentered(dc, $"{card.Power}/{card.Toughness}", innerm, spec.PtFont);
-            return;
+            return innerm;
         }
 
         // Subtle drop shadow (bottom-left) so the box lifts off the frame without floating.
@@ -743,7 +1182,7 @@ public sealed class CardRenderer
             dc.DrawRoundedRectangle(null, bevelPen, innerRect, ir, ir);
         }
 
-        DrawCentered(dc, $"{card.Power}/{card.Toughness}", rect, spec.PtFont);
+        return rect;
     }
 
     /// <summary>Draws text centered on both axes using its true ink bounds (so it sits optically
@@ -757,6 +1196,22 @@ public sealed class CardRenderer
         double x = rect.X + rect.Width / 2 - (bounds.X + bounds.Width / 2);
         double y = rect.Y + rect.Height / 2 - (bounds.Y + bounds.Height / 2);
         DrawGlyphRun(dc, ft, new Point(x, y), font);
+    }
+
+    // Fonts with OLD-STYLE figures (Georgia, Cambria, …) stagger digit heights — e.g. '4' dips below the
+    // baseline and '6' rides high — which looks broken in a P/T or loyalty box. For number-only boxes we
+    // swap to a lining-figure serif so every digit sits at the same height.
+    private static readonly HashSet<string> OldStyleFigureFonts = new(StringComparer.OrdinalIgnoreCase)
+        { "Georgia", "Cambria", "Constantia", "Palatino Linotype", "Calibri", "Candara", "Corbel" };
+
+    private static FontSpec NumeralFont(FontSpec f)
+    {
+        if (!OldStyleFigureFonts.Contains((f.Family ?? "").Trim())) return f;
+        return new FontSpec
+        {
+            Family = "Times New Roman", Size = f.Size, Color = f.Color, Bold = f.Bold,
+            Italic = f.Italic, Align = f.Align, Shadow = f.Shadow, ShadowColor = f.ShadowColor,
+        };
     }
 
     // --- text box: rules + flavor, inline symbols, word wrap, auto-shrink ---
@@ -837,7 +1292,11 @@ public sealed class CardRenderer
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
         double lineHeight = fontSize * 1.34;
         double x = box.X, y = startY;
+        var probe = MakeText("Hg", font, fontSize, brush);
         double spaceWidth = MakeText(" ", font, fontSize, brush).WidthIncludingTrailingWhitespace;
+        // Inline symbols read best centered on the text's cap height, not the full line box (which has
+        // descent space below the glyphs and would make the symbol look bottom-aligned).
+        double symTopOffset = probe.Baseline - fontSize * 0.34 - symSize / 2;
 
         // Lines whose vertical band overlaps a reserved box (the P/T box) wrap before it.
         double RightAt(double lineTop) =>
@@ -865,7 +1324,7 @@ public sealed class CardRenderer
                 if (word.Text != null)
                     placed.Add(new Placed(x, y, word.Text, null, 0));
                 else if (word.Sym != null)
-                    placed.Add(new Placed(x, y + (lineHeight - symSize) / 2, null, word.Sym, symSize));
+                    placed.Add(new Placed(x, y + symTopOffset, null, word.Sym, symSize));
 
                 x += word.Width;
                 first = false;
@@ -1004,20 +1463,31 @@ public sealed class CardRenderer
         }
         if (best == null) return;
 
-        var badgeFill = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-        var badgeEdge = new Pen(Brushes.White, 2);
+        // Badges/loyalty shields share the P/T box's look by default: same frame-color fill, panel-border
+        // edge and top bevel, so a planeswalker's badges match its creature cousins' P/T box.
+        var bFrame = TemplateSpec.ParseColor(spec.Colors.Frame);
+        var bFrame2 = TemplateSpec.ParseColor(spec.Colors.Frame2);
+        var badgeFill = new LinearGradientBrush(LightenC(bFrame2, 0.10), bFrame, new Point(0, 0), new Point(0, 1));
+        badgeFill.Freeze();
+        var badgeEdge = new Pen(new SolidColorBrush(TemplateSpec.ParseColor(spec.Colors.PanelBorder)), 2.2);
+        badgeEdge.Freeze();
+        var badgeHi = new Pen(new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), 1.4);
+        badgeHi.Freeze();
         foreach (var (rect, costFt, text) in best.Badges)
         {
             double nudge = 0;
             if (loyaltyShields)
             {
                 int dir = text.StartsWith('+') ? 1 : (text.StartsWith('−') || text.StartsWith('-')) ? -1 : 0;
+                dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(105, 0, 0, 0)), null, LoyaltyShape(new Rect(rect.X - 2, rect.Y + 4, rect.Width, rect.Height), dir));
                 dc.DrawGeometry(badgeFill, badgeEdge, LoyaltyShape(rect, dir));
                 nudge = dir > 0 ? rect.Height * 0.12 : dir < 0 ? -rect.Height * 0.10 : 0;
             }
             else
             {
-                dc.DrawRoundedRectangle(badgeFill, null, rect, rect.Height * 0.28, rect.Height * 0.28);
+                double br = rect.Height * 0.28;
+                dc.DrawRoundedRectangle(badgeFill, badgeEdge, rect, br, br);
+                dc.DrawLine(badgeHi, new Point(rect.X + br, rect.Y + 2.5), new Point(rect.Right - br, rect.Y + 2.5));
             }
             dc.DrawText(costFt, new Point(rect.X + (rect.Width - costFt.Width) / 2, rect.Y + (rect.Height - costFt.Height) / 2 + nudge));
         }
@@ -1087,14 +1557,20 @@ public sealed class CardRenderer
         double w = full.Width * 0.80, h = full.Height * 0.90;
         var box = new Rect(full.Right - w, full.Bottom - h, w, h);
 
-        // Starting loyalty sits in a downward-pointing shield (matching the ability shields).
+        // Starting loyalty sits in a downward-pointing shield that matches the P/T box / ability shields
+        // (frame-colored fill + panel-border edge), not a hardcoded grey/white.
+        var lFill = new LinearGradientBrush(LightenC(TemplateSpec.ParseColor(spec.Colors.Frame2), 0.10),
+            TemplateSpec.ParseColor(spec.Colors.Frame), new Point(0, 0), new Point(0, 1));
+        lFill.Freeze();
+        var lEdge = new Pen(new SolidColorBrush(TemplateSpec.ParseColor(spec.Colors.PanelBorder)), 2.5);
+        lEdge.Freeze();
         dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)), null, LoyaltyShape(new Rect(box.X - 3, box.Y + 4, box.Width, box.Height), -1));
-        dc.DrawGeometry(new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)), new Pen(Brushes.White, 2.5), LoyaltyShape(box, -1));
+        dc.DrawGeometry(lFill, lEdge, LoyaltyShape(box, -1));
 
         // Center the number on its true ink bounds within the shield's flat body (above the point), so it
         // sits optically centered rather than floating high off the font's line-box padding.
         double sh = box.Height * 0.30;   // matches LoyaltyShape's point-height fraction
-        var ft = MakeText(card.Loyalty, new FontSpec { Family = "Georgia", Bold = true }, spec.PtFont.Size, Brushes.White);
+        var ft = MakeText(card.Loyalty, NumeralFont(new FontSpec { Family = spec.PtFont.Family, Bold = true }), spec.PtFont.Size, Brushes.White);
         var bounds = ft.BuildGeometry(new Point(0, 0)).Bounds;
         double x = box.X + box.Width / 2 - (bounds.X + bounds.Width / 2);
         double y = box.Y + (box.Height - sh) / 2 + box.Height * 0.07 - (bounds.Y + bounds.Height / 2);
