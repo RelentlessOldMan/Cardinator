@@ -1,6 +1,5 @@
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Cardinator.Models;
 
@@ -24,12 +23,15 @@ public sealed class CardProject
 
     public List<CardModel> Cards { get; set; } = new();
 
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
+    /// <summary>The on-disk format this file was written with (0 = pre-versioning / older than 1.1.2).
+    /// Lets future versions branch migration logic; readers must still tolerate any value.</summary>
+    public int FormatVersion { get; set; }
+
+    /// <summary>The format version the current build writes.</summary>
+    public const int CurrentFormatVersion = 1;
+
+    // Shared across all persisted types — see JsonCompat for the backward-compatibility policy.
+    private static JsonSerializerOptions JsonOpts => Cardinator.Services.JsonCompat.Options;
 
     public static CardProject Load(string path)
     {
@@ -48,6 +50,7 @@ public sealed class CardProject
 
     public void Save(string path)
     {
+        FormatVersion = CurrentFormatVersion;   // stamp what wrote this file
         // Atomic write: a crash/disk-full while overwriting must never corrupt the user's whole project.
         Cardinator.Services.IoUtil.AtomicWriteText(path, JsonSerializer.Serialize(this, JsonOpts));
     }

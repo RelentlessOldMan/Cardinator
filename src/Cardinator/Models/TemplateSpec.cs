@@ -212,13 +212,9 @@ public sealed class TemplateSpec
     /// <summary>Height (logical px) of mana/tap symbols embedded inside rules text.</summary>
     public double RulesSymbolSize { get; set; } = 26;
 
-    [JsonIgnore]
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
+    // Shared across all persisted types — see JsonCompat for the backward-compatibility policy. (Write
+    // output is byte-identical to the previous options, so cached frame content-hashes don't churn.)
+    private static JsonSerializerOptions JsonOpts => Cardinator.Services.JsonCompat.Options;
 
     public static TemplateSpec Load(string path)
     {
