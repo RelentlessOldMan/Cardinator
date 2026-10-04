@@ -1169,8 +1169,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        int inUse = TemplateService.CountReferencing(Cards, t.Name);
+        var warn = inUse > 0
+            ? $" {inUse} card(s) in this project use it and will fall back to the default frame "
+              + "(they'll be flagged until you pick another)."
+            : "";
         if (ConfirmDialog.Show(this, "Delete frame",
-                $"Delete the frame “{t.Name}”? This removes it from your templates folder and can't be undone.",
+                $"Delete the frame “{t.Name}”? This removes it from your templates folder and can't be undone."
+                + warn,
                 affirmative: "Delete", cancel: "Cancel") != ConfirmResult.Affirmative)
             return;
 

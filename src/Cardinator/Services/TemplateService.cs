@@ -44,6 +44,11 @@ public sealed class TemplateService
         return _builtInSlugs.Contains(slug);
     }
 
+    /// <summary>Counts how many of <paramref name="cards"/> use the frame named <paramref name="templateName"/>
+    /// (case-insensitive). Used to warn before deleting a frame other cards still reference (L10).</summary>
+    public static int CountReferencing(IEnumerable<CardModel> cards, string templateName)
+        => cards?.Count(c => string.Equals(c.TemplateName, templateName, StringComparison.OrdinalIgnoreCase)) ?? 0;
+
     private static HashSet<string> BuildBuiltInSlugSet()
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
