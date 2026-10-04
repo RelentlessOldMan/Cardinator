@@ -8,8 +8,8 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>Cardinator</AssemblyName>
     <RootNamespace>Cardinator</RootNamespace>
-    <!-- Bump this on each release: 1.0.0, then 1.0.1, 1.0.2, ... -->
-    <Version>1.0.2</Version>
+    <!-- Bump this when a batch of user-facing work ships (not per push): 1.0.0 … 1.0.2, then 1.1.0. -->
+    <Version>1.1.0</Version>
     <ApplicationIcon>Assets\cardinator.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 
