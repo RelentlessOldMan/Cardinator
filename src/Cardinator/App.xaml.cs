@@ -176,9 +176,60 @@ public partial class App : Application
         // Dark title bars + app icon on every window (matches the app's dark theme).
         ThemeHelper.ApplyToAllWindows();
 
+        // Open straight into the frame layout editor on one template folder (no main window).
+        if (e.Args.Length > 1 && e.Args[0] == "--editframe")
+        {
+            var tpl = LoadTemplateDir(e.Args[1]);
+            if (tpl == null)
+            {
+                MessageBox.Show($"Couldn't load a template from:\n{e.Args[1]}\n\nExpected a folder with template.json + frame.png.",
+                    "Cardinator", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Shutdown(2);
+                return;
+            }
+            // Optional: --editframe <templateDir> [card.json] previews the real card in the editor.
+            CardModel? previewCard = null;
+            if (e.Args.Length > 2 && File.Exists(e.Args[2]))
+                try { previewCard = CardModel.Load(e.Args[2]); } catch { /* fall back to the sample card */ }
+
+            var editor = new FrameDesignWindow(tpl, previewCard)
+            {
+                Standalone = true,
+                Title = "Frame layout — " + tpl.Name,
+                // No owner window in standalone mode, so make it a normal, findable top-level window.
+                ShowInTaskbar = true,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            };
+            MainWindow = editor;
+            editor.Show();
+            editor.Activate();
+            return;
+        }
+
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
+    }
+
+    /// <summary>Loads a single on-disk template folder (template.json + frame.png) for --editframe.</summary>
+    private static Template? LoadTemplateDir(string dir)
+    {
+        try
+        {
+            var specPath = Path.Combine(dir, "template.json");
+            var framePath = Path.Combine(dir, "frame.png");
+            if (!File.Exists(specPath) || !File.Exists(framePath)) return null;
+            var spec = TemplateSpec.Load(specPath);
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            bi.UriSource = new Uri(Path.GetFullPath(framePath));
+            bi.EndInit();
+            bi.Freeze();
+            return new Template { Name = spec.Name, Spec = spec, FramePath = framePath, FrameImage = bi };
+        }
+        catch { return null; }
     }
 
     /// <summary>
@@ -401,6 +452,12 @@ public partial class App : Application
 
             Run with no arguments to open the app. It creates a "CardinatorData" folder
             next to the exe for templates, mana symbols, saved cards and exported PNGs.
+
+            GUI:
+              Cardinator.exe --editframe <templateDir> [card.json]
+                  Open just the frame layout editor on one template folder (template.json +
+                  frame.png): drag/resize the text regions, tweak fonts, save in place.
+                  Pass a card.json to preview your real card in the editor.
 
             Headless modes (no window):
               Cardinator.exe --selftest <outDir>

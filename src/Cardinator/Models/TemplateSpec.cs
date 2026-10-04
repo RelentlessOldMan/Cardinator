@@ -67,6 +67,31 @@ public sealed class TemplateSpec
     /// replace an imported frame with a generated one on the next load.</summary>
     public bool CustomFrame { get; set; }
 
+    /// <summary>For a custom frame: the RAW source image filename (in the template folder). When set, the
+    /// app composites frame.png live from it using the fit knobs below (zoom/offset/border/corner + the
+    /// art-window punch), so the framing stays editable instead of being baked into a flat image.</summary>
+    public string FrameSrc { get; set; } = "";
+
+    /// <summary>Custom-frame fit: zoom (1 = cover-fit) and pan offset (logical px) of the source image.</summary>
+    public double FrameZoom { get; set; } = 1.0;
+    public double FrameOffsetX { get; set; }
+    public double FrameOffsetY { get; set; }
+
+    /// <summary>Custom-frame baked border: thickness (logical px, 0 = none) and color, drawn as an even
+    /// ring from the rounded card edge inward.</summary>
+    public double FrameBorder { get; set; }
+    public string FrameBorderColor { get; set; } = "#000000";
+
+    /// <summary>Translucent mask (custom frames): a region painted in the source image with
+    /// <see cref="TranslucentKey"/> is converted to a see-through area where the art shows through at
+    /// <see cref="TranslucentAmount"/> (1 = fully clear, 0 = opaque), over <see cref="TranslucentBacking"/>.
+    /// This is baked into the frame art (unlike the fully-transparent art window), so pick a key color the
+    /// art never uses (default magenta).</summary>
+    public bool TranslucentEnabled { get; set; }
+    public string TranslucentKey { get; set; } = "#FF00FF";
+    public double TranslucentAmount { get; set; } = 0.5;
+    public string TranslucentBacking { get; set; } = "#000000";
+
     /// <summary>Frame design: "classic" (default), "clean" (flat/modern), "ornate" (heavy/decorative),
     /// "faded" (frame melts into art), "borderless" (floating panels), "overlay" (cinematic band over
     /// art) or "wave" (full frame + colorful scalloped wave crown across the top).</summary>
@@ -92,6 +117,10 @@ public sealed class TemplateSpec
     /// <summary>Where the collector/artist footer text goes: "frame" (on the colored card, above the
     /// border), "border" (on the black bottom border — the border size is unchanged), or "none".</summary>
     public string FooterPlacement { get; set; } = "frame";
+
+    /// <summary>When true, the "frame" footer is a single joined line (collector + artist) instead of
+    /// two stacked lines. No effect on "border"/"none" placement.</summary>
+    public bool FooterSingleLine { get; set; } = false;
 
     /// <summary>Draw the ornamental crown along the title of Legendary cards.</summary>
     public bool LegendaryCrown { get; set; } = true;
@@ -165,7 +194,12 @@ public sealed class TemplateSpec
     public Region PtBox { get; set; } = new() { X = 572, Y = 926, W = 126, H = 72 };
     public Region CreditBar { get; set; } = new() { X = 54, Y = 962, W = 460, H = 34 };
 
+    /// <summary>Optional plate for the card's subtitle (drawn only when the card has a subtitle). When null,
+    /// a sensible plate is derived just below the title bar.</summary>
+    public Region? SubtitleBar { get; set; }
+
     public FontSpec TitleFont { get; set; } = new() { Family = "Georgia", Size = 34, Bold = true, Align = "left" };
+    public FontSpec SubtitleFont { get; set; } = new() { Family = "Georgia", Size = 22, Italic = true, Align = "center", Color = "#ECE6D6" };
     public FontSpec TypeFont { get; set; } = new() { Family = "Georgia", Size = 25, Bold = true, Align = "left" };
     public FontSpec RulesFont { get; set; } = new() { Family = "Georgia", Size = 25, Align = "left" };
     public FontSpec FlavorFont { get; set; } = new() { Family = "Georgia", Size = 24, Italic = true, Align = "left", Color = "#333333" };
@@ -268,6 +302,7 @@ public sealed class TemplateSpec
         copy.TextBox = Map(TextBox);
         copy.PtBox = Map(PtBox);
         copy.CreditBar = Map(CreditBar);
+        if (SubtitleBar != null) copy.SubtitleBar = Map(SubtitleBar);
         return copy;
     }
 
@@ -286,6 +321,7 @@ public sealed class TemplateSpec
         PtBox ??= d.PtBox;
         CreditBar ??= d.CreditBar;
         TitleFont ??= d.TitleFont;
+        SubtitleFont ??= d.SubtitleFont;
         TypeFont ??= d.TypeFont;
         RulesFont ??= d.RulesFont;
         FlavorFont ??= d.FlavorFont;
@@ -304,6 +340,9 @@ public sealed class TemplateSpec
         if (string.IsNullOrWhiteSpace(Texture)) Texture = d.Texture;
         if (TextureStrength < 0) TextureStrength = d.TextureStrength;
         if (SubBorderThickness < 0) SubBorderThickness = d.SubBorderThickness;
+        if (string.IsNullOrWhiteSpace(TranslucentKey)) TranslucentKey = d.TranslucentKey;
+        if (string.IsNullOrWhiteSpace(TranslucentBacking)) TranslucentBacking = d.TranslucentBacking;
+        TranslucentAmount = Math.Clamp(TranslucentAmount, 0, 1);
     }
 
     /// <summary>Parses a hex/named color, falling back to black if the string is invalid.</summary>

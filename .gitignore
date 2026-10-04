@@ -17,3 +17,6 @@ jacob/
 
 # Transient commit-message temp files (see global git instructions)
 commit-msg.tmp
+
+# Local MCP server config (machine-specific paths / personal channels)
+.mcp.json

@@ -107,10 +107,32 @@ public sealed class TemplateService
     /// with mismatched text regions — the "everything slammed to the edges" class of bug.</summary>
     internal static void EnsureFrame(TemplateSpec spec, string framePath)
     {
-        // A user-imported frame image must never be overwritten by a spec-generated one. Keep it as-is;
-        // only fall back to a procedural frame if the file has gone missing entirely.
+        // A user-imported frame image must never be overwritten by a spec-generated one.
         if (spec.CustomFrame)
         {
+            // Source + fit knobs -> composite frame.png live (framing stays editable). Regenerates when
+            // the source or any fit knob changes (content-hash sidecar).
+            var dir = Path.GetDirectoryName(framePath);
+            if (CustomFrameComposer.HasSource(spec) && dir != null)
+            {
+                var srcPath = Path.Combine(dir, spec.FrameSrc);
+                if (File.Exists(srcPath))
+                {
+                    var hp = framePath + ".hash";
+                    var wantFit = CustomFrameComposer.FitHash(spec, srcPath);
+                    if (File.Exists(framePath) && File.Exists(hp))
+                    {
+                        try { if (File.ReadAllText(hp).Trim() == wantFit) return; } catch { /* regenerate */ }
+                    }
+                    var tmp2 = framePath + ".tmp";
+                    CustomFrameComposer.Generate(spec, srcPath, tmp2);
+                    if (File.Exists(framePath)) File.Delete(framePath);
+                    File.Move(tmp2, framePath);
+                    try { File.WriteAllText(hp, wantFit); } catch { /* best effort */ }
+                    return;
+                }
+            }
+            // No source: keep the baked frame.png as-is; only make a placeholder if it's gone entirely.
             if (!File.Exists(framePath)) FrameGenerator.Generate(spec, framePath);
             return;
         }

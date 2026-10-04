@@ -16,12 +16,15 @@ public sealed class CardModel : INotifyPropertyChanged
     private string _name = "";
     private string _manaCost = "";
     private string _typeLine = "";
+    private string _subtitle = "";
     private string _rulesText = "";
     private string _flavorText = "";
     private string _artist = "";
     private string _power = "";
     private string _toughness = "";
     private string _loyalty = "";
+    private string _landSymbol = "";
+    private string _landSymbolStyle = "";
     private string _setCode = "";
     private string _setSymbolPath = "";
     private string _collectorNumber = "";
@@ -47,6 +50,10 @@ public sealed class CardModel : INotifyPropertyChanged
     /// <summary>Type line, e.g. "Legendary Creature — Gnome Artificer".</summary>
     public string TypeLine { get => _typeLine; set => Set(ref _typeLine, value); }
 
+    /// <summary>Optional secondary name shown in a small plate under the title (e.g. a "Secret Lair" style
+    /// where the title is a flavor/set name and the subtitle is the real card name). Empty = no plate.</summary>
+    public string Subtitle { get => _subtitle; set => Set(ref _subtitle, value); }
+
     /// <summary>Rules text; may contain inline symbols like {T} and {R}. Newlines separate abilities.</summary>
     public string RulesText { get => _rulesText; set => Set(ref _rulesText, value); }
 
@@ -61,6 +68,14 @@ public sealed class CardModel : INotifyPropertyChanged
 
     /// <summary>Starting loyalty for planeswalkers (empty otherwise).</summary>
     public string Loyalty { get => _loyalty; set => Set(ref _loyalty, value); }
+
+    /// <summary>Optional override for a basic land's big centered mana symbol(s), e.g. "{G}" or "{R}{G}".
+    /// When empty, the symbol is derived from the land's basic subtype(s) in the type line.</summary>
+    public string LandSymbol { get => _landSymbol; set => Set(ref _landSymbol, value); }
+
+    /// <summary>How multiple big land symbols are arranged: "row" (side by side, default), or combined into
+    /// one disc as "splitv" (vertical line), "splith" (horizontal line), "yinyang" (2 only), or "pie" (wedges).</summary>
+    public string LandSymbolStyle { get => _landSymbolStyle; set => Set(ref _landSymbolStyle, value); }
 
     /// <summary>Set code shown in the footer, e.g. "CST".</summary>
     public string SetCode { get => _setCode; set => Set(ref _setCode, value); }
@@ -121,6 +136,42 @@ public sealed class CardModel : INotifyPropertyChanged
 
     [JsonIgnore]
     public bool IsClass => TypeLine.Contains("Class", StringComparison.OrdinalIgnoreCase);
+
+    [JsonIgnore]
+    public bool IsLand => TypeLine.Contains("Land", StringComparison.OrdinalIgnoreCase);
+
+    // Basic land subtype -> its mana symbol, used to auto-derive the big centered symbol.
+    private static readonly (string sub, string sym)[] BasicSubtypes =
+        { ("Plains", "{W}"), ("Island", "{U}"), ("Swamp", "{B}"), ("Mountain", "{R}"), ("Forest", "{G}") };
+
+    /// <summary>The big centered mana symbol(s) a basic land displays. An explicit <see cref="LandSymbol"/>
+    /// wins; otherwise derived from the Plains/Island/Swamp/Mountain/Forest subtype(s) in the type line.
+    /// Empty for non-lands.</summary>
+    [JsonIgnore]
+    public List<string> BigLandSymbols
+    {
+        get
+        {
+            var result = new List<string>();
+            if (!IsLand) return result;
+            if (!string.IsNullOrWhiteSpace(LandSymbol))
+            {
+                foreach (var t in Cardinator.Services.ManaText.Tokenize(LandSymbol))
+                    if (t.IsSymbol) result.Add(t.Value);
+                return result;
+            }
+            foreach (var (sub, sym) in BasicSubtypes)
+                if (TypeLine.Contains(sub, StringComparison.OrdinalIgnoreCase)) result.Add(sym);
+            return result;
+        }
+    }
+
+    /// <summary>True when this land should show a big centered symbol instead of a rules box — i.e. it has
+    /// symbol(s) and no real rules text (parenthetical reminder text like "({T}: Add {G}.)" doesn't count).</summary>
+    [JsonIgnore]
+    public bool ShowBigLandSymbol =>
+        IsLand && BigLandSymbols.Count > 0 &&
+        string.IsNullOrWhiteSpace(System.Text.RegularExpressions.Regex.Replace(RulesText ?? "", @"\([^)]*\)", ""));
 
     [JsonIgnore]
     public bool IsAdventure =>
