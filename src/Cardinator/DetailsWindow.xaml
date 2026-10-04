@@ -104,6 +104,43 @@
                 <TextBlock Text="Copyright / footer note" Style="{StaticResource SectionLabel}"/>
                 <TextBox Text="{Binding Copyright, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,20"/>
 
+                <TextBlock Text="Special layouts" Style="{StaticResource GroupHeader}"/>
+
+                <TextBlock Text="Subtitle (name plate under the title)" Style="{StaticResource SectionLabel}"/>
+                <TextBox Text="{Binding Subtitle, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14"
+                         ToolTip="A small italic plate under the title (works on any card). Leave blank for none."/>
+
+                <TextBlock Text="Land — big mana symbols" Style="{StaticResource SectionLabel}"/>
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Text="{Binding LandSymbol, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Mana shown big on a land, e.g. {R}{G}. Blank = derive from the type line's land subtypes."/>
+                    <ComboBox Grid.Column="1" x:Name="LandStyleBox" Width="130" Margin="8,0,0,0" IsEditable="True"
+                              Text="{Binding LandSymbolStyle, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="How 2–3 symbols are arranged"/>
+                </Grid>
+
+                <TextBlock Text="Adventure (spell half)" Style="{StaticResource SectionLabel}"/>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="150"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Text="{Binding AdventureName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Adventure name — filling this in makes the card render an adventure sub-box"/>
+                    <TextBox Grid.Column="1" Margin="8,0,0,0" Text="{Binding AdventureCost, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Adventure mana cost, e.g. {1}{R}"/>
+                </Grid>
+                <TextBox Text="{Binding AdventureType, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"
+                         ToolTip="Adventure type line, e.g. Sorcery — Adventure"/>
+                <TextBox Text="{Binding AdventureText, UpdateSourceTrigger=PropertyChanged}"
+                         AcceptsReturn="True" TextWrapping="Wrap" Height="60" Padding="12,8"
+                         VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" Margin="0,0,0,20"
+                         ToolTip="Adventure rules text"/>
+
                 <TextBlock Text="Artwork position" Style="{StaticResource GroupHeader}"/>
                 <TextBlock Text="Zoom" Style="{StaticResource SectionLabel}"/>
                 <Slider Minimum="0.5" Maximum="3" Value="{Binding ArtScale}" Margin="0,0,0,10"/>
