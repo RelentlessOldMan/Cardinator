@@ -3,7 +3,7 @@ using Cardinator.Models;
 
 namespace Cardinator.Services;
 
-public sealed record FillReport(int Found, int Filled, List<string> NotFound, List<CardModel> ExtraBackFaces);
+public sealed record FillReport(int Found, int Filled, List<string> NotFound);
 public sealed record BatchExportResult(int Exported, List<string> Errors);
 
 /// <summary>
@@ -26,7 +26,6 @@ public static class BatchService
         var client = new ScryfallClient();
         int found = 0, filled = 0;
         var notFound = new List<string>();
-        var extraBacks = new List<CardModel>();
 
         // Cards that share a name + printing hint resolve to the same card, so look each unique request
         // up only once (a 4-of playset or repeated basics collapses to one lookup + one art download).
@@ -49,13 +48,15 @@ public static class BatchService
                 if (downloadArt && Blank(member.Card.ArtPath) && !Blank(faces[0].ArtUrl))
                     artJobs.Add((member.Card, faces[0].ArtUrl));
 
-                // Double-faced: give each instance its own back card (cloned) sharing the front's template.
-                for (int f = 1; f < faces.Count; f++)
+                // Double-faced: attach the back as THIS card's back face (one card, two faces). Only the
+                // first extra face is used (standard DFC); the renderer/model keep it to one level.
+                if (faces.Count > 1)
                 {
-                    var backUrl = faces[f].ArtUrl;   // grabbed before Clone(): ArtUrl is transient/not cloned
-                    var back = faces[f].Clone();
+                    var backUrl = faces[1].ArtUrl;   // grabbed before Clone(): ArtUrl is transient/not cloned
+                    var back = faces[1].Clone();
                     back.TemplateName = member.Card.TemplateName;
-                    extraBacks.Add(back);
+                    member.Card.BackFace = back;
+                    if (Blank(member.Card.DfcStyle)) member.Card.DfcStyle = "sunmoon";   // default indicator
                     if (downloadArt && !Blank(backUrl)) artJobs.Add((back, backUrl));
                 }
             }
@@ -164,7 +165,7 @@ public static class BatchService
         }
 
         progress?.Report($"Scryfall: {found} found, {notFound.Count} not found.");
-        return new FillReport(found, filled, notFound, extraBacks);
+        return new FillReport(found, filled, notFound);
     }
 
     /// <summary>Renders every card to a PNG (at 2x) in outDir. Filenames are index_slug.png.</summary>
@@ -194,12 +195,20 @@ public static class BatchService
             var card = cards[i];
             try
             {
-                var template = (card.TemplateName is { Length: > 0 } n && byName.TryGetValue(n, out var t))
-                    ? t : fallback;
-                var bmp = renderer.RenderToBitmap(card, template, supersample: 2);
+                Template TemplateFor(CardModel c) =>
+                    (c.TemplateName is { Length: > 0 } n && byName.TryGetValue(n, out var t)) ? t : fallback;
+
+                var bmp = renderer.RenderToBitmap(card, TemplateFor(card), supersample: 2);
                 var path = Path.Combine(outDir, $"{i + 1:000}_{TextUtil.Slug(card.Name)}.png");
                 CardExporter.SavePng(bmp, path);
                 exported++;
+
+                // Double-faced: write the back alongside as "NNN_slug-back.png".
+                if (card.BackFace is { } back)
+                {
+                    var backBmp = renderer.RenderToBitmap(back, TemplateFor(back), supersample: 2);
+                    CardExporter.SavePng(backBmp, Path.Combine(outDir, $"{i + 1:000}_{TextUtil.Slug(card.Name)}-back.png"));
+                }
                 progress?.Report($"Exported {i + 1}/{cards.Count}: {Path.GetFileName(path)}");
             }
             catch (Exception ex)
@@ -209,6 +218,20 @@ public static class BatchService
             percent?.Report((double)(i + 1) / cards.Count);
         }
         return new BatchExportResult(exported, errors);
+    }
+
+    /// <summary>Flattens cards into printable faces for a single-sided sheet: each card's front followed by
+    /// its back face (if any) as its own slot — so both sides of a double-faced card can be cut out. (The
+    /// double-sided sheet instead pairs the real back behind the front, so it doesn't use this.)</summary>
+    public static List<CardModel> ExpandFaces(IReadOnlyList<CardModel> cards)
+    {
+        var result = new List<CardModel>();
+        foreach (var c in cards)
+        {
+            result.Add(c);
+            if (c.BackFace is { } back) result.Add(back);
+        }
+        return result;
     }
 
     /// <summary>Fills any blank fields of <paramref name="target"/> from <paramref name="src"/>.</summary>

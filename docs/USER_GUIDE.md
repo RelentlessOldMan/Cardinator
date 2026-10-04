@@ -97,7 +97,14 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Saga** | Type line contains "Saga" | Chapter badges (`I`, `II`, `III`) beside each chapter |
 | **Class** | Type line contains "Class" | Level badges beside each level's abilities |
 | **Adventure** | Fill the **Adventure** fields (or import an adventure card) | A spell sub-box on the creature |
-| **Double-faced** | Look up a real DFC | Imported as two cards — front and back |
+| **Double-faced** | Look up a real DFC, or **Make double-faced** | One card with a **front + back face** you can flip |
+
+**Double-faced cards (DFC).** A card can have a **back face** — a front/back card that flips. Looking up a real
+double-faced card imports it as **one card with both faces**. To build one yourself, click **Make double-faced**
+(under the editor), then **Edit back face…** to fill the back's fields and art, and **Show back** to flip the
+preview. The style dropdown adds a corner indicator — **Flip arrow**, or **Sun / moon** (sun on the front,
+crescent moon on the back) — drawn by Cardinator (no third-party art). Exporting writes both sides
+(`Name.png` + `Name-back.png`); **Print sheet** puts the real back behind each front for double-sided printing.
 
 **Authoring them by hand:** open **Edit details…** and use the **Special layouts** section to set a
 **Subtitle** (a small plate under the title, on any card), the **Adventure** half (name/cost/type/text —
