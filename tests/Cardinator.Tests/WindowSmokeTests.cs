@@ -111,6 +111,45 @@ public class WindowSmokeTests
         });
 
     [Fact]
+    public void MainWindow_BulkEdit_CanTargetASubset()   // M14
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            main.Cards.Clear();
+            var a = new CardModel { Name = "A" };
+            var b = new CardModel { Name = "B" };
+            main.Cards.Add(a); main.Cards.Add(b);
+            main.SelectedCard = a;
+
+            int n = main.ApplyBulkEdit(new[] { a }, setCode: "ONLYA", null, null, null, null, null);
+
+            Assert.Equal(1, n);
+            Assert.Equal("ONLYA", a.SetCode);
+            Assert.Equal("", b.SetCode);                       // the unselected card is untouched
+        });
+
+    [Fact]
+    public void MainWindow_LiveChecks_FlagBlankArtFromExistingButCorruptFile()   // M5
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            // A file that EXISTS but isn't a decodable image -> renders a blank art window. Rule checks
+            // can't see this; only the pixel inspector can.
+            var bogus = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+                "cardinator_notimg_" + Guid.NewGuid().ToString("N") + ".png");
+            System.IO.File.WriteAllText(bogus, "not really a png");
+            try
+            {
+                card.ArtPath = bogus;
+                main.ApplyBulkEdit(null, null, null, null, null, null);   // triggers the inspect render path
+                Assert.True(main.HasValidationIssues);
+                Assert.Contains("blank", main.ValidationDetails, StringComparison.OrdinalIgnoreCase);
+            }
+            finally { try { System.IO.File.Delete(bogus); } catch { } }
+        });
+
+    [Fact]
     public void MainWindow_Undo_AtStart_IsNoOp()
         => OnAppThread(() =>
         {

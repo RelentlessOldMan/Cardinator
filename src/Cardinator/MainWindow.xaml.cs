@@ -408,15 +408,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             : $"Numbered {changed} card(s) (NNN/{total}).";
     }
 
-    /// <summary>Sets the same set code / artist / rarity / copyright / frame on every card at once.</summary>
+    /// <summary>Sets the same set code / artist / rarity / copyright / frame on all cards — or, when a subset
+    /// is multi-selected, just those (M14).</summary>
     private void OnBulkEdit(object sender, RoutedEventArgs e)
     {
         if (Cards.Count == 0) { Status = "No cards to edit."; return; }
+
+        // M14: when a subset is multi-selected, offer to target just those instead of the whole set.
+        IReadOnlyList<CardModel> targets = Cards.ToList();
+        var selected = CardList.SelectedItems.Cast<CardModel>().ToList();
+        if (selected.Count > 1 && selected.Count < Cards.Count)
+        {
+            var choice = ConfirmDialog.Show(this, "Set fields",
+                $"Apply to the {selected.Count} selected card(s), or to all {Cards.Count}?",
+                affirmative: $"Selected ({selected.Count})", negative: $"All ({Cards.Count})", cancel: "Cancel");
+            if (choice == ConfirmResult.Cancel) return;
+            if (choice == ConfirmResult.Affirmative) targets = selected;
+        }
+
         var dlg = new BulkEditWindow(Templates.Select(t => t.Name)) { Owner = this };
         if (dlg.ShowDialog() != true) return;
 
-        ApplyBulkEdit(dlg.SetCode, dlg.Artist, dlg.Rarity, dlg.Copyright, dlg.TemplateName, dlg.SetSymbolPath);
-        Status = $"Applied changes to {Cards.Count} card(s).";
+        int n = ApplyBulkEdit(targets, dlg.SetCode, dlg.Artist, dlg.Rarity, dlg.Copyright, dlg.TemplateName, dlg.SetSymbolPath);
+        Status = $"Applied changes to {n} card(s).";
     }
 
     /// <summary>W1: edit the set's house defaults (inherited by new/imported cards), optionally applying them
@@ -454,8 +468,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// leaves that field unchanged; an empty string clears it. Exposed for testing the live re-render.</summary>
     internal void ApplyBulkEdit(string? setCode, string? artist, string? rarity,
         string? copyright, string? templateName, string? setSymbolPath)
+        => ApplyBulkEdit(Cards.ToList(), setCode, artist, rarity, copyright, templateName, setSymbolPath);
+
+    /// <summary>Applies bulk field changes to a specific set of cards (M14 — a selection, or all), refreshes
+    /// the preview, and returns how many cards were targeted. A null value leaves that field unchanged;
+    /// an empty string clears it.</summary>
+    internal int ApplyBulkEdit(IReadOnlyList<CardModel> targets, string? setCode, string? artist, string? rarity,
+        string? copyright, string? templateName, string? setSymbolPath)
     {
-        foreach (var c in Cards)
+        foreach (var c in targets)
         {
             if (setCode != null) c.SetCode = setCode;
             if (artist != null) c.Artist = artist;
@@ -474,6 +495,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         _renderTimer.Stop();   // cancel any pending debounce so our explicit render is the final word
         RenderPreview();       // re-render the active card immediately with the new values
+        return targets.Count;
     }
 
     /// <summary>Moves every selected card up/down as a block (multi-select aware).</summary>
@@ -511,26 +533,37 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(CanRedo));
     }
 
-    private void RenderPreview()
+    private void RenderPreview() => RenderPreview(inspect: true);
+
+    /// <param name="inspect">When true, also render a clean (no-hint) bitmap and run the pixel-level
+    /// <see cref="RenderInspector"/> for the CHECKS panel (M5). Skipped during live drag to stay smooth.</param>
+    private void RenderPreview(bool inspect)
     {
-        if (_selectedCard == null) { PreviewImage = null; UpdateValidation(); return; }
+        if (_selectedCard == null) { PreviewImage = null; UpdateValidation(null); return; }
         var template = _selectedTemplate ?? Templates.FirstOrDefault();
         if (template == null) return;
+        BitmapSource? inspectBmp = null;
         try
         {
             PreviewImage = _renderer.RenderToBitmap(_selectedCard, template, supersample: 1, previewHints: true);
+            // A clean render (no placeholder hint) so the pixel inspector sees the true art window / border.
+            if (inspect)
+                inspectBmp = _renderer.RenderToBitmap(_selectedCard, template, supersample: 1, previewHints: false);
         }
         catch (Exception ex)
         {
             Status = "Preview error: " + ex.Message;
         }
-        UpdateValidation();
+        UpdateValidation(inspectBmp);
     }
 
-    /// <summary>Runs the automated checks on the selected card and updates the CHECKS panel. Cheap
-    /// (no rendering), so it runs on every edit alongside the live preview — the friend sees problems
-    /// (missing art, bad symbols, overlaps, duplicate collector numbers) as they happen, not on export.</summary>
-    private void UpdateValidation()
+    private void UpdateValidation() => UpdateValidation(null);
+
+    /// <summary>Runs the automated checks on the selected card and updates the CHECKS panel — the friend sees
+    /// problems (missing art, bad symbols, overlaps, duplicate collector numbers) as they happen, not on
+    /// export. When <paramref name="inspectBmp"/> is supplied, the pixel-level checks (blank art window,
+    /// missing/thin border) are merged in too (M5).</summary>
+    private void UpdateValidation(BitmapSource? inspectBmp)
     {
         var card = _selectedCard;
         var template = _selectedTemplate ?? Templates.FirstOrDefault();
@@ -540,7 +573,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        var issues = CardValidator.Validate(card, template.Spec, Cards, Templates.Select(t => t.Name).ToList());
+        IReadOnlyList<ValidationIssue> issues =
+            CardValidator.Validate(card, template.Spec, Cards, Templates.Select(t => t.Name).ToList());
+        if (inspectBmp != null)
+        {
+            // Pixel inspection is best-effort — never let it break the live panel.
+            try { issues = LiveChecks.Merge(issues, RenderInspector.Inspect(inspectBmp, card, template.Spec)); }
+            catch { /* keep the rule-based issues */ }
+        }
         int errors = issues.Count(i => i.Severity == IssueSeverity.Error);
         int warns = issues.Count(i => i.Severity == IssueSeverity.Warning);
 
@@ -1610,7 +1650,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var now = _liveClock.ElapsedMilliseconds;
         if (now - _lastLiveRenderMs < 16) return;
         _lastLiveRenderMs = now;
-        RenderPreview();
+        RenderPreview(inspect: false);   // skip the extra pixel-inspection render while dragging, for smoothness
     }
 
     /// <summary>Size of the letterboxed card inside the preview Image (5:7 aspect).</summary>

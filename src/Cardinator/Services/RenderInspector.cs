@@ -34,12 +34,16 @@ public static class RenderInspector
             return px[i] > 240 && px[i + 1] > 240 && px[i + 2] > 240;
         }
         // The dark fill the renderer paints into an empty/failed art window (CardBacking = RGB 8,8,10).
-        // Matched tightly so genuinely dark ART isn't mistaken for an unfilled window.
+        // Matched as a TIGHT BAND around that exact color — not just "dark" — so genuinely dark art (and
+        // crucially pure black, 0,0,0) isn't mistaken for an unfilled window. The backing is a flat fill with
+        // no supersampling dither in the interior, so an exact-ish match is safe.
         bool NearArtBacking(int x, int y)
         {
             if (x < 0 || y < 0 || x >= w || y >= h) return false;
             int i = y * stride + x * 4;
-            return px[i] <= 18 && px[i + 1] <= 16 && px[i + 2] <= 16;   // B,G,R of (8,8,10) with a little tolerance
+            return px[i]     is >= 3 and <= 13    // B ≈ 8
+                && px[i + 1] is >= 3 and <= 13    // G ≈ 8
+                && px[i + 2] is >= 5 and <= 15;   // R ≈ 10
         }
 
         // --- border thickness on each side (measured at the mid-point, away from the rounded corners) ---
