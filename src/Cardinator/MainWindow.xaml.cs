@@ -27,6 +27,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _projectName = "Untitled Project";
     private string _artBaseDir = "";
     private string _projectPath = "";     // last saved/opened file, so Ctrl+S can re-save silently
+    private string? _projectFolder;       // the set folder (holds the project file + art/ + out/); null until saved/opened
+    private string? _lastExportDir;       // where the last PNG/sheet went, so "Open output folder" opens there
     private bool _isExporting;
     private bool _busy;                     // any long/mutating op in flight (gates re-entrancy + conflicts)
     private double _exportProgress;
@@ -530,6 +532,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Cards.Clear();
         _projectName = "Untitled Project";
         _projectPath = "";
+        _projectFolder = null;   // ad-hoc until the first Save sets up a set folder
         _artBaseDir = "";
         AddAndSelect(SampleCards.Blank(DefaultTemplateName));
         _loading = false;
@@ -558,12 +561,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         try
         {
             var project = CardProject.Load(path);
+            var projFolder = Path.GetDirectoryName(Path.GetFullPath(path));
             _loading = true;
             Cards.Clear();
-            foreach (var c in project.Cards) Cards.Add(c);
+            foreach (var c in project.Cards)
+            {
+                // Art is stored relative to the set folder; resolve it back to an absolute path in memory
+                // (older projects saved absolute paths, which ResolveArtPath leaves untouched).
+                if (projFolder != null)
+                    c.ArtPath = CardProject.ResolveArtPath(c.ArtPath, projFolder);
+                Cards.Add(c);
+            }
             _projectName = string.IsNullOrWhiteSpace(project.Name)
                 ? Path.GetFileNameWithoutExtension(path) : project.Name;
             _projectPath = path;
+            _projectFolder = projFolder;
             _artBaseDir = project.ArtBaseDir;
             SelectedCard = Cards.FirstOrDefault();
             _loading = false;
@@ -603,20 +615,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // The file name IS the project's identity (there's no separate name field), so persist the
             // name derived from the path — otherwise a reloaded file would show a stale/"Untitled" name.
             var name = Path.GetFileNameWithoutExtension(path);
+            var projFolder = Path.GetDirectoryName(Path.GetFullPath(path))!;
+
+            // Make the set self-contained: copy any external art into <set>\art and repoint the cards at it,
+            // so the folder can be moved/zipped/shared and still render. Exports default to <set>\out.
+            LocalizeArtInto(projFolder);
+            try { Directory.CreateDirectory(Path.Combine(projFolder, "out")); } catch { /* best effort */ }
+
+            // Serialize with art paths made relative to the set folder (resolved back to absolute on load).
             var project = new CardProject
             {
                 Name = name,
                 ArtBaseDir = _artBaseDir,
                 DefaultTemplate = DefaultTemplateName,
-                Cards = Cards.ToList(),
+                Cards = Cards.Select(c => CloneWithRelativeArt(c, projFolder)).ToList(),
             };
             project.Save(path);
             _projectPath = path;
+            _projectFolder = projFolder;
             _projectName = name;
             MarkSavedPoint();   // this history position now matches disk (undo past it re-marks dirty)
             OnPropertyChanged(nameof(ProjectSummary));
             OnPropertyChanged(nameof(WindowTitle));
-            Status = $"Saved project ({Cards.Count} cards).";
+            Status = $"Saved project ({Cards.Count} cards) to {Path.GetFileName(path)}. Art in \\art, exports go to \\out.";
             return true;
         }
         catch (Exception ex)
@@ -624,6 +645,53 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = "Couldn't save project: " + ex.Message;
             return false;
         }
+    }
+
+    /// <summary>Copies each card's art that lives outside this set's <c>art</c> folder into it, and repoints
+    /// the card at the copy — so the saved set folder is self-contained (movable/zippable). Art already inside
+    /// the folder is left alone, so re-saving doesn't duplicate.</summary>
+    private void LocalizeArtInto(string projFolder)
+    {
+        var artDir = Path.Combine(projFolder, "art");
+        var artRoot = Path.GetFullPath(artDir) + Path.DirectorySeparatorChar;
+        try { Directory.CreateDirectory(artDir); } catch { return; }
+
+        foreach (var c in Cards)
+        {
+            if (string.IsNullOrWhiteSpace(c.ArtPath)) continue;
+            string full;
+            try { full = Path.GetFullPath(c.ArtPath); } catch { continue; }
+            if (!File.Exists(full)) continue;
+            if (full.StartsWith(artRoot, StringComparison.OrdinalIgnoreCase)) continue;   // already in this set
+
+            var dest = Path.Combine(artDir,
+                ImageIntake.UniqueFileName(Path.GetFileNameWithoutExtension(full), Path.GetExtension(full)));
+            try { File.Copy(full, dest, overwrite: false); c.ArtPath = dest; }
+            catch { /* keep the original path if the copy fails */ }
+        }
+    }
+
+    /// <summary>A clone of the card whose art path is relative to the set folder (so the saved file is
+    /// portable). Paths outside the folder stay absolute.</summary>
+    private static CardModel CloneWithRelativeArt(CardModel card, string projFolder)
+    {
+        var clone = card.Clone();
+        clone.ArtPath = CardProject.RelativeArtPath(clone.ArtPath, projFolder);   // e.g. "art\foo.png"
+        return clone;
+    }
+
+    /// <summary>Where exports should default: the last place you exported, else the set's <c>out</c> folder,
+    /// else the app's shared output dir.</summary>
+    private string DefaultOutputDir()
+    {
+        if (!string.IsNullOrWhiteSpace(_lastExportDir) && Directory.Exists(_lastExportDir)) return _lastExportDir!;
+        if (_projectFolder != null)
+        {
+            var outDir = Path.Combine(_projectFolder, "out");
+            try { Directory.CreateDirectory(outDir); } catch { /* fall through */ }
+            if (Directory.Exists(outDir)) return outDir;
+        }
+        return AppPaths.OutputDir;
     }
 
     /// <summary>Returns true if it's OK to proceed (nothing unsaved, or the user chose to discard/saved).</summary>
@@ -856,7 +924,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (duplexAnswer == ConfirmResult.Cancel) return;
         bool doubleSided = duplexAnswer == ConfirmResult.Affirmative;
 
-        var dlg = new OpenFolderDialog { Title = "Choose a folder for the printable sheet pages" };
+        var dlg = new OpenFolderDialog { Title = "Choose a folder for the printable sheet pages", InitialDirectory = DefaultOutputDir() };
         if (dlg.ShowDialog() != true) return;
 
         // Deep-clone so edits during the (background) compose can't tear reads on the render thread.
@@ -883,6 +951,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return SheetExporter.Save(pages, folder);
             });
             ExportProgress = 100;
+            _lastExportDir = folder;   // so "Open output folder" opens where the sheet went
             Status = doubleSided
                 ? $"Saved {paths.Count} page(s) — front+back, {folder}."
                 : $"Saved {paths.Count} sheet page(s) (3x3) to {folder}.";
@@ -901,7 +970,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnEditDetails(object sender, RoutedEventArgs e)
     {
         if (_selectedCard == null) return;
-        new DetailsWindow(_selectedCard) { Owner = this }.ShowDialog();
+        new DetailsWindow(_selectedCard, _scryfall) { Owner = this }.ShowDialog();
         CommitHistory();   // coalesce the dialog's edits into one undo step and refresh the preview
         RenderPreview();
     }
@@ -911,44 +980,49 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void OnImportFrame(object sender, RoutedEventArgs e)
     {
-        // Offer a URL first; leaving it blank (and clicking OK) falls back to picking a local file.
-        // Cancelling the prompt aborts entirely (it must NOT fall through to the file picker).
+        // Two clearly visible choices, intuitive for a first-time user: a "Choose file…" button
+        // (a PNG image, a .cardframe, or a .zip bundle from the PC) OR a pasted web link to an image.
         var prompt = new InputDialog("Import a frame or template",
-            "Paste a link to a frame image (transparent PNG), or leave blank to pick a file on your PC "
-            + "(a frame image, or a shared template bundle).")
+            "Choose a file from your PC — a frame image (PNG), or a shared template bundle (.cardframe or .zip) — "
+            + "or paste a web link to a frame image below.")
         { Owner = this };
+        prompt.ShowBrowse(() =>
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title = "Choose a frame image, or a shared template bundle",
+                Filter = "Frames & templates|*.cardframe;*.zip;*.png;*.webp;*.gif;*.bmp"
+                       + "|Template bundle|*.cardframe;*.zip|Images|*.png;*.webp;*.gif;*.bmp|All files|*.*",
+            };
+            return dlg.ShowDialog() == true ? dlg.FileName : null;
+        });
         if (prompt.ShowDialog() != true) return;   // cancelled
-        var url = prompt.Value;                     // trimmed; "" means "use the file picker"
         try
         {
             string name;
-            if (url.Length > 0)
+            if (prompt.PickedFile)
             {
-                if (!ImageIntake.IsHttpUrl(url)) { Status = "That doesn't look like a web link."; return; }
-                Status = "Downloading frame…";
-                name = await TemplateImporter.CreateFromUrlAsync("", url);
-                Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
-            }
-            else
-            {
-                var dlg = new OpenFileDialog
-                {
-                    Title = "Choose a frame image, or a shared template bundle",
-                    Filter = "Frames & templates|*.cardframe;*.zip;*.png;*.webp;*.gif;*.bmp"
-                           + "|Template bundle|*.cardframe;*.zip|Images|*.png;*.webp;*.gif;*.bmp|All files|*.*",
-                };
-                if (dlg.ShowDialog() != true) return;
+                var path = prompt.Value;
                 // A bundle carries its own tuned regions/fonts/colors; a bare image gets default regions.
-                if (TemplateImporter.IsBundlePath(dlg.FileName))
+                if (TemplateImporter.IsBundlePath(path))
                 {
-                    name = TemplateImporter.ImportBundle(dlg.FileName);
+                    name = TemplateImporter.ImportBundle(path);
                     Status = $"Imported template \"{name}\".";
                 }
                 else
                 {
-                    name = TemplateImporter.CreateFromFile(Path.GetFileNameWithoutExtension(dlg.FileName), dlg.FileName);
+                    name = TemplateImporter.CreateFromFile(Path.GetFileNameWithoutExtension(path), path);
                     Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
                 }
+            }
+            else
+            {
+                var url = prompt.Value;
+                if (url.Length == 0) { Status = "Nothing to import — choose a file or paste a link."; return; }
+                if (!ImageIntake.IsHttpUrl(url)) { Status = "That doesn't look like a web link."; return; }
+                Status = "Downloading frame…";
+                name = await TemplateImporter.CreateFromUrlAsync("", url);
+                Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
             }
             RefreshTemplates(name);
         }
@@ -982,6 +1056,47 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    /// <summary>Deletes the selected template's folder — but only for the user's own frames. Built-in and
+    /// bundled frames are protected (they self-heal on launch, so deleting them is pointless).</summary>
+    private void OnDeleteFrame(object sender, RoutedEventArgs e)
+    {
+        var t = _selectedTemplate ?? Templates.FirstOrDefault();
+        if (t == null) { Status = "No frame selected to delete."; return; }
+
+        var dir = Path.GetDirectoryName(t.FramePath);
+        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+        {
+            Status = "That frame has no folder on disk to delete.";
+            return;
+        }
+        var slug = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar));
+
+        if (TemplateService.IsBuiltIn(slug))
+        {
+            ConfirmDialog.Show(this, "Delete frame",
+                $"“{t.Name}” is a built-in frame, so it can't be deleted — it would reappear on the next "
+                + "launch. To make a version you can change or remove, open Design… and use “Save as new…”.",
+                affirmative: "OK");
+            return;
+        }
+
+        if (ConfirmDialog.Show(this, "Delete frame",
+                $"Delete the frame “{t.Name}”? This removes it from your templates folder and can't be undone.",
+                affirmative: "Delete", cancel: "Cancel") != ConfirmResult.Affirmative)
+            return;
+
+        try
+        {
+            Directory.Delete(dir, recursive: true);
+            RefreshTemplates();
+            Status = $"Deleted frame “{t.Name}”.";
+        }
+        catch (Exception ex)
+        {
+            Status = "Couldn't delete frame: " + ex.Message;
+        }
+    }
+
     /// <summary>Opens the frame-design editor for the selected template; regenerates + re-renders on Apply.</summary>
     private void OnFrameDesign(object sender, RoutedEventArgs e)
     {
@@ -989,7 +1104,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (t == null) { Status = "No frame selected to design."; return; }
         try
         {
-            var win = new FrameDesignWindow(t) { Owner = this };
+            var dir = Path.GetDirectoryName(t.FramePath);
+            var slug = string.IsNullOrEmpty(dir) ? "" : Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar));
+            var win = new FrameDesignWindow(t) { Owner = this, IsBuiltIn = TemplateService.IsBuiltIn(slug) };
             if (win.ShowDialog() == true)
             {
                 RefreshTemplates(win.AppliedTemplateName);
@@ -1085,7 +1202,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             _ = _symbols.PrimeAsync(faces.SelectMany(x => ManaText.SymbolTokens(x.ManaCost, x.RulesText)));
 
-            // Pull the real art from Scryfall for any face that doesn't already have art.
+            // Pull the real art from Scryfall only for a face that doesn't already have art — a card's own
+            // art (and its frame) are never replaced by a lookup. Remember whether this card already had art
+            // so the status line can honestly say what changed.
+            bool hadArt = !string.IsNullOrWhiteSpace(card.ArtPath);
             bool gotArt = await FillArtFromScryfall(card, f.ArtUrl);
             for (int i = 1; i < faces.Count; i++)
                 await FillArtFromScryfall(faces[i], faces[i].ArtUrl);
@@ -1093,9 +1213,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             MarkDirty();
             CommitHistory();
             RenderPreview();
+            // Lookup fills the text fields; the frame is always kept, and existing art is kept too.
+            string artNote = hadArt
+                ? " Your art and frame are unchanged."
+                : gotArt ? " Added matching art; your frame is unchanged."
+                         : " No art found; your frame is unchanged.";
             Status = faces.Count > 1
-                ? $"Loaded \"{f.Name}\" (+{faces.Count - 1} back face) from Scryfall."
-                : $"Loaded \"{f.Name}\" from Scryfall" + (!gotArt && string.IsNullOrWhiteSpace(f.ArtUrl) ? " (no art available)." : ".");
+                ? $"Loaded “{f.Name}” details (+{faces.Count - 1} back face) from Scryfall.{artNote}"
+                : $"Loaded “{f.Name}” details from Scryfall.{artNote}";
         }
         catch (ScryfallException ex)
         {
@@ -1157,13 +1282,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Title = "Export card",
             Filter = "PNG image (*.png)|*.png|JPEG image (*.jpg)|*.jpg",
             FileName = SafeName(_selectedCard.Name) + ".png",
-            InitialDirectory = AppPaths.OutputDir,
+            InitialDirectory = DefaultOutputDir(),
         };
         if (dlg.ShowDialog() != true) return;
         try
         {
             var bmp = _renderer.RenderToBitmap(_selectedCard, template, supersample: 2);
             CardExporter.Save(bmp, dlg.FileName);   // PNG or JPEG by extension
+            _lastExportDir = Path.GetDirectoryName(dlg.FileName);   // so "Open output folder" opens here
             Status = $"Exported {Path.GetFileName(dlg.FileName)} ({bmp.PixelWidth}x{bmp.PixelHeight}).";
         }
         catch (Exception ex)
@@ -1176,9 +1302,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private bool _isPanning;
     private System.Windows.Point _panStart;
+    private readonly System.Diagnostics.Stopwatch _liveClock = System.Diagnostics.Stopwatch.StartNew();
+    private long _lastLiveRenderMs = long.MinValue;
 
     private void OnPreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
+        PreviewImageControl.Focus();   // so the arrow keys nudge the art after you click the preview
         if (_selectedCard == null || string.IsNullOrWhiteSpace(_selectedCard.ArtPath)) return;
         _isPanning = true;
         _panStart = e.GetPosition(PreviewImageControl);
@@ -1195,18 +1324,52 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _selectedCard.ArtOffsetX = Clamp(_selectedCard.ArtOffsetX + (p.X - _panStart.X) / w, -0.5, 0.5);
         _selectedCard.ArtOffsetY = Clamp(_selectedCard.ArtOffsetY + (p.Y - _panStart.Y) / h, -0.5, 0.5);
         _panStart = p;
+        RenderPreviewLive();   // live feedback while dragging (the debounce timer alone never fires mid-drag)
     }
 
     private void OnPreviewMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         _isPanning = false;
         PreviewImageControl.ReleaseMouseCapture();
+        RenderPreview();   // final crisp render
     }
 
     private void OnPreviewWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
     {
         if (_selectedCard == null || string.IsNullOrWhiteSpace(_selectedCard.ArtPath)) return;
-        _selectedCard.ArtScale = Clamp(_selectedCard.ArtScale + e.Delta / 120.0 * 0.08, 0.5, 3.0);
+        // Finer by default; Ctrl = ultra-fine, Shift = coarse. (Was a fixed 0.08/notch — too jumpy.)
+        var mods = System.Windows.Input.Keyboard.Modifiers;
+        double per = mods.HasFlag(System.Windows.Input.ModifierKeys.Control) ? 0.01
+                   : mods.HasFlag(System.Windows.Input.ModifierKeys.Shift) ? 0.08
+                   : 0.03;
+        _selectedCard.ArtScale = Clamp(_selectedCard.ArtScale + e.Delta / 120.0 * per, 0.5, 3.0);
+        RenderPreviewLive();
+    }
+
+    /// <summary>Nudges the art by a fraction of the card (dx/dy in 0..1 card-space). Used by the arrow keys.</summary>
+    private void NudgeArt(double dx, double dy)
+    {
+        if (_selectedCard == null) return;
+        _selectedCard.ArtOffsetX = Clamp(_selectedCard.ArtOffsetX + dx, -0.5, 0.5);
+        _selectedCard.ArtOffsetY = Clamp(_selectedCard.ArtOffsetY + dy, -0.5, 0.5);
+        RenderPreview();
+    }
+
+    /// <summary>Zooms the art by a small step (used by the +/- keys).</summary>
+    private void ZoomArt(double delta)
+    {
+        if (_selectedCard == null) return;
+        _selectedCard.ArtScale = Clamp(_selectedCard.ArtScale + delta, 0.5, 3.0);
+        RenderPreview();
+    }
+
+    /// <summary>A throttled immediate re-render (~60fps) for smooth drag/zoom without flooding the UI thread.</summary>
+    private void RenderPreviewLive()
+    {
+        var now = _liveClock.ElapsedMilliseconds;
+        if (now - _lastLiveRenderMs < 16) return;
+        _lastLiveRenderMs = now;
+        RenderPreview();
     }
 
     /// <summary>Size of the letterboxed card inside the preview Image (5:7 aspect).</summary>
@@ -1222,7 +1385,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnOpenOutput(object sender, RoutedEventArgs e)
     {
-        try { Process.Start("explorer.exe", AppPaths.OutputDir); }
+        // Open where you last exported (e.g. C:\temp\bob), else the set's \out folder, else the shared output dir.
+        try { Process.Start("explorer.exe", DefaultOutputDir()); }
         catch (Exception ex) { Status = "Couldn't open folder: " + ex.Message; }
     }
 
@@ -1238,11 +1402,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_selectedCard == null) return;
         try
         {
-            if (System.Windows.Clipboard.ContainsImage())
-            {
-                var bmp = System.Windows.Clipboard.GetImage();
-                if (bmp != null) { SetArt(ImageIntake.SaveBitmap(bmp)); return; }
-            }
+            // A real bitmap on the clipboard (e.g. a browser's "Copy image"). Read it robustly: the plain
+            // Clipboard.GetImage() yields an all-black image for browser DIBs whose alpha channel is zeroed.
+            var bmp = TryGetClipboardImage();
+            if (bmp != null) { SetArt(ImageIntake.SaveBitmap(bmp)); return; }
+
             if (System.Windows.Clipboard.ContainsFileDropList())
             {
                 var file = System.Windows.Clipboard.GetFileDropList().Cast<string>()
@@ -1260,6 +1424,39 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Status = "Paste art failed: " + ex.Message;
         }
+    }
+
+    /// <summary>Reads an image off the clipboard robustly. Prefers the "PNG" format that browsers provide
+    /// (correct colors + alpha); otherwise falls back to the DIB bitmap, repairing the all-zero alpha channel
+    /// that makes a browser-copied image paste as solid black. Returns null if there's no usable image.</summary>
+    private static System.Windows.Media.Imaging.BitmapSource? TryGetClipboardImage()
+    {
+        System.Windows.IDataObject? data;
+        try { data = System.Windows.Clipboard.GetDataObject(); } catch { data = null; }
+        if (data != null)
+        {
+            foreach (var fmt in new[] { "PNG", "image/png" })
+            {
+                try
+                {
+                    if (data.GetDataPresent(fmt) && data.GetData(fmt) is System.IO.Stream s && s.Length > 0)
+                    {
+                        s.Position = 0;
+                        var dec = new System.Windows.Media.Imaging.PngBitmapDecoder(
+                            s, System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+                            System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+                        var frame = dec.Frames[0];
+                        frame.Freeze();
+                        return frame;
+                    }
+                }
+                catch { /* try the next format, then the DIB fallback */ }
+            }
+        }
+
+        if (!System.Windows.Clipboard.ContainsImage()) return null;
+        var img = System.Windows.Clipboard.GetImage();
+        return img == null ? null : ImageIntake.RepairZeroAlpha(img);
     }
 
     private async Task DownloadArtAsync(string url)
@@ -1369,6 +1566,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
         var mods = System.Windows.Input.Keyboard.Modifiers;
+
+        // Nudge/zoom the art with the keyboard — but only when the preview is focused (click it first),
+        // so arrow keys still navigate the card list and move the caret in text fields.
+        if (PreviewImageControl.IsKeyboardFocusWithin
+            && _selectedCard != null && !string.IsNullOrWhiteSpace(_selectedCard.ArtPath))
+        {
+            bool shift = mods.HasFlag(System.Windows.Input.ModifierKeys.Shift);
+            double sx = (shift ? 10.0 : 1.0) / 750.0, sy = (shift ? 10.0 : 1.0) / 1050.0;   // 1px (or 10px) of the card
+            double zstep = shift ? 0.10 : 0.02;
+            switch (e.Key)
+            {
+                case System.Windows.Input.Key.Left:  NudgeArt(-sx, 0); e.Handled = true; return;
+                case System.Windows.Input.Key.Right: NudgeArt(+sx, 0); e.Handled = true; return;
+                case System.Windows.Input.Key.Up:    NudgeArt(0, -sy); e.Handled = true; return;
+                case System.Windows.Input.Key.Down:  NudgeArt(0, +sy); e.Handled = true; return;
+                case System.Windows.Input.Key.OemPlus:
+                case System.Windows.Input.Key.Add:   ZoomArt(+zstep); e.Handled = true; return;
+                case System.Windows.Input.Key.OemMinus:
+                case System.Windows.Input.Key.Subtract: ZoomArt(-zstep); e.Handled = true; return;
+            }
+        }
+
         // Ctrl+Shift+Z is a common "redo" alias.
         if (mods == (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift)
             && e.Key == System.Windows.Input.Key.Z)

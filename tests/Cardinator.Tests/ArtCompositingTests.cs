@@ -94,8 +94,10 @@ public class ArtCompositingTests
             var export = Sample(renderer.RenderToBitmap(card, template, 1, previewHints: false), x, y);
             var preview = Sample(renderer.RenderToBitmap(card, template, 1, previewHints: true), x, y);
 
-            Assert.True(export.r >= 250 && export.g >= 250 && export.b >= 250,
-                $"export art window should stay white (no hint baked in), got {export}");
+            // Export bakes in NO hint — the empty window is the dark CardBacking (never a light placeholder).
+            Assert.True(export.r < 40 && export.g < 40 && export.b < 40,
+                $"export art window should be the dark backing (no hint baked in), got {export}");
+            // Preview shows the soft light placeholder fill drawn over that backing.
             Assert.True(preview.r is >= 225 and < 250,
                 $"preview should show the soft placeholder fill, got {preview}");
         });

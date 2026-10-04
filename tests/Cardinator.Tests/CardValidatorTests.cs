@@ -104,7 +104,7 @@ public class CardValidatorTests
     public void RenderInspector_BlankArtWindow_IsFlagged() => RunSta(() =>
     {
         var c = CleanCreature();
-        c.ArtPath = Path.Combine(Path.GetTempPath(), "missing-" + System.Guid.NewGuid() + ".png");  // won't load → white window
+        c.ArtPath = Path.Combine(Path.GetTempPath(), "missing-" + System.Guid.NewGuid() + ".png");  // won't load → dark backing window
         var tpl = new TemplateService().LoadAll().First();
         var bmp = new CardRenderer(new SymbolService()).RenderToBitmap(c, tpl, supersample: 1);
         var issues = RenderInspector.Inspect(bmp, c, tpl.Spec);

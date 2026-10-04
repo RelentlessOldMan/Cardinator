@@ -99,33 +99,27 @@
             <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="10" Padding="18" Margin="14,0">
                 <StackPanel IsEnabled="{Binding CanEditSelected}">
                     <TextBlock Text="CARD NAME" Style="{StaticResource SectionLabel}"/>
-                    <Grid Margin="0,0,0,14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox Grid.Column="0" Height="36" Text="{Binding SelectedCard.Name, UpdateSourceTrigger=PropertyChanged}"/>
-                        <Button Grid.Column="1" Content="Search" Margin="8,0,0,0"
-                                Height="36" MinWidth="94" Click="OnLookup" ToolTip="Fill this card from Scryfall"/>
-                    </Grid>
+                    <!-- Just the name — this is YOUR card's title. To pull real stats from Scryfall (even for a
+                         card with a different name), use the search inside Edit details…. -->
+                    <TextBox Height="36" Margin="0,0,0,14" Text="{Binding SelectedCard.Name, UpdateSourceTrigger=PropertyChanged}"/>
 
                     <TextBlock Text="FRAME" Style="{StaticResource SectionLabel}"/>
-                    <Grid Margin="0,0,0,14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <ComboBox Grid.Column="0" ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}"
-                                  DisplayMemberPath="Name"/>
-                        <Button Grid.Column="1" Content="Design…" Style="{StaticResource Ghost}" Click="OnFrameDesign"
-                                Margin="6,0,0,0" ToolTip="Mix &amp; match frame knobs (style, connected panels, background, taper, top emblem, colors…)"/>
-                        <Button Grid.Column="2" Content="Import…" Style="{StaticResource Ghost}" Click="OnImportFrame"
-                                Margin="6,0,0,0" ToolTip="Add a frame from a PNG, or install a shared template bundle (.cardframe)"/>
-                        <Button Grid.Column="3" Content="Export…" Style="{StaticResource Ghost}" Click="OnExportTemplate"
-                                Margin="6,0,0,0" ToolTip="Save this template as a shareable bundle (.cardframe = frame.png + its settings)"/>
-                    </Grid>
+                    <!-- Dropdown on its own row so long frame names aren't truncated; the action buttons
+                         sit in an equal-width row beneath it (UniformGrid = identical column widths). -->
+                    <StackPanel Margin="0,0,0,14">
+                        <ComboBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}"
+                                  DisplayMemberPath="Name" Margin="0,0,0,8"/>
+                        <UniformGrid Rows="1" Columns="4">
+                            <Button Content="Design…" Style="{StaticResource Ghost}" Click="OnFrameDesign"
+                                    Margin="0,0,3,0" ToolTip="Mix &amp; match frame knobs (style, connected panels, background, taper, top emblem, colors…)"/>
+                            <Button Content="Import…" Style="{StaticResource Ghost}" Click="OnImportFrame"
+                                    Margin="3,0,3,0" ToolTip="Import a frame: pick a PNG, a .cardframe, or a .zip bundle from your PC — or paste a web link"/>
+                            <Button Content="Export…" Style="{StaticResource Ghost}" Click="OnExportTemplate"
+                                    Margin="3,0,3,0" ToolTip="Save this template as a shareable bundle (.cardframe = frame.png + its settings)"/>
+                            <Button x:Name="DeleteFrameBtn" Content="Delete…" Style="{StaticResource Ghost}" Click="OnDeleteFrame"
+                                    Margin="3,0,0,0" ToolTip="Delete the selected frame (your own frames only — built-in frames can't be deleted)"/>
+                        </UniformGrid>
+                    </StackPanel>
 
                     <TextBlock Text="ARTWORK" Style="{StaticResource SectionLabel}"/>
                     <Grid Margin="0,0,0,4">
@@ -166,9 +160,10 @@
             <Border Grid.Column="2" Background="{StaticResource PreviewBg}" CornerRadius="10" Padding="18">
                 <Grid>
                     <Image x:Name="PreviewImageControl" Source="{Binding PreviewImage}" Stretch="Uniform"
-                           RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True" Cursor="SizeAll"
+                           Focusable="True" RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True" Cursor="SizeAll"
                            MouseLeftButtonDown="OnPreviewMouseDown" MouseMove="OnPreviewMouseMove"
-                           MouseLeftButtonUp="OnPreviewMouseUp" MouseWheel="OnPreviewWheel"/>
+                           MouseLeftButtonUp="OnPreviewMouseUp" MouseWheel="OnPreviewWheel"
+                           ToolTip="Drag to pan · scroll to zoom (Ctrl = fine) · click then arrow keys to nudge, +/- to zoom"/>
                 </Grid>
             </Border>
         </Grid>

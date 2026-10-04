@@ -8,6 +8,11 @@
     <StackPanel Margin="22,20">
         <TextBlock x:Name="PromptText" Text="Enter a value" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4"/>
         <TextBlock x:Name="HintText" Foreground="{StaticResource Subtle}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"/>
+        <!-- Optional "pick a file" path, shown when a file browser is supplied (see ShowBrowse). -->
+        <Button x:Name="BrowseBtn" Visibility="Collapsed" Style="{StaticResource Primary}" Height="38"
+                Content="Choose file…" Click="OnBrowse" Margin="0,0,0,10"/>
+        <TextBlock x:Name="OrLabel" Visibility="Collapsed" Text="— or paste a web link —" HorizontalAlignment="Center"
+                   Foreground="{StaticResource Subtle}" FontSize="11" Margin="0,0,0,8"/>
         <TextBox x:Name="Entry" Height="36"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
             <Button Content="Cancel" Style="{StaticResource Ghost}" MinWidth="90" Click="OnCancel" Margin="0,0,8,0" IsCancel="True"/>
