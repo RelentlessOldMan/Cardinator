@@ -45,6 +45,11 @@ public static class ImportService
         ["fliptype"] = "fliptype", ["fliptypeline"] = "fliptype",
         ["fliprules"] = "fliprules", ["fliptext"] = "fliprules",
         ["flippower"] = "flippower", ["fliptoughness"] = "fliptoughness", ["flippt"] = "flippt",
+        // A split card's second half (any of these columns makes the row a split card).
+        ["splitname"] = "splitname", ["splitcost"] = "splitcost", ["splitmana"] = "splitcost",
+        ["splitmanacost"] = "splitcost", ["splittype"] = "splittype", ["splittypeline"] = "splittype",
+        ["splitrules"] = "splitrules", ["splittext"] = "splitrules", ["splitflavor"] = "splitflavor",
+        ["splitart"] = "splitart",
         ["template"] = "template", ["frame"] = "template", ["border"] = "template",
         ["color"] = "template", ["colour"] = "template",
         ["artist"] = "artist", ["illustrator"] = "artist", ["illus"] = "artist",
@@ -270,6 +275,20 @@ public static class ImportService
             {
                 card.HalfLayout = "flip";
                 card.OtherHalf = half;
+            }
+
+            // Split card columns: the second half has its own cost, rules and art; set details are the row's.
+            var split = new CardModel
+            {
+                Name = Get("splitname"), ManaCost = Get("splitcost"), TypeLine = Get("splittype"),
+                RulesText = Unescape(Get("splitrules")), FlavorText = Unescape(Get("splitflavor")),
+                ArtPath = Get("splitart"), TemplateName = card.TemplateName,
+            };
+            if (card.OtherHalf == null
+                && split.Name.Length + split.ManaCost.Length + split.TypeLine.Length + split.RulesText.Length + split.ArtPath.Length > 0)
+            {
+                card.HalfLayout = "split";
+                card.OtherHalf = split;
             }
 
             bool blank = card.ManaCost.Length == 0 && card.TypeLine.Length == 0 && card.RulesText.Length == 0;

@@ -33,9 +33,10 @@ public static class CardDetailsFill
     /// Attaches the extra faces of a looked-up card to <paramref name="card"/>, the same way on every import
     /// path. A genuinely two-sided card (transform / modal DFC / battle / reversible / double-faced token)
     /// becomes ONE card with a <see cref="CardModel.BackFace"/> and a default sun/moon indicator. A flip card
-    /// (Kamigawa) becomes ONE card with its upside-down half as <see cref="CardModel.OtherHalf"/>. Any other
-    /// multi-face layout (split, aftermath — not drawn yet) is printed on a single side, so its extra faces
-    /// are NOT a back face — they're returned for the caller to add as separate cards.
+    /// (Kamigawa) becomes ONE card with its upside-down half as <see cref="CardModel.OtherHalf"/>, and a split
+    /// card (incl. Duskmourn Rooms) ONE card with its second half side by side. Any other multi-face layout
+    /// (aftermath — not drawn yet) is printed on a single side, so its extra faces are NOT a back face —
+    /// they're returned for the caller to add as separate cards.
     /// </summary>
     /// <returns>The faces that were not absorbed as a back face (empty for a single- or double-faced card).</returns>
     public static IReadOnlyList<CardModel> AttachFaces(CardModel card, IReadOnlyList<CardModel> faces)
@@ -50,6 +51,14 @@ public static class CardDetailsFill
             card.OtherHalf = half;
             return Array.Empty<CardModel>();
         }
+        if (string.Equals(faces[0].Layout, "split", StringComparison.OrdinalIgnoreCase))
+        {
+            var half = faces[1].Clone();
+            half.TemplateName = card.TemplateName;
+            card.HalfLayout = "split";
+            card.OtherHalf = half;
+            return Array.Empty<CardModel>();
+        }
         if (!ScryfallMapper.IsTwoSidedLayout(faces[0].Layout))
             return faces.Skip(1).ToList();
 
@@ -60,6 +69,22 @@ public static class CardDetailsFill
         card.BackFace = back;
         if (string.IsNullOrWhiteSpace(card.DfcStyle)) card.DfcStyle = "sunmoon";
         return Array.Empty<CardModel>();
+    }
+
+    /// <summary>Scryfall's art for a split card is BOTH halves' art side by side (left half first). Once a
+    /// lookup has downloaded it onto the card, give each half its own side. Only touches a split card whose
+    /// other half has no art yet; if the image can't be cut, both halves share it.</summary>
+    public static void SplitSharedArt(CardModel card)
+    {
+        if (!card.IsSplit || card.OtherHalf is not { } half) return;
+        if (string.IsNullOrWhiteSpace(card.ArtPath) || !string.IsNullOrWhiteSpace(half.ArtPath)) return;
+        try
+        {
+            var (left, right) = ImageIntake.SplitSideBySide(card.ArtPath);
+            card.ArtPath = left;
+            half.ArtPath = right;
+        }
+        catch { half.ArtPath = card.ArtPath; }
     }
 
     /// <summary>Applies <paramref name="face"/>'s details to <paramref name="target"/> in place.</summary>

@@ -20,7 +20,8 @@ public partial class DetailsWindow : Window
     private readonly CardModel _snapshot;   // state on open, so Cancel can discard this session's edits
     private readonly ScryfallClient _scryfall;
 
-    public DetailsWindow(CardModel card, ScryfallClient? scryfall = null)
+    /// <param name="halfLayout">For a two-part card's other half: the parent card's layout ("flip" / "split").</param>
+    public DetailsWindow(CardModel card, ScryfallClient? scryfall = null, string halfLayout = "")
     {
         InitializeComponent();
         _card = card;
@@ -31,7 +32,9 @@ public partial class DetailsWindow : Window
         LandStyleBox.ItemsSource = new[] { "row", "splitv", "splith", "pie", "yinyang" };
         OrientationBox.ItemsSource = OrientationOptions;
         if (string.IsNullOrWhiteSpace(card.Orientation)) OrientationBox.SelectedIndex = 0;   // "" shows as Automatic
-        if (card.IsOtherHalf)
+        if (card.IsOtherHalf && string.Equals(halfLayout, "split", StringComparison.OrdinalIgnoreCase))
+            Title = "Other half (split card)";
+        else if (card.IsOtherHalf)
         {
             // The upside-down half of a flip card is cast by flipping, never paid for — real ones print no cost.
             ManaCostBox.IsEnabled = false;
@@ -102,6 +105,8 @@ public partial class DetailsWindow : Window
             if (canTakeABack) CardDetailsFill.AttachFaces(_card, faces);
             if (canTakeABack && _card.IsDoubleFaced)
                 extra = $" Added the back face “{_card.BackFace!.Name}” — use “Show back” to preview it.";
+            else if (canTakeABack && _card.IsSplit)
+                extra = $" Made it a split card with “{_card.OtherHalf!.Name}” as the other half.";
             else if (canTakeABack && _card.OtherHalf != null)
                 extra = $" Added the flipped half “{_card.OtherHalf.Name}” — use “Show flipped” to preview it.";
             else if (faces.Count > 1)

@@ -301,6 +301,59 @@ public class WindowSmokeTests
                 }
         });
 
+    [Fact]
+    public void MainWindow_ReadSideways_TurnsASplitCardAQuarterClockwise()   // 1.6.2 split cards
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            card.HalfLayout = "split";
+            card.OtherHalf = new CardModel { Name = "Tear", ManaCost = "{W}", TypeLine = "Instant" };
+            main.RenderPreview();
+            var upright = main.PreviewImage!;
+
+            Invoke(main, "OnShowFlipped", null, null);
+            var turned = main.PreviewImage!;
+            Assert.Equal(upright.PixelHeight, turned.PixelWidth);
+            Assert.Equal(upright.PixelWidth, turned.PixelHeight);
+
+            // 90° clockwise: the upright pixel (x, y) lands at (H-1-y, x).
+            var a = TestHelpers.Pixels(upright); var b = TestHelpers.Pixels(turned);
+            int w = upright.PixelWidth, h = upright.PixelHeight, tw = turned.PixelWidth;
+            for (int y = 0; y < h; y += 37)
+                for (int x = 0; x < w; x += 29)
+                {
+                    int i = (y * w + x) * 4, j = (x * tw + (h - 1 - y)) * 4;
+                    Assert.True(Math.Abs(a[i] - b[j]) < 3 && Math.Abs(a[i + 1] - b[j + 1]) < 3, $"pixel {x},{y} isn't the turned one");
+                }
+        });
+
+    [Fact]
+    public void MainWindow_SplitCard_ArtMovesOnTheChosenHalf_AndDirtiesTheProject()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            card.HalfLayout = "split";
+            card.OtherHalf = new CardModel { Name = "Tear", ArtPath = "tear.png" };
+            main.RenderPreview();
+            double frontX = card.ArtOffsetX;
+
+            typeof(Cardinator.MainWindow).GetField("_activeHalf",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .SetValue(main, true);   // what clicking the other half in the preview does
+            main.Dirty = false;
+            Invoke(main, "NudgeArt", 0.0, 0.01);   // down on the upright card = left along the sideways half
+
+            Assert.Equal(frontX, card.ArtOffsetX);
+            Assert.True(card.OtherHalf!.ArtOffsetX < 0, "the other half's art didn't move left");
+            Assert.True(main.Dirty, "moving the other half's art did not dirty the project");
+        });
+
+    private static void Invoke(object target, string method, params object?[] args)
+        => target.GetType().GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .Invoke(target, args);
+
     /// <summary>Runs on an STA thread with an Application whose resources come from App.xaml.</summary>
     private static void OnAppThread(Action action)
     {

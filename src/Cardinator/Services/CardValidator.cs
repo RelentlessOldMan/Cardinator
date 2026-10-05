@@ -32,18 +32,21 @@ public static class CardValidator
         @"(?:W|U|B|R|G|C)/P)$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    /// <summary>Checks a flip card's other half — the content checks that apply to it (name, symbols,
-    /// power/toughness), labelled so the user knows which half to fix. Art, frame and set-level checks belong
-    /// to the card itself (the half shares them), so they're skipped. Empty for a card without one.</summary>
+    /// <summary>Checks a two-part card's other half — the content checks that apply to it (name, symbols,
+    /// power/toughness; and for a split half, which has its own, its art), labelled so the user knows which half
+    /// to fix. Frame and set-level checks belong to the card itself (the half shares them), so they're skipped,
+    /// and so is the art of a flip half (it shares the card's). Empty for a card without one.</summary>
     public static IReadOnlyList<ValidationIssue> ValidateOtherHalf(CardModel card, TemplateSpec templateSpec)
     {
         if (card.OtherHalf is not { } half) return System.Array.Empty<ValidationIssue>();
-        var skip = new HashSet<string> { "no-art", "art-missing", "art-badpath", "symbol-missing", "symbol-badpath",
+        var skip = new HashSet<string> { "symbol-missing", "symbol-badpath",
             "frame-missing", "dup-name", "dup-collector", "portrait-only-frame", "no-flip-frame",
             "out-of-bounds", "footer-overlap" };
+        if (!card.IsSplit) skip.UnionWith(new[] { "no-art", "art-missing", "art-badpath" });
+        string label = card.IsSplit ? "Other half: " : "Flipped half: ";
         return Validate(half, templateSpec)
             .Where(i => !skip.Contains(i.Code))
-            .Select(i => new ValidationIssue(i.Severity, i.Code, "Flipped half: " + i.Message, i.Field))
+            .Select(i => new ValidationIssue(i.Severity, i.Code, label + i.Message, i.Field))
             .ToList();
     }
 

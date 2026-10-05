@@ -152,7 +152,12 @@ public static class BatchService
                     string? path = null;
                     try { path = await ImageIntake.DownloadAsync(grp.Key, ct); }
                     catch { /* keep the card(s) without art rather than failing the batch */ }
-                    if (path != null) foreach (var (card, _) in grp) card.ArtPath = path;
+                    if (path != null)
+                        foreach (var (card, _) in grp)
+                        {
+                            card.ArtPath = path;
+                            CardDetailsFill.SplitSharedArt(card);   // a split card's halves each get their side
+                        }
                 }
                 finally
                 {

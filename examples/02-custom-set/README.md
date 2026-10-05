@@ -30,7 +30,9 @@ Sunspire Edict,art/sunspire.png,{1}{W},Instant,Destroy target attacking or block
 
 Optional extra columns: `defense` and `orientation` (Battles / sideways cards), and for a **flip card** the
 upside-down half's `flip_name`, `flip_type`, `flip_rules` and `flip_pt` (any of them makes the row a flip card;
-the half shares the row's art and set details).
+the half shares the row's art and set details), and for a **split card** the second half's `split_name`,
+`split_cost`, `split_type`, `split_rules`, `split_flavor` and `split_art` (it has its own cost and art; set
+details are the row's).
 
 ## In the app
 

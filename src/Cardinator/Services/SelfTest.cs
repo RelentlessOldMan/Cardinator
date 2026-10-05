@@ -632,7 +632,8 @@ public static class SelfTest
         bmp.Freeze();
         var issues = new List<ValidationIssue>();
         issues.AddRange(CardValidator.Validate(card, tpl.Spec, project));
-        issues.AddRange(RenderInspector.Inspect(bmp, card, tpl.Spec));
+        issues.AddRange(CardValidator.ValidateOtherHalf(card, tpl.Spec));
+        issues.AddRange(RenderInspector.InspectCard(renderer, card, tpl, bmp));
         return new QaResult(label, tpl.Name, bmp, issues);
     }
 
@@ -662,9 +663,23 @@ public static class SelfTest
             (WithFlipHalf(C("QA Apprentice", "{1}{U}", "Creature — Human Wizard", "Whenever you cast your fourth spell each turn, flip this.", art, "1", "2")), "Ocean Blue", "Flip card"),
             (WithFlipHalf(C("QA Initiate", "{W}", "Creature — Human Monk", "When this deals combat damage, flip it.", art, "1", "1")), "Showcase", "Flip card (borderless)"),
             (WithFlipHalf(C("QA Steelhand", "{2}{W}", "Creature — Human Artificer", "Whenever an artifact enters, flip this.", art, "2", "2")), "Alchemist's Steel", "Flip card (picture frame's flip version)"),
+            (WithSplitHalf(C("QA Wear", "{1}{R}", "Instant", "Destroy target artifact.\nFuse (You may cast one or both halves of this card from your hand.)", art)), "Ocean Blue", "Split card (Fuse)"),
+            (WithSplitHalf(C("QA Pool", "{U}", "Enchantment — Room", "When you unlock this door, draw a card.\n(You may cast either half. That door unlocks on the battlefield.)", art)), "Showcase", "Split card (Room, borderless)"),
+            (WithSplitHalf(C("QA Fire", "{1}{R}", "Instant", "Fire deals 2 damage divided as you choose among one or two targets.", art)), "Alchemist's Steel", "Split card (picture frame)"),
         };
 
         static CardModel WithDefense(CardModel c, string defense) { c.Defense = defense; return c; }
+        static CardModel WithSplitHalf(CardModel c)
+        {
+            var shared = c.RulesText.Contains('\n') ? "\n" + c.RulesText[(c.RulesText.LastIndexOf('\n') + 1)..] : "";
+            c.HalfLayout = "split";
+            c.OtherHalf = new CardModel
+            {
+                Name = c.Name + " Too", ManaCost = "{2}{W}", TypeLine = c.TypeLine,
+                RulesText = "Tap target creature. Draw a card." + shared, ArtPath = c.ArtPath,
+            };
+            return c;
+        }
         static CardModel WithFlipHalf(CardModel c)
         {
             c.HalfLayout = "flip";

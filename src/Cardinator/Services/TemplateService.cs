@@ -53,6 +53,9 @@ public sealed class TemplateService
     /// </summary>
     public static Template ResolveFor(CardModel card, Template template)
     {
+        // A split card draws each half as the frame's normal (upright) card, side by side, turned sideways.
+        if (card.IsSplit) return template;
+
         // A flip card wants its frame's flip layout: a hand-made "flip" variant if the frame ships one,
         // otherwise (procedural frames) a derived one. A picture frame without one stays upright and the
         // card renders as a plain card (CardValidator says why).
