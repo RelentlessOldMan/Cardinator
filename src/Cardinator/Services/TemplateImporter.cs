@@ -31,11 +31,30 @@ public static class TemplateImporter
             foreach (var fnt in new[] { spec.TitleFont, spec.TypeFont, spec.RulesFont, spec.FlavorFont, spec.PtFont, spec.CreditFont })
             { fnt.Color = "#FFFFFF"; fnt.Shadow = true; }
         }
+        // A frame image that is wider than tall is a sideways (Battle/Plane) frame: lay the template out
+        // landscape to match, instead of stretching the image onto a portrait canvas.
+        if (IsLandscapeImage(frameBytes)) spec = spec.ToLandscape();
+
         // Write the user's frame first (atomically), then the spec — so a failure never leaves a spec
         // pointing at a missing frame. CustomFrame=true tells the loader to keep this image as-is.
         IoUtil.AtomicWriteBytes(Path.Combine(dir, "frame.png"), frameBytes);
         spec.Save(Path.Combine(dir, "template.json"));
         return displayName;
+    }
+
+    /// <summary>True when the image is wider than tall. Reads only the header (no full decode); an image
+    /// that can't be read is treated as portrait, the long-standing default.</summary>
+    internal static bool IsLandscapeImage(byte[] bytes)
+    {
+        try
+        {
+            using var ms = new MemoryStream(bytes);
+            var frame = System.Windows.Media.Imaging.BitmapDecoder.Create(ms,
+                System.Windows.Media.Imaging.BitmapCreateOptions.DelayCreation,
+                System.Windows.Media.Imaging.BitmapCacheOption.None).Frames[0];
+            return frame.PixelWidth > frame.PixelHeight;
+        }
+        catch { return false; }
     }
 
     public static string CreateFromFile(string name, string framePath, bool fullArt = false)

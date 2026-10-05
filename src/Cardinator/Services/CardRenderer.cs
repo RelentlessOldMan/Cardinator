@@ -43,6 +43,10 @@ public sealed class CardRenderer
     /// </param>
     public BitmapSource RenderToBitmap(CardModel card, Template template, int supersample = 1, bool previewHints = false)
     {
+        // A Battle or Plane on a portrait frame renders with that frame's landscape layout. Resolved HERE so
+        // every path (preview, export, batch, print sheets, QA) agrees; it's idempotent for callers that
+        // already resolved.
+        template = TemplateService.ResolveFor(card, template);
         var spec = template.Spec;
         supersample = Math.Clamp(supersample, 1, 8);
         if (spec.CanvasWidth < 1 || spec.CanvasHeight < 1)
@@ -116,12 +120,17 @@ public sealed class CardRenderer
         {
             // Creatures nest a P/T box in the bottom-right — reserve that space so rules text wraps around
             // it instead of being hidden underneath.
-            Rect? avoid = (!ArtText(spec) && card.HasPowerToughness) ? PtRect(spec) : (Rect?)null;
+            Rect? avoid = ArtText(spec) ? null
+                : card.HasDefense ? DefenseRect(spec)
+                : card.HasPowerToughness ? PtRect(spec)
+                : null;
             DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, avoid);
         }
 
         if (card.IsPlaneswalker && !string.IsNullOrWhiteSpace(card.Loyalty))
             DrawLoyalty(dc, card, spec);
+        else if (card.HasDefense)
+            DrawDefense(dc, card, spec);   // a Battle's starting defense
         else if (card.HasPowerToughness)
             DrawPtBox(dc, card, spec);   // creatures only — the box is drawn here, not baked into the frame
 
@@ -153,10 +162,10 @@ public sealed class CardRenderer
         var style = (card.DfcStyle ?? "").Trim().ToLowerInvariant();
         bool isDfc = card.IsDoubleFaced || card.IsBackFace;
         if (!isDfc || style is "" or "none") return null;
-        double W = spec.CanvasWidth;
-        double r = W * 0.034;
+        double side = Math.Min(spec.CanvasWidth, spec.CanvasHeight);   // same badge size on a landscape face
+        double r = side * 0.034;
         double t = Math.Max(0, spec.BorderThickness);
-        return (new Point(t + r + W * 0.012, t + r + W * 0.012), r);
+        return (new Point(t + r + side * 0.012, t + r + side * 0.012), r);
     }
 
     private static void DrawDfcIndicator(DrawingContext dc, CardModel card, TemplateSpec spec, double W, double H)
@@ -1719,6 +1728,65 @@ public sealed class CardRenderer
 
     /// <summary>A loyalty badge silhouette: dir +1 = point up (activated), -1 = point down (cost / start),
     /// 0 = a flat hexagon (neutral). Fills the given rect.</summary>
+    /// <summary>Where a Battle's defense shield sits: anchored to the P/T box's bottom-right corner (so it
+    /// nests in the description panel like a P/T box), but taller than wide, like a shield.</summary>
+    private static Rect DefenseRect(TemplateSpec spec)
+    {
+        var full = PtRect(spec);
+        double h = full.Height * 1.22, w = h * 0.86;
+        return new Rect(full.Right - w, full.Bottom - h, w, h);
+    }
+
+    /// <summary>A Battle's starting defense: a curved heater shield with a notched top — deliberately a
+    /// different silhouette from the straight-edged loyalty pentagon, so the two never read alike.</summary>
+    private static void DrawDefense(DrawingContext dc, CardModel card, TemplateSpec spec)
+    {
+        var box = DefenseRect(spec);
+        var fill = new LinearGradientBrush(LightenC(TemplateSpec.ParseColor(spec.Colors.Frame2), 0.10),
+            TemplateSpec.ParseColor(spec.Colors.Frame), new Point(0, 0), new Point(0, 1));
+        fill.Freeze();
+        var edge = new Pen(new SolidColorBrush(TemplateSpec.ParseColor(spec.Colors.PanelBorder)), 2.5);
+        edge.Freeze();
+        var rim = new Pen(new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), 1.4);
+        rim.Freeze();
+
+        dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)), null,
+            DefenseShape(new Rect(box.X - 3, box.Y + 4, box.Width, box.Height)));
+        dc.DrawGeometry(fill, edge, DefenseShape(box));
+        dc.DrawGeometry(null, rim, DefenseShape(Inset(box, box.Width * 0.11)));
+
+        // Centre the number on its ink bounds in the shield's broad upper body (above the taper).
+        var ft = MakeText(card.Defense, NumeralFont(new FontSpec { Family = spec.PtFont.Family, Bold = true }),
+            spec.PtFont.Size, Brushes.White);
+        var b = ft.BuildGeometry(new Point(0, 0)).Bounds;
+        double x = box.X + box.Width / 2 - (b.X + b.Width / 2);
+        double y = box.Y + box.Height * 0.44 - (b.Y + b.Height / 2);
+        dc.DrawText(ft, new Point(x, y));
+    }
+
+    /// <summary>Heater-shield outline: a flat top with a small centre notch, straight upper sides, then
+    /// curves that meet in a point at the bottom.</summary>
+    private static Geometry DefenseShape(Rect r)
+    {
+        double cx = r.X + r.Width / 2, notch = r.Width * 0.10, shoulder = r.Y + r.Height * 0.42;
+        var g = new StreamGeometry();
+        using (var s = g.Open())
+        {
+            s.BeginFigure(new Point(r.X, r.Y), true, true);
+            s.LineTo(new Point(cx - notch, r.Y), true, false);
+            s.LineTo(new Point(cx, r.Y + notch * 0.9), true, false);
+            s.LineTo(new Point(cx + notch, r.Y), true, false);
+            s.LineTo(new Point(r.Right, r.Y), true, false);
+            s.LineTo(new Point(r.Right, shoulder), true, false);
+            s.BezierTo(new Point(r.Right, r.Y + r.Height * 0.78), new Point(cx + r.Width * 0.22, r.Bottom - r.Height * 0.06),
+                new Point(cx, r.Bottom), true, false);
+            s.BezierTo(new Point(cx - r.Width * 0.22, r.Bottom - r.Height * 0.06), new Point(r.X, r.Y + r.Height * 0.78),
+                new Point(r.X, shoulder), true, false);
+        }
+        g.Freeze();
+        return g;
+    }
+
     private static Geometry LoyaltyShape(Rect r, int dir)
     {
         double cx = r.X + r.Width / 2;

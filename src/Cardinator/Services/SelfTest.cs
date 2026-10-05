@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Cardinator.Models;
 
 namespace Cardinator.Services;
@@ -627,6 +627,7 @@ public static class SelfTest
     private static QaResult RenderAndInspect(CardRenderer renderer, CardModel card, Template tpl, string label, IReadOnlyCollection<CardModel> project)
     {
         card.TemplateName = tpl.Name;
+        tpl = TemplateService.ResolveFor(card, tpl);   // judge the layout that's drawn, not the portrait source
         var bmp = renderer.RenderToBitmap(card, tpl, supersample: 1);
         bmp.Freeze();
         var issues = new List<ValidationIssue>();
@@ -656,7 +657,11 @@ public static class SelfTest
             (C("QA Instant", "{1}{R}", "Instant", "Deal 3 damage to any target.", art, flavor: "Fast and bright."), "Ocean Blue", "Instant"),
             (C("QA Hybrid", "{2}{G/R}{G/R}", "Creature — Elemental", "({G/R} can be paid with either {G} or {R}.)", art, "4", "4"), "Forest Green", "Hybrid mana"),
             (C("QA Full Art", "{W}{U}{B}{R}{G}", "Legendary Creature — Avatar", "This spell can't be countered.", art, "7", "7"), "Full Art", "Full-art legend"),
+            (WithDefense(C("QA Siege", "{2}{R}", "Battle — Siege", "(As a Siege enters, choose an opponent to protect it. You and others can attack it. When it's defeated, exile it, then cast it transformed.)\nWhen this enters, it deals 3 damage to any target.", art), "5"), "Crimson Red", "Battle (landscape)"),
+            (C("QA Plane", "", "Plane — Testing Grounds", "Creatures you control get +1/+1.\nWhenever chaos ensues, draw a card.", art), "Full Art", "Plane (landscape, full art)"),
         };
+
+        static CardModel WithDefense(CardModel c, string defense) { c.Defense = defense; return c; }
     }
 
     private static CardModel QaCreature(string art) => new()
@@ -701,7 +706,11 @@ public static class SelfTest
             {
                 int r = i / cols, c = i % cols;
                 double x = pad + c * (tw + gap), y = pad + headH + r * (th + lab + gap);
-                dc.DrawImage(items[i].Bmp, new System.Windows.Rect(x, y, tw, th));
+                // Letterbox at the render's own aspect, so a landscape Battle/Plane isn't stretched tall.
+                var bmp = items[i].Bmp;
+                double fit = Math.Min(tw / bmp.PixelWidth, th / bmp.PixelHeight);
+                double iw = bmp.PixelWidth * fit, ih = bmp.PixelHeight * fit;
+                dc.DrawImage(bmp, new System.Windows.Rect(x + (tw - iw) / 2, y + (th - ih) / 2, iw, ih));
                 var worst = items[i].Issues.Count == 0 ? IssueSeverity.Info : items[i].Issues.Max(z => z.Severity);
                 var (bg, tag) = worst switch
                 {

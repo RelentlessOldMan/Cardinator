@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -29,7 +29,20 @@ public partial class DetailsWindow : Window
         DataContext = card;
         SearchBox.Text = card.Name;   // a convenient default; edit it to search for something else
         LandStyleBox.ItemsSource = new[] { "row", "splitv", "splith", "pie", "yinyang" };
+        OrientationBox.ItemsSource = OrientationOptions;
+        if (string.IsNullOrWhiteSpace(card.Orientation)) OrientationBox.SelectedIndex = 0;   // "" shows as Automatic
     }
+
+    /// <summary>A choice in the orientation dropdown. "" (Automatic) is the stored default, so files written
+    /// before orientation existed — and cards nobody touched — keep following the card type.</summary>
+    public sealed record OrientationOption(string Value, string Label);
+
+    private static readonly OrientationOption[] OrientationOptions =
+    {
+        new("", "Automatic (by card type)"),
+        new("portrait", "Portrait (upright)"),
+        new("landscape", "Landscape (sideways)"),
+    };
 
     private void OnDone(object sender, RoutedEventArgs e) => Close();   // keep edits (they're already live)
 

@@ -24,6 +24,8 @@ public sealed class CardModel : INotifyPropertyChanged
     private string _power = "";
     private string _toughness = "";
     private string _loyalty = "";
+    private string _defense = "";
+    private string _orientation = "";
     private string _landSymbol = "";
     private string _landSymbolStyle = "";
     private string _setCode = "";
@@ -71,6 +73,15 @@ public sealed class CardModel : INotifyPropertyChanged
 
     /// <summary>Starting loyalty for planeswalkers (empty otherwise).</summary>
     public string Loyalty { get => _loyalty; set => Set(ref _loyalty, value); }
+
+    /// <summary>Starting defense for a Battle (e.g. a Siege), shown in a shield bottom-right. Its own field —
+    /// NOT Loyalty — because a loyalty value makes a card behave like a planeswalker (ability badges).</summary>
+    public string Defense { get => _defense; set => Set(ref _defense, value); }
+
+    /// <summary>"" or "auto" (default) = landscape for Battles, Planes and Phenomena, portrait otherwise;
+    /// "portrait" / "landscape" force it. Landscape is the SAME physical card turned sideways, so prints
+    /// rotate it back into a normal card slot.</summary>
+    public string Orientation { get => _orientation; set => Set(ref _orientation, value); }
 
     /// <summary>Optional override for a basic land's big centered mana symbol(s), e.g. "{G}" or "{R}{G}".
     /// When empty, the symbol is derived from the land's basic subtype(s) in the type line.</summary>
@@ -201,6 +212,34 @@ public sealed class CardModel : INotifyPropertyChanged
 
     [JsonIgnore]
     public bool IsLand => TypeLine.Contains("Land", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A Battle (e.g. "Battle — Siege"), or any card given a starting defense.</summary>
+    [JsonIgnore]
+    public bool IsBattle => HasTypeWord("Battle") || HasDefense;
+
+    [JsonIgnore]
+    public bool HasDefense => !string.IsNullOrWhiteSpace(Defense);
+
+    /// <summary>Card types that are printed sideways: Battles, Planes and Phenomena (Planechase). Matched as
+    /// whole words so "Planeswalker" is not mistaken for "Plane".</summary>
+    [JsonIgnore]
+    public bool IsLandscapeType => IsBattle || HasTypeWord("Plane") || HasTypeWord("Phenomenon");
+
+    /// <summary>Whether this face should render landscape, honouring an explicit <see cref="Orientation"/>.</summary>
+    [JsonIgnore]
+    public bool WantsLandscape => (Orientation ?? "").Trim().ToLowerInvariant() switch
+    {
+        "landscape" => true,
+        "portrait" => false,
+        _ => IsLandscapeType,
+    };
+
+    private bool HasTypeWord(string word)
+    {
+        foreach (var token in (TypeLine ?? "").Split(new[] { ' ', '—', '-', '/' }, StringSplitOptions.RemoveEmptyEntries))
+            if (token.Equals(word, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
 
     // Basic land subtype -> its mana symbol, used to auto-derive the big centered symbol.
     private static readonly (string sub, string sym)[] BasicSubtypes =

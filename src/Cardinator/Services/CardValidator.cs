@@ -86,6 +86,14 @@ public static class CardValidator
                 "This card has a loyalty value but isn't a Planeswalker — it renders as one and hides power/toughness.",
                 nameof(card.Loyalty)));
 
+        // A Battle/Plane renders sideways by re-laying-out its frame — but an imported frame is a fixed image,
+        // so it can't be turned. Say so, rather than leave the user wondering why it stayed upright.
+        if (card.WantsLandscape && !templateSpec.IsLandscape && templateSpec.CustomFrame)
+            issues.Add(new(IssueSeverity.Info, "portrait-only-frame",
+                "This card is normally printed sideways, but this frame is an imported image that can only be "
+                + "used upright. Pick a built-in frame for the sideways layout.",
+                nameof(card.TemplateName)));
+
         // Special layouts build their badges by parsing the rules-text syntax; warn when the syntax produced
         // none, so a mistyped planeswalker/saga/class doesn't silently render without its badges. Uses the
         // renderer's OWN parsers so this never drifts from what actually draws.

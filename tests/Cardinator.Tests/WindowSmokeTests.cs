@@ -245,6 +245,21 @@ public class WindowSmokeTests
             Assert.Equal("Before", main.SelectedCard!.Name);  // and it works normally again afterwards
         });
 
+    [Fact]
+    public void MainWindow_PreviewsABattleSideways_AndFlipsToAnUprightBack()   // 1.5.0 landscape cards
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            card.Name = "Invasion of Testing";
+            card.TypeLine = "Battle — Siege";
+            card.Defense = "5";
+            card.BackFace = new CardModel { Name = "Testing, Conquered", TypeLine = "Creature — Dragon", Power = "5", Toughness = "5" };
+            main.RenderPreview();
+
+            Assert.True(main.PreviewImage!.PixelWidth > main.PreviewImage.PixelHeight, "the Battle front should preview sideways");
+        });
+
     /// <summary>Runs on an STA thread with an Application whose resources come from App.xaml.</summary>
     private static void OnAppThread(Action action)
     {

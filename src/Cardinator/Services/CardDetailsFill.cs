@@ -1,4 +1,4 @@
-using Cardinator.Models;
+﻿using Cardinator.Models;
 
 namespace Cardinator.Services;
 
@@ -23,6 +23,7 @@ public static class CardDetailsFill
         if (!string.IsNullOrWhiteSpace(face.Power)) target.Power = face.Power;
         if (!string.IsNullOrWhiteSpace(face.Toughness)) target.Toughness = face.Toughness;
         if (!string.IsNullOrWhiteSpace(face.Loyalty)) target.Loyalty = face.Loyalty;
+        if (!string.IsNullOrWhiteSpace(face.Defense)) target.Defense = face.Defense;
         if (!string.IsNullOrWhiteSpace(face.SetCode)) target.SetCode = face.SetCode;
         if (!string.IsNullOrWhiteSpace(face.CollectorNumber)) target.CollectorNumber = face.CollectorNumber;
         if (!string.IsNullOrWhiteSpace(face.Rarity)) target.Rarity = face.Rarity;
@@ -60,6 +61,7 @@ public static class CardDetailsFill
         target.Power = face.Power;
         target.Toughness = face.Toughness;
         target.Loyalty = face.Loyalty;
+        target.Defense = face.Defense;
         target.SetCode = face.SetCode;
         target.CollectorNumber = face.CollectorNumber;
         target.Rarity = face.Rarity;

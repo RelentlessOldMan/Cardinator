@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Cardinator.Models;
 
 namespace Cardinator.Services;
@@ -84,6 +84,7 @@ public static class ScryfallMapper
         Power = Str(el, "power"),
         Toughness = Str(el, "toughness"),
         Loyalty = Str(el, "loyalty"),
+        Defense = Str(el, "defense"),   // Battles (e.g. Sieges)
         SetCode = setCode,
         CollectorNumber = collector,
         Rarity = rarity,

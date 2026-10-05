@@ -98,6 +98,8 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Class** | Type line contains "Class" | Level badges beside each level's abilities |
 | **Adventure** | Fill the **Adventure** fields (or import an adventure card) | A spell sub-box on the creature |
 | **Double-faced** | Look up a real DFC, or **Make double-faced** | One card with a **front + back face** you can flip |
+| **Battle** | Type line contains "Battle" (e.g. *Battle — Siege*), set **Defense** | **Sideways** card + a defense shield bottom-right |
+| **Plane / Phenomenon** | Type line contains "Plane" or "Phenomenon" | **Sideways** card (Planechase) |
 
 **Double-faced cards (DFC).** A card can have a **back face** — a front/back card that flips. Looking up a real
 double-faced card imports it as **one card with both faces**, whether you use **Ctrl+L**, a deck/CSV import or
@@ -107,6 +109,22 @@ comes in as two separate cards rather than a flip.) To build one yourself, click
 preview. The style dropdown adds a corner indicator — **Flip arrow**, or **Sun / moon** (sun on the front,
 crescent moon on the back) — drawn by Cardinator (no third-party art). Exporting writes both sides
 (`Name.png` + `Name-back.png`); **Print sheet** puts the real back behind each front for double-sided printing.
+
+**Sideways (landscape) cards.** Battles, Planes and Phenomena are printed sideways, and Cardinator turns them
+**automatically** — no setting to find. Every drawn frame works: pick *Crimson Red* and a Battle comes out as a
+sideways Crimson Red card, with the same colours, fonts and style laid out for the wider shape. A Battle's
+**Defense** goes in **Edit details…** (next to Loyalty) and is drawn in a shield in the corner — its own field,
+so a Battle never picks up planeswalker ability badges. A real Battle looked up from Scryfall arrives as one
+card: a **sideways front** and its **upright transformed back** (use **Show back** to flip). To force any card
+either way, use **Orientation** in **Edit details…** (*Automatic*, *Portrait*, or *Landscape*).
+
+<p><img src="images/battle-landscape.png" width="520" alt="A Battle rendered sideways on the Crimson Red frame"></p>
+
+Exports come out sideways (2100 × 1500). On a **Print sheet** a sideways card is turned upright into a normal
+card slot — it's the same physical card size — and on a double-sided sheet its transformed back lands right
+behind it. *Imported* frames (a frame image you brought in) are fixed pictures that can't be turned; CHECKS tells
+you when a sideways card is on one, and importing a frame image that is **wider than tall** makes a sideways
+template to match.
 
 **Authoring them by hand:** open **Edit details…** and use the **Special layouts** section to set a
 **Subtitle** (a small plate under the title, on any card), the **Adventure** half (name/cost/type/text —

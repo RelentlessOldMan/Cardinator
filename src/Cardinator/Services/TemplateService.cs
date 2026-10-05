@@ -26,6 +26,71 @@ public sealed class TemplateService
     // Serializes first-time generation so concurrent callers can't race on the same files.
     private static readonly object LoadLock = new();
 
+    // --- orientation ---------------------------------------------------------------------------------
+
+    private static readonly object VariantLock = new();
+    private static readonly Dictionary<string, Template> LandscapeVariants = new();
+
+    /// <summary>
+    /// The template a face ACTUALLY renders with. A face that wants landscape (a Battle, a Plane, or one
+    /// forced via <see cref="CardModel.Orientation"/>) on a portrait procedural frame gets that frame's
+    /// landscape layout (<see cref="TemplateSpec.ToLandscape"/>). Everything else is unchanged: a template
+    /// that is already landscape is the user's explicit choice, and a raster custom frame is a fixed image
+    /// that can't be re-laid-out (CardValidator tells the user so). Idempotent, so every render path can
+    /// call it.
+    /// </summary>
+    public static Template ResolveFor(CardModel card, Template template)
+    {
+        if (template.Spec.IsLandscape || !card.WantsLandscape || template.Spec.CustomFrame) return template;
+        return LandscapeOf(template) ?? template;
+    }
+
+    /// <summary>The landscape layout of a portrait procedural template, with its frame generated once and
+    /// cached by content hash in <c>CardinatorData/cache/landscape</c> — never inside the template's own
+    /// folder, so a shared template bundle contains only what the user made. Null if it can't be built
+    /// (the caller then falls back to portrait rather than failing the render).</summary>
+    public static Template? LandscapeOf(Template template)
+    {
+        var spec = template.Spec.ToLandscape();
+        var key = spec.ContentHash();
+        lock (VariantLock)
+        {
+            if (LandscapeVariants.TryGetValue(key, out var hit)) return hit;
+            try
+            {
+                var dir = Path.Combine(AppPaths.DataDir, "cache", "landscape");
+                Directory.CreateDirectory(dir);
+                var framePath = Path.Combine(dir, key[..20] + ".png");
+
+                BitmapImage frame;
+                try
+                {
+                    if (!File.Exists(framePath)) GenerateAtomically(spec, framePath);
+                    frame = CustomFrameComposer.LoadBitmap(framePath);
+                }
+                catch
+                {
+                    // A cache entry is reproducible, so a bad one is simply rebuilt.
+                    SafeDelete(framePath);
+                    GenerateAtomically(spec, framePath);
+                    frame = CustomFrameComposer.LoadBitmap(framePath);
+                }
+
+                var variant = new Template { Name = template.Name, Spec = spec, FramePath = framePath, FrameImage = frame };
+                LandscapeVariants[key] = variant;
+                return variant;
+            }
+            catch { return null; }
+        }
+    }
+
+    private static void GenerateAtomically(TemplateSpec spec, string framePath)
+    {
+        var tmp = framePath + ".tmp";
+        FrameGenerator.Generate(spec, tmp);
+        File.Move(tmp, framePath, overwrite: true);
+    }
+
     public IReadOnlyList<Template> LoadAll()
     {
         lock (LoadLock)
