@@ -32,6 +32,21 @@ public static class CardValidator
         @"(?:W|U|B|R|G|C)/P)$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    /// <summary>Checks a flip card's other half — the content checks that apply to it (name, symbols,
+    /// power/toughness), labelled so the user knows which half to fix. Art, frame and set-level checks belong
+    /// to the card itself (the half shares them), so they're skipped. Empty for a card without one.</summary>
+    public static IReadOnlyList<ValidationIssue> ValidateOtherHalf(CardModel card, TemplateSpec templateSpec)
+    {
+        if (card.OtherHalf is not { } half) return System.Array.Empty<ValidationIssue>();
+        var skip = new HashSet<string> { "no-art", "art-missing", "art-badpath", "symbol-missing", "symbol-badpath",
+            "frame-missing", "dup-name", "dup-collector", "portrait-only-frame", "no-flip-frame",
+            "out-of-bounds", "footer-overlap" };
+        return Validate(half, templateSpec)
+            .Where(i => !skip.Contains(i.Code))
+            .Select(i => new ValidationIssue(i.Severity, i.Code, "Flipped half: " + i.Message, i.Field))
+            .ToList();
+    }
+
     /// <summary>Validate one card against its resolved template. Pass the other cards in the project to
     /// enable cross-card checks (duplicate collector numbers), and the installed template names to flag a
     /// card whose frame isn't installed (a set shared without its custom frames).</summary>
@@ -92,6 +107,14 @@ public static class CardValidator
             issues.Add(new(IssueSeverity.Info, "portrait-only-frame",
                 "This card is normally printed sideways, but this frame is an imported image that can only be "
                 + "used upright. Pick a built-in frame for the sideways layout.",
+                nameof(card.TemplateName)));
+
+        // A flip card needs a frame that can be laid out as one. Built-in frames always can; an imported
+        // picture frame only if it ships a flip version — otherwise only the top half shows.
+        if (card.IsFlip && !templateSpec.IsFlipLayout)
+            issues.Add(new(IssueSeverity.Warning, "no-flip-frame",
+                "This is a flip card, but this frame is an imported image without a flip version, so only the "
+                + "upright half is shown. Pick a built-in frame (or one that comes with a flip layout).",
                 nameof(card.TemplateName)));
 
         // Special layouts build their badges by parsing the rules-text syntax; warn when the syntax produced

@@ -28,6 +28,10 @@ Sunspire Edict,art/sunspire.png,{1}{W},Instant,Destroy target attacking or block
 "Chronoshaper, Timeless",art/chrono.png,{3}{U},Legendary Planeswalker — Chronoshaper,"+1: Draw a card.\n-2: Tap target permanent.\n-6: Take an extra turn after this one.",,,4,Planeswalker,M,Cardinator Demo
 ```
 
+Optional extra columns: `defense` and `orientation` (Battles / sideways cards), and for a **flip card** the
+upside-down half's `flip_name`, `flip_type`, `flip_rules` and `flip_pt` (any of them makes the row a flip card;
+the half shares the row's art and set details).
+
 ## In the app
 
 Import list / CSV… → `cards.csv` loads the whole set. Here it is with the planeswalker selected —

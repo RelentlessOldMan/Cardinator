@@ -42,7 +42,7 @@ public static class SetFolder
         }
 
         // Both faces of a double-faced card: the back's art must travel with the set like the front's.
-        foreach (var face in cards.SelectMany(c => c.Faces()))
+        foreach (var face in cards.SelectMany(c => c.Parts()))
         {
             face.ArtPath = Localize(face.ArtPath) ?? "";
             face.SetSymbolPath = Localize(face.SetSymbolPath) ?? "";
@@ -69,7 +69,7 @@ public static class SetFolder
     public static int CountMissingArt(IEnumerable<CardModel> cards)
     {
         int missing = 0;
-        foreach (var face in cards.SelectMany(c => c.Faces()))
+        foreach (var face in cards.SelectMany(c => c.Parts()))
         {
             if (string.IsNullOrWhiteSpace(face.ArtPath)) continue;
             try { if (!File.Exists(Path.GetFullPath(face.ArtPath))) missing++; } catch { missing++; }

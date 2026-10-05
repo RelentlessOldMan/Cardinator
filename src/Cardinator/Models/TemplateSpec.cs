@@ -167,6 +167,17 @@ public sealed class TemplateSpec
 
     public FrameColors Colors { get; set; } = new();
 
+    /// <summary>"" for a normal card layout, or "flip" for a Kamigawa flip card: <see cref="TitleBar"/>,
+    /// <see cref="TextBox"/>, <see cref="TypeBar"/> and <see cref="PtBox"/> describe the TOP half (name, rules,
+    /// type line with P/T at its end), the art window sits across the middle, and the frame image's bottom
+    /// half is the top half mirrored — the renderer draws the other half's text rotated 180° into it.
+    /// Built-in frames derive this with <see cref="ToFlip"/>; a picture frame ships it as a "flip" variant.</summary>
+    public string CardLayout { get; set; } = "";
+
+    /// <summary>True for a flip-card layout (see <see cref="CardLayout"/>).</summary>
+    [JsonIgnore]
+    public bool IsFlipLayout => string.Equals((CardLayout ?? "").Trim(), "flip", System.StringComparison.OrdinalIgnoreCase);
+
     public Region TitleBar { get; set; } = new() { X = 48, Y = 56, W = 654, H = 60 };
     public Region ArtWindow { get; set; } = new() { X = 48, Y = 126, W = 654, H = 462 };
     public Region TypeBar { get; set; } = new() { X = 48, Y = 598, W = 654, H = 56 };
@@ -180,6 +191,7 @@ public sealed class TemplateSpec
         get
         {
             if (TextBox == null) return TextBox!;
+            if (IsFlipLayout) return TextBox;   // the space below a flip half's rules belongs to its type line + the art
             var fp = (FooterPlacement ?? "frame").Trim().ToLowerInvariant();
             if (fp == "frame") return TextBox;
             // Footer isn't on the frame — extend the box down, but only enough to leave the SAME margin
@@ -331,6 +343,50 @@ public sealed class TemplateSpec
         return s;
     }
 
+    /// <summary>
+    /// The same template laid out as a FLIP card (Kamigawa): each half reads name bar → rules → type line
+    /// (with the P/T box at the end of the type line, as on the real cards — not in the rules box), the art
+    /// spans the middle third, and everything is symmetric about the card's centre so the frame's bottom half
+    /// can be the top half mirrored. Plates keep their size, colours, fonts and side margins; the credits
+    /// move onto the bottom border (upright under the upside-down half). Returns this spec unchanged when it
+    /// is already a flip layout.
+    /// </summary>
+    public TemplateSpec ToFlip()
+    {
+        if (IsFlipLayout) return this;
+        var s = Clone();
+        s.CardLayout = "flip";
+        double h = CanvasHeight, mid = h / 2.0;
+        bool fullArt = ArtWindow.X <= 1 && ArtWindow.Y <= 1 && ArtWindow.Right >= CanvasWidth - 1 && ArtWindow.Bottom >= h - 1;
+
+        double gap = System.Math.Clamp(TextBox.Y - TypeBar.Bottom, 4, 16);          // plate-to-plate spacing
+        double artGap = fullArt ? gap : System.Math.Clamp(ArtWindow.Y - TitleBar.Bottom, 4, 20);
+        double typeH = TypeBar.H;
+        double textTop = TitleBar.Bottom + gap;
+
+        // Art ≈ a third of the card (real flip cards: ~31%); the rules box gets what's left of each half,
+        // but never less than ~3 lines — then the art gives way instead.
+        double minText = RulesFont.Size * 3.6;
+        double typeBottom = mid - h * 0.17 - artGap;
+        double textH = typeBottom - typeH - gap - textTop;
+        if (textH < minText) { typeBottom += minText - textH; textH = minText; }
+
+        s.TextBox = new Region { X = TextBox.X, Y = textTop, W = TextBox.W, H = textH };
+        s.TypeBar = new Region { X = TypeBar.X, Y = typeBottom - typeH, W = TypeBar.W, H = typeH };
+        double artTop = typeBottom + artGap;
+        s.ArtWindow = fullArt ? new Region { X = 0, Y = 0, W = CanvasWidth, H = h }
+                              : new Region { X = ArtWindow.X, Y = artTop, W = ArtWindow.W, H = System.Math.Max(1, h - 2 * artTop) };
+
+        // P/T rides the right end of the type line, a little taller than it (Erayo, Bushi Tenderfoot…).
+        double ptH = System.Math.Min(PtBox.H, typeH + 16);
+        s.PtBox = new Region { X = TypeBar.Right - PtBox.W, Y = s.TypeBar.Y + typeH / 2 - ptH / 2, W = PtBox.W, H = ptH };
+
+        s.FooterPlacement = "border";   // the bottom of the frame is the other half's name bar
+        s.SubtitleBar = null;
+        s.LegendaryCrown = false;       // a crown above each name would collide with the mirrored half
+        return s;
+    }
+
     /// <summary>Bump this when FrameGenerator's drawing changes in a way that should invalidate every
     /// cached frame.png (so old baked frames are regenerated even if the spec text is unchanged).</summary>
     public const int RenderFormatVersion = 1;
@@ -396,6 +452,7 @@ public sealed class TemplateSpec
     {
         var d = new TemplateSpec();
         Name ??= d.Name;
+        CardLayout ??= "";
         if (CanvasWidth <= 0) CanvasWidth = d.CanvasWidth;
         if (CanvasHeight <= 0) CanvasHeight = d.CanvasHeight;
         Colors ??= d.Colors;

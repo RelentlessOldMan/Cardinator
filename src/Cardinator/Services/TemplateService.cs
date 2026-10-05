@@ -12,6 +12,12 @@ public sealed class Template
     public required string FramePath { get; init; }
     public required BitmapSource FrameImage { get; init; }
 
+    /// <summary>Hand-made layouts of this same frame for card shapes a fixed picture can't be re-laid into,
+    /// keyed by <see cref="TemplateService.FlipVariant"/> / <see cref="TemplateService.LandscapeVariant"/>.
+    /// Each lives in a subfolder of the template's folder (<c>flip/</c>, <c>landscape/</c>) and is a complete
+    /// template of its own. Procedural frames don't need them — they derive these layouts on the fly.</summary>
+    public IReadOnlyDictionary<string, Template> Variants { get; init; } = new Dictionary<string, Template>();
+
     // Shown by the Frame combo box's collapsed selection box, which falls back to ToString().
     public override string ToString() => Name;
 }
@@ -30,6 +36,12 @@ public sealed class TemplateService
 
     private static readonly object VariantLock = new();
     private static readonly Dictionary<string, Template> LandscapeVariants = new();
+    private static readonly Dictionary<string, Template> FlipVariants = new();
+
+    /// <summary>Subfolder / <see cref="Template.Variants"/> key for a frame's flip-card layout.</summary>
+    public const string FlipVariant = "flip";
+    /// <summary>Subfolder / <see cref="Template.Variants"/> key for a frame's sideways (landscape) layout.</summary>
+    public const string LandscapeVariant = "landscape";
 
     /// <summary>
     /// The template a face ACTUALLY renders with. A face that wants landscape (a Battle, a Plane, or one
@@ -41,8 +53,93 @@ public sealed class TemplateService
     /// </summary>
     public static Template ResolveFor(CardModel card, Template template)
     {
-        if (template.Spec.IsLandscape || !card.WantsLandscape || template.Spec.CustomFrame) return template;
+        // A flip card wants its frame's flip layout: a hand-made "flip" variant if the frame ships one,
+        // otherwise (procedural frames) a derived one. A picture frame without one stays upright and the
+        // card renders as a plain card (CardValidator says why).
+        if (card.IsFlip)
+        {
+            if (template.Spec.IsFlipLayout) return template;
+            if (template.Variants.TryGetValue(FlipVariant, out var flip)) return flip;
+            return template.Spec.CustomFrame ? template : FlipOf(template) ?? template;
+        }
+
+        if (template.Spec.IsLandscape || !card.WantsLandscape) return template;
+        if (template.Variants.TryGetValue(LandscapeVariant, out var side)) return side;
+        if (template.Spec.CustomFrame) return template;
         return LandscapeOf(template) ?? template;
+    }
+
+    /// <summary>The flip-card layout of a procedural template (<see cref="TemplateSpec.ToFlip"/>): the frame
+    /// is generated for the top half's layout, then its bottom half is replaced by the top half mirrored, so
+    /// both halves match exactly (the approach approved on the picture frames). Cached by content hash in
+    /// <c>CardinatorData/cache/flip</c>. Null if it can't be built — the caller falls back to the plain frame.</summary>
+    public static Template? FlipOf(Template template)
+    {
+        var spec = template.Spec.ToFlip();
+        var key = spec.ContentHash();
+        lock (VariantLock)
+        {
+            if (FlipVariants.TryGetValue(key, out var hit)) return hit;
+            try
+            {
+                var dir = Path.Combine(AppPaths.DataDir, "cache", "flip");
+                Directory.CreateDirectory(dir);
+                var framePath = Path.Combine(dir, key[..20] + ".png");
+
+                BitmapImage frame;
+                try
+                {
+                    if (!File.Exists(framePath)) GenerateMirrored(spec, framePath);
+                    frame = CustomFrameComposer.LoadBitmap(framePath);
+                }
+                catch
+                {
+                    SafeDelete(framePath);
+                    GenerateMirrored(spec, framePath);
+                    frame = CustomFrameComposer.LoadBitmap(framePath);
+                }
+
+                var variant = new Template { Name = template.Name, Spec = spec, FramePath = framePath, FrameImage = frame };
+                FlipVariants[key] = variant;
+                return variant;
+            }
+            catch { return null; }
+        }
+    }
+
+    /// <summary>Generates a frame for <paramref name="spec"/> and replaces its bottom half with its top half
+    /// mirrored top-to-bottom. Written atomically.</summary>
+    private static void GenerateMirrored(TemplateSpec spec, string framePath)
+    {
+        var raw = framePath + ".raw.tmp";
+        try
+        {
+            FrameGenerator.Generate(spec, raw);
+            var mirrored = MirrorTopHalf(CustomFrameComposer.LoadBitmap(raw));
+            var tmp = framePath + ".tmp";
+            CardExporter.SavePng(mirrored, tmp);
+            File.Move(tmp, framePath, overwrite: true);
+        }
+        finally { SafeDelete(raw); }
+    }
+
+    /// <summary>A copy of <paramref name="src"/> whose bottom half is its top half flipped vertically.</summary>
+    internal static BitmapSource MirrorTopHalf(BitmapSource src)
+    {
+        int w = src.PixelWidth, h = src.PixelHeight, half = h / 2;
+        var top = new CroppedBitmap(src, new System.Windows.Int32Rect(0, 0, w, half));
+        var flipped = new TransformedBitmap(top, new System.Windows.Media.ScaleTransform(1, -1));
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            // Placed in device pixels, whatever DPI the source claims.
+            dc.DrawImage(top, new System.Windows.Rect(0, 0, w, half));
+            dc.DrawImage(flipped, new System.Windows.Rect(0, h - half, w, half));
+        }
+        var rtb = new RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(visual);
+        rtb.Freeze();
+        return rtb;
     }
 
     /// <summary>The landscape layout of a portrait procedural template, with its frame generated once and
@@ -144,28 +241,49 @@ public sealed class TemplateService
         var result = new List<Template>();
         foreach (var dir in SafeEnumerateDirs(root))
         {
-            var specPath = Path.Combine(dir, "template.json");
-            if (!File.Exists(specPath)) continue;
+            var t = LoadOne(dir, name: null);
+            if (t == null) continue;
 
-            TemplateSpec spec;
-            try { spec = TemplateSpec.Load(specPath); }
-            catch { continue; }
-
-            var framePath = Path.Combine(dir, "frame.png");
-            var frame = TryLoadFrame(spec, framePath);
-            if (frame == null) continue;   // couldn't produce/read a frame; skip rather than crash
-
-            result.Add(new Template
+            // Optional hand-made layouts beside it (flip/, landscape/). A broken variant is just skipped —
+            // the card then renders with the plain frame, never fails.
+            var variants = new Dictionary<string, Template>(StringComparer.OrdinalIgnoreCase);
+            foreach (var key in new[] { FlipVariant, LandscapeVariant })
             {
-                Name = spec.Name,
-                Spec = spec,
-                FramePath = framePath,
-                FrameImage = frame,
+                var vdir = Path.Combine(dir, key);
+                if (!Directory.Exists(vdir)) continue;
+                var v = LoadOne(vdir, name: t.Name);
+                if (v == null) continue;
+                // A variant must actually BE that shape, or it would be used for the wrong cards.
+                if (key == FlipVariant && !v.Spec.IsFlipLayout) continue;
+                if (key == LandscapeVariant && !v.Spec.IsLandscape) continue;
+                variants[key] = v;
+            }
+            result.Add(variants.Count == 0 ? t : new Template
+            {
+                Name = t.Name, Spec = t.Spec, FramePath = t.FramePath, FrameImage = t.FrameImage, Variants = variants,
             });
         }
 
         result.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
         return result;
+    }
+
+    /// <summary>Loads one template folder (template.json + frame.png), or null if it isn't a usable template.
+    /// A variant is named after its parent so a card's TemplateName still matches.</summary>
+    private static Template? LoadOne(string dir, string? name)
+    {
+        var specPath = Path.Combine(dir, "template.json");
+        if (!File.Exists(specPath)) return null;
+
+        TemplateSpec spec;
+        try { spec = TemplateSpec.Load(specPath); }
+        catch { return null; }
+
+        var framePath = Path.Combine(dir, "frame.png");
+        var frame = TryLoadFrame(spec, framePath);
+        if (frame == null) return null;   // couldn't produce/read a frame; skip rather than crash
+
+        return new Template { Name = name ?? spec.Name, Spec = spec, FramePath = framePath, FrameImage = frame };
     }
 
     private static void EnsureDefaults()

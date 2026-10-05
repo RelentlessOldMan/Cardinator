@@ -31,6 +31,13 @@ public partial class DetailsWindow : Window
         LandStyleBox.ItemsSource = new[] { "row", "splitv", "splith", "pie", "yinyang" };
         OrientationBox.ItemsSource = OrientationOptions;
         if (string.IsNullOrWhiteSpace(card.Orientation)) OrientationBox.SelectedIndex = 0;   // "" shows as Automatic
+        if (card.IsOtherHalf)
+        {
+            // The upside-down half of a flip card is cast by flipping, never paid for — real ones print no cost.
+            ManaCostBox.IsEnabled = false;
+            ManaCostBox.ToolTip = "The flipped half of a flip card has no mana cost.";
+            Title = "Flipped half";
+        }
     }
 
     /// <summary>A choice in the orientation dropdown. "" (Automatic) is the stored default, so files written
@@ -90,10 +97,13 @@ public partial class DetailsWindow : Window
             // one yet: a back face can't have a back of its own, and an existing one is the user's own work.
             // Cancel still discards it, because CopyFrom restores the snapshot's back face too.
             string extra = "";
-            bool canTakeABack = !_card.IsBackFace && !_card.IsDoubleFaced;
+            // Same for a flip card's other half: only onto a plain card that has neither.
+            bool canTakeABack = !_card.IsBackFace && !_card.IsOtherHalf && !_card.IsDoubleFaced && _card.OtherHalf == null;
             if (canTakeABack) CardDetailsFill.AttachFaces(_card, faces);
             if (canTakeABack && _card.IsDoubleFaced)
                 extra = $" Added the back face “{_card.BackFace!.Name}” — use “Show back” to preview it.";
+            else if (canTakeABack && _card.OtherHalf != null)
+                extra = $" Added the flipped half “{_card.OtherHalf.Name}” — use “Show flipped” to preview it.";
             else if (faces.Count > 1)
                 extra = $" (“{f.Name}” has another half: look it up from the main window to add it.)";
             SearchStatus.Text = $"Filled details from “{f.Name}”. Name, art and frame unchanged.{extra}";

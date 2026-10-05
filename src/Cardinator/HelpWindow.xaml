@@ -1,4 +1,4 @@
-<Window x:Class="Cardinator.HelpWindow"
+﻿<Window x:Class="Cardinator.HelpWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Cardinator help" Height="720" Width="600" MinHeight="480" MinWidth="480"
@@ -68,6 +68,7 @@
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Class"/> — type line says Class → level badges.</TextBlock>
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Adventure"/> — fill the Adventure fields → a spell sub-box on the creature.</TextBlock>
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Battle / Plane"/> — printed sideways, automatically, on any drawn frame. Set a Battle's <Run FontWeight="SemiBold" Text="Defense"/> in Edit details… (drawn in a shield). Force any card upright or sideways with <Run FontWeight="SemiBold" Text="Orientation"/> there too.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Flip card"/> — two halves on one face, the other half upside down below the art (Kamigawa). Looking up a real one brings both halves; or click <Run FontWeight="SemiBold" Text="Make flip card"/>, then <Run FontWeight="SemiBold" Text="Edit flipped half…"/> and <Run FontWeight="SemiBold" Text="Show flipped"/> to turn the preview over. Works on every drawn frame and the Partial Cardboard Chemist frames.</TextBlock>
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Double-faced"/> — one card with two faces. Looking up a real double-faced card brings both sides; or click <Run FontWeight="SemiBold" Text="Make double-faced"/>, then <Run FontWeight="SemiBold" Text="Edit back face…"/> to fill it in and <Run FontWeight="SemiBold" Text="Show back"/> to flip the preview. Pick a corner indicator (flip arrow or sun/moon). Export writes both sides, and a double-sided print sheet pairs the real back.</TextBlock>
 
                 <TextBlock Text="Keyboard shortcuts" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>

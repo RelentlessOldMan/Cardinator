@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading;
 using System.Windows;
@@ -258,6 +258,47 @@ public class WindowSmokeTests
             main.RenderPreview();
 
             Assert.True(main.PreviewImage!.PixelWidth > main.PreviewImage.PixelHeight, "the Battle front should preview sideways");
+        });
+
+    [Fact]
+    public void MainWindow_EditingTheFlippedHalf_DirtiesTheProject()   // 1.6.0 flip cards
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            card.HalfLayout = "flip";
+            card.OtherHalf = new CardModel { Name = "Kenzo the Hardhearted" };
+            main.Dirty = false;
+
+            card.OtherHalf!.Power = "3";   // what the flipped half's details dialog does
+            Assert.True(main.Dirty, "editing the flipped half did not dirty the project");
+        });
+
+    [Fact]
+    public void MainWindow_ShowFlipped_TurnsThePreviewUpsideDown()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            card.HalfLayout = "flip";
+            card.OtherHalf = new CardModel { Name = "Kenzo the Hardhearted", TypeLine = "Legendary Creature — Human Samurai" };
+            main.RenderPreview();
+            var upright = main.PreviewImage!;
+
+            typeof(Cardinator.MainWindow).GetMethod("OnShowFlipped",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .Invoke(main, new object?[] { null, null });
+            var turned = main.PreviewImage!;
+
+            // The same pixels, rotated 180°.
+            var a = TestHelpers.Pixels(upright); var b = TestHelpers.Pixels(turned);
+            int w = upright.PixelWidth, h = upright.PixelHeight;
+            for (int y = 0; y < h; y += 37)
+                for (int x = 0; x < w; x += 29)
+                {
+                    int i = (y * w + x) * 4, j = ((h - 1 - y) * w + (w - 1 - x)) * 4;
+                    Assert.True(Math.Abs(a[i] - b[j]) < 3 && Math.Abs(a[i + 1] - b[j + 1]) < 3, $"pixel {x},{y} isn't the rotated one");
+                }
         });
 
     /// <summary>Runs on an STA thread with an Application whose resources come from App.xaml.</summary>

@@ -1,0 +1,123 @@
+{
+  "name": "Alchemist's Steel",
+  "canvasWidth": 750,
+  "canvasHeight": 1050,
+  "fullArt": false,
+  "customFrame": true,
+  "frameStyle": "classic",
+  "embellishments": false,
+  "cornerRadius": 48,
+  "borderThickness": 28,
+  "panelRadius": 10,
+  "ptBevel": true,
+  "footerPlacement": "border",
+  "legendaryCrown": false,
+  "crownStyle": "none",
+  "topEmblem": "none",
+  "colors": {
+    "border": "#050505",
+    "frame": "#3A3F45",
+    "frame2": "#AEB4BB",
+    "panel": "#181C22",
+    "panelBorder": "#969DA5"
+  },
+  "titleBar": {
+    "x": 48,
+    "y": 48,
+    "w": 654,
+    "h": 62
+  },
+  "artWindow": {
+    "x": 48,
+    "y": 346.5,
+    "w": 654,
+    "h": 357.0
+  },
+  "typeBar": {
+    "x": 48,
+    "y": 278.5,
+    "w": 654,
+    "h": 54
+  },
+  "textBox": {
+    "x": 48,
+    "y": 116,
+    "w": 654,
+    "h": 156.5
+  },
+  "ptBox": {
+    "x": 576,
+    "y": 270.5,
+    "w": 126,
+    "h": 70
+  },
+  "creditBar": {
+    "x": 54,
+    "y": 974,
+    "w": 264,
+    "h": 30
+  },
+  "titleFont": {
+    "family": "Georgia",
+    "size": 33,
+    "color": "#F1F3F6",
+    "bold": true,
+    "italic": false,
+    "align": "left",
+    "shadow": true,
+    "shadowColor": "#000000"
+  },
+  "typeFont": {
+    "family": "Georgia",
+    "size": 24,
+    "color": "#EAEDF1",
+    "bold": true,
+    "italic": false,
+    "align": "left",
+    "shadow": true,
+    "shadowColor": "#000000"
+  },
+  "rulesFont": {
+    "family": "Georgia",
+    "size": 25,
+    "color": "#EAEDF1",
+    "bold": false,
+    "italic": false,
+    "align": "left",
+    "shadow": true,
+    "shadowColor": "#000000"
+  },
+  "flavorFont": {
+    "family": "Georgia",
+    "size": 24,
+    "color": "#C7CCD2",
+    "bold": false,
+    "italic": true,
+    "align": "left",
+    "shadow": true,
+    "shadowColor": "#000000"
+  },
+  "ptFont": {
+    "family": "Georgia",
+    "size": 32,
+    "color": "#EAEDF1",
+    "bold": true,
+    "italic": false,
+    "align": "center",
+    "shadow": true,
+    "shadowColor": "#000000"
+  },
+  "creditFont": {
+    "family": "Segoe UI",
+    "size": 13,
+    "color": "#C9CDD2",
+    "bold": false,
+    "italic": true,
+    "align": "left",
+    "shadow": true,
+    "shadowColor": "#000000"
+  },
+  "manaSymbolSize": 35,
+  "rulesSymbolSize": 26,
+  "cardLayout": "flip"
+}

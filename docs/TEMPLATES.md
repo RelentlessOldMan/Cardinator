@@ -143,6 +143,25 @@ itself out sideways automatically when a card is a Battle/Plane (the regions are
 and the frame is regenerated and cached). An *imported* frame image is fixed, so if you want a sideways one,
 import a frame image that is **wider than tall** — Cardinator then creates a 1050 × 750 template for it.
 
+**Extra versions of a picture frame (`flip/`, `landscape/`).** A drawn frame re-lays itself for any card shape,
+but an imported frame image can't. So a template folder may carry hand-made versions of the same frame in
+subfolders, each a complete template of its own (`frame.png` + `template.json`):
+
+```
+templates/my-frame/
+  frame.png, template.json          ← the normal frame
+  flip/frame.png, template.json     ← used for flip cards   ("cardLayout": "flip")
+  landscape/frame.png, template.json ← used for Battles/Planes (canvasWidth > canvasHeight)
+```
+
+They aren't listed as separate frames — a card keeps choosing *my-frame*, and Cardinator swaps in the right
+version when it renders. A `flip` template's `titleBar`, `textBox`, `typeBar` and `ptBox` describe the **top**
+half (name → rules → type line, with the P/T box at the end of the type line), the `artWindow` sits across the
+middle, and the frame image's bottom half is the top half mirrored — the other half's text is drawn into it
+upside down. A version of the wrong shape (a `flip/` whose spec isn't a flip layout) is ignored. A `.cardframe`
+bundle carries these versions along when you share the frame. The bundled *Partial Cardboard Chemist* frames
+ship with both.
+
 ### `frame.png`
 The frame overlay, drawn **on top of** the art. It must be **transparent where the art shows
 through** (the art window). If `frame.png` is missing, Cardinator **generates one** from the colors

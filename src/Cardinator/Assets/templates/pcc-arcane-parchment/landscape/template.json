@@ -1,0 +1,110 @@
+{
+  "name": "Arcane Parchment",
+  "canvasWidth": 1050,
+  "canvasHeight": 750,
+  "fullArt": false,
+  "customFrame": true,
+  "frameStyle": "classic",
+  "embellishments": false,
+  "cornerRadius": 48,
+  "borderThickness": 28,
+  "panelRadius": 10,
+  "ptBevel": true,
+  "footerPlacement": "frame",
+  "legendaryCrown": false,
+  "crownStyle": "none",
+  "topEmblem": "none",
+  "colors": {
+    "border": "#170F06",
+    "frame": "#7A2A22",
+    "frame2": "#C9A24B",
+    "panel": "#ECDCB6",
+    "panelBorder": "#7A2A22"
+  },
+  "titleBar": {
+    "x": 48,
+    "y": 46,
+    "w": 954,
+    "h": 62
+  },
+  "artWindow": {
+    "x": 48,
+    "y": 120,
+    "w": 954,
+    "h": 296
+  },
+  "typeBar": {
+    "x": 48,
+    "y": 426,
+    "w": 954,
+    "h": 54
+  },
+  "textBox": {
+    "x": 48,
+    "y": 490,
+    "w": 954,
+    "h": 170
+  },
+  "ptBox": {
+    "x": 872,
+    "y": 636,
+    "w": 126,
+    "h": 72
+  },
+  "creditBar": {
+    "x": 54,
+    "y": 680,
+    "w": 420,
+    "h": 26
+  },
+  "titleFont": {
+    "family": "Georgia",
+    "size": 33,
+    "color": "#5A1712",
+    "bold": true,
+    "italic": false,
+    "align": "left"
+  },
+  "typeFont": {
+    "family": "Georgia",
+    "size": 24,
+    "color": "#2A1B0E",
+    "bold": true,
+    "italic": false,
+    "align": "left"
+  },
+  "rulesFont": {
+    "family": "Georgia",
+    "size": 25,
+    "color": "#2A1B0E",
+    "bold": false,
+    "italic": false,
+    "align": "left"
+  },
+  "flavorFont": {
+    "family": "Georgia",
+    "size": 24,
+    "color": "#5A4327",
+    "bold": false,
+    "italic": true,
+    "align": "left"
+  },
+  "ptFont": {
+    "family": "Georgia",
+    "size": 32,
+    "color": "#2A1B0E",
+    "bold": true,
+    "italic": false,
+    "align": "center"
+  },
+  "creditFont": {
+    "family": "Segoe UI",
+    "size": 13,
+    "color": "#3A2A14",
+    "bold": false,
+    "italic": true,
+    "align": "left"
+  },
+  "manaSymbolSize": 35,
+  "rulesSymbolSize": 26
+}

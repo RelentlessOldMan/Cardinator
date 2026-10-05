@@ -40,6 +40,11 @@ public static class ImportService
         ["loyalty"] = "loyalty", ["loy"] = "loyalty",
         ["defense"] = "defense", ["defence"] = "defense", ["def"] = "defense",
         ["orientation"] = "orientation",
+        // A flip card's upside-down half (any of these columns makes the row a flip card).
+        ["flipname"] = "flipname", ["flippedname"] = "flipname",
+        ["fliptype"] = "fliptype", ["fliptypeline"] = "fliptype",
+        ["fliprules"] = "fliprules", ["fliptext"] = "fliprules",
+        ["flippower"] = "flippower", ["fliptoughness"] = "fliptoughness", ["flippt"] = "flippt",
         ["template"] = "template", ["frame"] = "template", ["border"] = "template",
         ["color"] = "template", ["colour"] = "template",
         ["artist"] = "artist", ["illustrator"] = "artist", ["illus"] = "artist",
@@ -246,6 +251,25 @@ public static class ImportService
                 var bits = pt.Split('/', 2);
                 card.Power = bits[0].Trim();
                 card.Toughness = bits[1].Trim();
+            }
+
+            // Flip card columns: the upside-down half shares the row's art and set details.
+            var half = new CardModel
+            {
+                Name = Get("flipname"), TypeLine = Get("fliptype"), RulesText = Unescape(Get("fliprules")),
+                Power = Get("flippower"), Toughness = Get("fliptoughness"), TemplateName = card.TemplateName,
+            };
+            var fpt = Get("flippt");
+            if (fpt.Contains('/') && half.Power.Length == 0 && half.Toughness.Length == 0)
+            {
+                var bits = fpt.Split('/', 2);
+                half.Power = bits[0].Trim();
+                half.Toughness = bits[1].Trim();
+            }
+            if (half.Name.Length + half.TypeLine.Length + half.RulesText.Length + half.Power.Length + half.Toughness.Length > 0)
+            {
+                card.HalfLayout = "flip";
+                card.OtherHalf = half;
             }
 
             bool blank = card.ManaCost.Length == 0 && card.TypeLine.Length == 0 && card.RulesText.Length == 0;
