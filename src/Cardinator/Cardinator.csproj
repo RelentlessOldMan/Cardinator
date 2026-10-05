@@ -11,7 +11,7 @@
     <!-- Version line is 1.6.x: bump the PATCH each batch (1.6.1, 1.6.2…), the MINOR only for big work agreed with the user.
          NEVER bump the major (2.0) — that is the user's decision alone. The app reads this at runtime
          (App.VersionNumber) so this is the single source of truth; never hardcode a version string. -->
-    <Version>1.6.3</Version>
+    <Version>1.6.4</Version>
     <ApplicationIcon>Assets\cardinator.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 

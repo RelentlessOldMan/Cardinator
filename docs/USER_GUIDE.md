@@ -102,6 +102,9 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Plane / Phenomenon** | Type line contains "Plane" or "Phenomenon" | **Sideways** card (Planechase) |
 | **Flip card** | Look up a real flip card, or **Make flip card** | Two halves on one face: the other half **upside down** below the art |
 | **Split card** | Look up a real split card or Room, or **Make split card** | Two small cards **side by side**, read with the card turned sideways |
+| **Level up** | Rules with lines like `LEVEL 2-6`, then `3/3`, then that level's rules | Text box split into **level bands**, each with a LEVEL badge and its own P/T box |
+| **Prototype** | First rules line like `Prototype {2}{R} — 3/2 (…)` | A band across the top of the text box in the prototype's colour, with its own cost and P/T |
+| **Mutate** | First rules line like `Mutate {1}{G}{G} (…)` | The mutate line in a shaded band across the top of the text box |
 | **Aftermath** | A split card whose other half's rules start with **Aftermath** | First half **upright across the top**, the other half **sideways** below it |
 
 **Double-faced cards (DFC).** A card can have a **back face** — a front/back card that flips. Looking up a real
@@ -158,6 +161,23 @@ half…)"* — is printed **once**, in a bar across both halves. Every frame wor
 the frame's own card, just smaller. A split card prints on one side, like a flip card.
 
 <p><img src="images/split-card.png" width="360" alt="A split card: two small cards side by side, turned sideways, with a Fuse bar across both"></p>
+
+**Level up.** A leveler (*Student of Warfare*) lists its levels the way Scryfall writes them — a line
+`LEVEL 2-6`, then that level's power/toughness on its own line (`3/3`), then its rules, and so on up to `LEVEL 7+`.
+Cardinator splits the text box into **bands**: the first holds the *Level up* text with the card's own P/T, and each
+level gets an arrow-shaped LEVEL badge on the left and its own P/T box on the right (so there's no P/T box in the
+corner). Looked-up levelers come in ready; CHECKS points out a "Level up" card whose levels aren't written that way.
+
+<p><img src="images/level-up-card.png" width="360" alt="A level up card: three bands, each with its own P/T box, the level bands with LEVEL badges"></p>
+
+**Prototype and Mutate.** A prototype (*Blitz Automaton*) or mutate card (*Gemrazer*) is written the way Scryfall
+writes it: its rules' **first line** is `Prototype {2}{R} — 3/2 (reminder…)` or `Mutate {1}{G}{G} (reminder…)`.
+That line becomes a band across the top of the text box and the rest of the rules flow below. A prototype's band
+takes the colour of the prototype cost (red for `{2}{R}`, gold for two colours, grey for colourless) and shows that
+smaller cost and P/T at its right end; the card's own cost and P/T stay where they always are. Looked-up cards come in
+ready.
+
+<p><img src="images/prototype-card.png" width="360" alt="A prototype card: a red band across the top of the text box with its own cost and P/T"></p>
 
 **Aftermath cards.** An aftermath card (*Destined // Lead*, Amonkhet) is a split card arranged differently: the
 first half reads **upright across the top** — in the frame's wide, sideways layout — and the other half sits

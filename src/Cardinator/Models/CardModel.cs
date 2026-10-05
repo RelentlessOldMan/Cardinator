@@ -280,6 +280,14 @@ public sealed class CardModel : INotifyPropertyChanged
     [JsonIgnore]
     public bool IsClass => TypeLine.Contains("Class", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>A leveler (<i>Student of Warfare</i>): its rules have at least one "LEVEL 2-6" / "LEVEL 7+" line,
+    /// the way Scryfall writes them. The text box is then drawn as level bands (see
+    /// <see cref="Cardinator.Services.CardRenderer.ParseLevelUp"/>).</summary>
+    [JsonIgnore]
+    public bool IsLevelUp => System.Text.RegularExpressions.Regex.IsMatch(RulesText ?? "",
+        @"^[ \t]*LEVEL[ \t]+\d+(?:[ \t]*-[ \t]*\d+|\+)[ \t]*\r?$",
+        System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     [JsonIgnore]
     public bool IsLand => TypeLine.Contains("Land", StringComparison.OrdinalIgnoreCase);
 

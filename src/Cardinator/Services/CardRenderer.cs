@@ -127,6 +127,11 @@ public sealed class CardRenderer
                 DrawBadgedRows(dc, ParseChapters(card.RulesText), spec);
             else if (card.IsClass)
                 DrawBadgedRows(dc, ParseClassLevels(card.RulesText), spec);
+            else if (card.IsLevelUp)
+                DrawLevelUp(dc, card, spec);   // bands with their own P/T boxes — no corner P/T box
+            else if (ParseTopBand(card) is { } topBand)
+                DrawTopBandCard(dc, card, spec, topBand,   // the rules below always wrap around the P/T box
+                    card.HasDefense ? DefenseRect(spec) : card.HasPowerToughness ? PtRect(spec) : null);
             else if (card.IsAdventure)
                 DrawAdventure(dc, card, spec);
             else if (card.ShowBigLandSymbol)
@@ -146,7 +151,7 @@ public sealed class CardRenderer
                 DrawLoyalty(dc, card, spec);
             else if (card.HasDefense)
                 DrawDefense(dc, card, spec);   // a Battle's starting defense
-            else if (card.HasPowerToughness)
+            else if (card.HasPowerToughness && !card.IsLevelUp)
                 DrawPtBox(dc, card, spec);   // creatures only — the box is drawn here, not baked into the frame
 
         }
@@ -1759,6 +1764,377 @@ public sealed class CardRenderer
             else rows.Add((null, t));
         }
         return rows;
+    }
+
+    // --- prototype / mutate: a band across the top of the text box -------------
+
+    /// <summary>The band a Prototype or Mutate card prints across the top of its text box, read from the rules'
+    /// first line. <see cref="Text"/> is what the band says; for a prototype, <see cref="Cost"/> and
+    /// <see cref="Pt"/> are its own smaller mana cost and power/toughness, drawn at the band's right end, and
+    /// the band is tinted in that cost's colours. <see cref="Rest"/> is the rest of the rules, drawn below.</summary>
+    internal sealed record TopBand(string Kind, string Text, string Cost, string Pt, string Rest);
+
+    private static readonly Regex PrototypeLine = new(
+        @"^Prototype\s+((?:\{[^}]+\})+)\s*[—–-]\s*([0-9X*+\-]+\s*/\s*[0-9X*+\-]+)\s*(.*)$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex MutateLine = new(@"^Mutate\s+(?:\{[^}]+\})+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>A Prototype ("Prototype {2}{R} — 3/2 (…)") or Mutate ("Mutate {1}{G}{G} (…)") card's band, from
+    /// the first line of its rules the way Scryfall writes them; null for any other card.</summary>
+    internal static TopBand? ParseTopBand(CardModel card)
+    {
+        var lines = (card.RulesText ?? "").Replace("\r", "").Split('\n');
+        int first = Array.FindIndex(lines, l => l.Trim().Length > 0);
+        if (first < 0) return null;
+        var line = lines[first].Trim();
+        string rest = string.Join("\n", lines.Skip(first + 1)).Trim();
+        var p = PrototypeLine.Match(line);
+        if (p.Success)
+        {
+            var reminder = p.Groups[3].Value.Trim();
+            return new TopBand("prototype", reminder.Length > 0 ? "Prototype " + reminder : "Prototype",
+                p.Groups[1].Value, Regex.Replace(p.Groups[2].Value, @"\s+", ""), rest);
+        }
+        if (MutateLine.IsMatch(line)) return new TopBand("mutate", line, "", "", rest);
+        return null;
+    }
+
+    /// <summary>The band colour for a prototype cost: its one colour, gold for two or more, grey for colourless.</summary>
+    internal static Color PrototypeTint(string cost)
+    {
+        var colours = ManaText.Tokenize(cost).Where(t => t.IsSymbol)
+            .SelectMany(t => t.Value.Trim('{', '}').ToUpperInvariant().Split('/'))
+            .Where(c => c is "W" or "U" or "B" or "R" or "G").Distinct().ToList();
+        return colours.Count switch
+        {
+            0 => Color.FromRgb(0xB9, 0xB9, 0xBC),
+            > 1 => Color.FromRgb(0xE2, 0xC2, 0x5E),
+            _ => colours[0] switch
+            {
+                "W" => Color.FromRgb(0xEF, 0xE6, 0xC8),
+                "U" => Color.FromRgb(0x8F, 0xBC, 0xE3),
+                "B" => Color.FromRgb(0x9C, 0x90, 0x8C),
+                "R" => Color.FromRgb(0xE8, 0x8A, 0x74),
+                _ => Color.FromRgb(0x8C, 0xC4, 0x93),
+            },
+        };
+    }
+
+    /// <summary>Where a top-band card's parts go: the band across the top of the text box (with, for a
+    /// prototype, a right-hand column for its cost and P/T plate), the rest of the text box below it, and the
+    /// one rules size both share — shrunk until the band and the rest fit together.</summary>
+    internal (Rect Band, Rect BandText, Rect? Cost, Rect? Pt, Rect Below, double Size) TopBandLayout(
+        CardModel card, TemplateSpec spec, TopBand band, Rect? avoid)
+    {
+        var tb = ToRect(spec.EffectiveTextBox);
+        double inset = 3, pad = 12, gap = 10;
+        var box = new Rect(tb.X + inset, tb.Y + inset, Math.Max(0, tb.Width - 2 * inset), Math.Max(0, tb.Height - 2 * inset));
+        bool proto = band.Kind == "prototype";
+        // Smaller than the corner box, and never more than about a third of a short (full-art) text box.
+        double ptScale = Math.Min(0.62, box.Height * 0.3 / Math.Max(1, spec.PtBox.H));
+        double ptW = spec.PtBox.W * ptScale, ptH = spec.PtBox.H * ptScale;
+        int costCount = ManaText.Tokenize(band.Cost).Count(t => t.IsSymbol);
+
+        double size = spec.RulesFont.Size, bandH = 0, symSize = 0, colW = 0;
+        double minSize = Math.Min(10, spec.RulesFont.Size);
+        for (size = Math.Max(minSize, spec.RulesFont.Size); size >= minSize; size -= 1)
+        {
+            double scale = size / spec.RulesFont.Size;
+            symSize = spec.RulesSymbolSize * scale;
+            colW = proto ? Math.Max(ptW, costCount * symSize * 1.08) : 0;
+            var textCol = new Rect(box.X + pad, 0, Math.Max(20, box.Width - 2 * pad - (proto ? colW + gap : 0)), 100000);
+            double textH = LayoutContent(band.Text, "", textCol, spec.RulesFont, size, spec.FlavorFont,
+                spec.FlavorFont.Size * scale, symSize, null).Height;
+            bandH = Math.Max(textH, proto ? symSize + 4 + ptH : 0) + 2 * pad * 0.7;
+            var below = new Rect(box.X + 18 - inset, 0, Math.Max(0, box.Width - 2 * (18 - inset)), 100000);
+            double restH = band.Rest.Length + card.FlavorText.Length == 0 ? 0
+                : LayoutContent(band.Rest, card.FlavorText, below, spec.RulesFont, size, spec.FlavorFont,
+                    spec.FlavorFont.Size * scale, symSize, avoid is { } a ? new Rect(a.X, a.Y - box.Y - bandH, a.Width, a.Height) : null).Height + 2 * 18;
+            if (bandH + restH <= box.Height) break;
+        }
+
+        var bandRect = new Rect(box.X, box.Y, box.Width, Math.Min(bandH, box.Height));
+        var bandText = new Rect(box.X + pad, box.Y, Math.Max(20, box.Width - 2 * pad - (proto ? colW + gap : 0)), bandRect.Height);
+        Rect? cost = null, pt = null;
+        if (proto)
+        {
+            double colX = box.Right - pad * 0.6 - colW;
+            double stackH = symSize + 4 + ptH, top = box.Y + (bandRect.Height - stackH) / 2;
+            cost = new Rect(colX + colW - costCount * symSize * 1.08, top, costCount * symSize * 1.08, symSize);
+            pt = new Rect(colX + colW - ptW, top + symSize + 4, ptW, ptH);
+        }
+        var belowRect = new Rect(box.X - inset, bandRect.Bottom, tb.Width, Math.Max(0, tb.Bottom - bandRect.Bottom));
+        return (bandRect, bandText, cost, pt, belowRect, size);
+    }
+
+    /// <summary>A Prototype or Mutate card's text box: the band across the top (tinted in the prototype cost's
+    /// colours, or shaded for mutate) holding its first line — a prototype's own small cost and P/T plate at
+    /// the right end — and the rest of the rules and flavor below, around the card's P/T box as usual.</summary>
+    private void DrawTopBandCard(DrawingContext dc, CardModel card, TemplateSpec spec, TopBand band, Rect? avoid)
+    {
+        var (bandRect, bandText, cost, pt, below, size) = TopBandLayout(card, spec, band, avoid);
+        double scale = size / spec.RulesFont.Size;
+        double r = Math.Min(10, bandRect.Height * 0.15);
+
+        Color edge;
+        if (band.Kind == "prototype")
+        {
+            var tint = PrototypeTint(band.Cost);
+            edge = DarkenC(tint, 0.35);
+            var fill = new LinearGradientBrush(Color.FromArgb(235, LightenC(tint, 0.12).R, LightenC(tint, 0.12).G, LightenC(tint, 0.12).B),
+                Color.FromArgb(235, tint.R, tint.G, tint.B), new Point(0, 0), new Point(0, 1));
+            fill.Freeze();
+            dc.DrawRoundedRectangle(fill, new Pen(new SolidColorBrush(edge), 2), bandRect, r, r);
+        }
+        else
+        {
+            // A shade set apart from the rest of the box: darker on a light text box, lighter on a dark one
+            // (frames whose rules text is light, e.g. Midnight and full-art).
+            var ink = TemplateSpec.ParseColor(spec.RulesFont.Color);
+            bool darkBox = 0.299 * ink.R + 0.587 * ink.G + 0.114 * ink.B > 150;
+            edge = darkBox ? Color.FromArgb(120, 255, 255, 255) : Color.FromArgb(110, 40, 30, 10);
+            dc.DrawRoundedRectangle(new SolidColorBrush(darkBox ? Color.FromArgb(34, 255, 255, 255) : Color.FromArgb(38, 30, 20, 0)),
+                null, bandRect, r, r);
+            dc.DrawLine(new Pen(new SolidColorBrush(edge), 1.2), bandRect.BottomLeft, bandRect.BottomRight);
+        }
+
+        // A prototype band is always a light tint, so its text is dark ink without the outline frames with
+        // white rules text (full-art, Midnight…) use — white on a light band would vanish.
+        var bandFont = band.Kind != "prototype" ? spec.RulesFont : new FontSpec
+        {
+            Family = spec.RulesFont.Family, Size = spec.RulesFont.Size, Bold = spec.RulesFont.Bold,
+            Italic = spec.RulesFont.Italic, Align = spec.RulesFont.Align, Color = "#1C1A17",
+        };
+        var probe = LayoutContent(band.Text, "", new Rect(bandText.X, 0, bandText.Width, 100000), bandFont, size,
+            spec.FlavorFont, spec.FlavorFont.Size * scale, spec.RulesSymbolSize * scale, null);
+        double top = bandText.Y + Math.Max(0, (bandText.Height - probe.Height) / 2);
+        var lay = LayoutContent(band.Text, "", new Rect(bandText.X, top, bandText.Width, bandText.Height), bandFont, size,
+            spec.FlavorFont, spec.FlavorFont.Size * scale, spec.RulesSymbolSize * scale, null);
+        foreach (var p in lay.Items)
+        {
+            if (p.Text != null) DrawGlyphRun(dc, p.Text, new Point(p.X, p.Y), bandFont);
+            else if (p.Sym != null) dc.DrawImage(p.Sym, new Rect(p.X, p.Y, p.SymSize, p.SymSize));
+        }
+
+        if (cost is { } c)
+        {
+            double s = c.Height, x = c.X;
+            foreach (var t in ManaText.Tokenize(band.Cost).Where(t => t.IsSymbol))
+            {
+                if (_symbols.GetSymbol(t.Value) is { } sym) dc.DrawImage(sym, new Rect(x, c.Y, s, s));
+                x += s * 1.08;
+            }
+        }
+        if (pt is { } pr)
+        {
+            double pr2 = pr.Height * 0.3;
+            var plate = new LinearGradientBrush(LightenC(edge, 0.15), edge, new Point(0, 0), new Point(0, 1));
+            plate.Freeze();
+            dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(90, 0, 0, 0)), null, new Rect(pr.X - 2, pr.Y + 3, pr.Width, pr.Height), pr2, pr2);
+            dc.DrawRoundedRectangle(plate, new Pen(new SolidColorBrush(DarkenC(edge, 0.3)), 1.6), pr, pr2, pr2);
+            var f = NumeralFont(spec.PtFont);
+            DrawCentered(dc, band.Pt, pr, new FontSpec { Family = f.Family, Bold = true, Size = pr.Height * 0.62, Color = "#FFFFFF" });
+        }
+
+        var rules = new FontSpec
+        {
+            Family = spec.RulesFont.Family, Size = size, Bold = spec.RulesFont.Bold, Italic = spec.RulesFont.Italic,
+            Align = spec.RulesFont.Align, Color = spec.RulesFont.Color, Shadow = spec.RulesFont.Shadow, ShadowColor = spec.RulesFont.ShadowColor,
+        };
+        var flavor = new FontSpec
+        {
+            Family = spec.FlavorFont.Family, Size = spec.FlavorFont.Size * scale, Bold = spec.FlavorFont.Bold, Italic = spec.FlavorFont.Italic,
+            Align = spec.FlavorFont.Align, Color = spec.FlavorFont.Color, Shadow = spec.FlavorFont.Shadow, ShadowColor = spec.FlavorFont.ShadowColor,
+        };
+        DrawTextBox(dc, band.Rest, card.FlavorText, new Region { X = below.X, Y = below.Y, W = below.Width, H = below.Height },
+            rules, flavor, spec.RulesSymbolSize * scale, avoid);
+    }
+
+    // --- level up -------------------------------------------------------------
+
+    /// <summary>One band of a leveler's text box: the level range it applies from (null for the base band, e.g.
+    /// "2-6" or "7+"), the power/toughness it has there (may be empty) and its rules.</summary>
+    internal sealed record LevelBand(string? Level, string Pt, string Text);
+
+    private static readonly Regex LevelLine = new(@"^LEVEL\s+(\d+(?:\s*-\s*\d+|\+))$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex PtLine = new(@"^[0-9X*+\-]+\s*/\s*[0-9X*+\-]+$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Splits a leveler's rules into bands, reading Scryfall's wording: everything before the first
+    /// "LEVEL n-m" line is the base band (with the card's own P/T); each "LEVEL n-m" / "LEVEL n+" line starts a
+    /// band, whose next line, if it is a bare "3/3", is that band's P/T and the rest its rules.</summary>
+    internal static List<LevelBand> ParseLevelUp(CardModel card)
+    {
+        var bands = new List<LevelBand>();
+        string? level = null;
+        string pt = card.HasPowerToughness ? $"{card.Power}/{card.Toughness}" : "";
+        var text = new List<string>();
+        bool expectPt = false;
+        void Flush() => bands.Add(new LevelBand(level, pt, string.Join("\n", text)));
+        foreach (var raw in (card.RulesText ?? "").Replace("\r", "").Split('\n'))
+        {
+            var t = raw.Trim();
+            var m = LevelLine.Match(t);
+            if (m.Success)
+            {
+                Flush();
+                level = Regex.Replace(m.Groups[1].Value, @"\s+", "");
+                pt = ""; text.Clear(); expectPt = true;
+                continue;
+            }
+            if (expectPt && PtLine.IsMatch(t)) { pt = Regex.Replace(t, @"\s+", ""); expectPt = false; continue; }
+            if (t.Length == 0) continue;
+            expectPt = false;
+            text.Add(t);
+        }
+        Flush();
+        // A leveler with nothing before its first LEVEL line still shows its base P/T band.
+        return bands;
+    }
+
+    /// <summary>Where each band of a leveler goes, and the rules size they all share: the text box is split into
+    /// bands stacked top to bottom, each tall enough for its text, its level badge and its P/T box, with the
+    /// spare height shared out evenly. One size for every band (shrunk until they all fit) so they read alike.</summary>
+    internal (List<(LevelBand band, Rect rect, Rect text, Rect? badge, Rect? pt)> Bands, double Size) LevelUpLayout(
+        CardModel card, TemplateSpec spec)
+    {
+        var bands = ParseLevelUp(card);
+        var tb = ToRect(spec.EffectiveTextBox);
+        double inset = 3;
+        var box = new Rect(tb.X + inset, tb.Y + inset, Math.Max(0, tb.Width - 2 * inset), Math.Max(0, tb.Height - 2 * inset));
+        // The bands' P/T boxes are a little smaller than the corner box — and never taller than a band's fair
+        // share of a short text box (full-art frames), or they'd crowd the rules down to the smallest size.
+        double ptScale = Math.Min(0.78, box.Height / Math.Max(1, bands.Count) * 0.72 / Math.Max(1, spec.PtBox.H));
+        double ptW = spec.PtBox.W * ptScale, ptH = spec.PtBox.H * ptScale, gap = 10, pad = 12;
+
+        double size = spec.RulesFont.Size;
+        double[] need = new double[bands.Count];
+        Rect TextCol(LevelBand b, double sz)
+        {
+            double left = box.X + pad + (b.Level != null ? BadgeWidth(sz) + gap : 0);
+            double right = box.Right - pad - (b.Pt.Length > 0 ? ptW + gap : 0);
+            return new Rect(left, 0, Math.Max(20, right - left), 100000);
+        }
+        double minSize = Math.Min(10, spec.RulesFont.Size);
+        for (size = Math.Max(minSize, spec.RulesFont.Size); size >= minSize; size -= 1)
+        {
+            double scale = size / spec.RulesFont.Size;
+            for (int i = 0; i < bands.Count; i++)
+            {
+                var b = bands[i];
+                double textH = b.Text.Length == 0 ? 0
+                    : LayoutContent(b.Text, "", TextCol(b, size), spec.RulesFont, size, spec.FlavorFont, spec.FlavorFont.Size * scale,
+                        spec.RulesSymbolSize * scale, null).Height;
+                need[i] = Math.Max(textH, Math.Max(b.Pt.Length > 0 ? ptH : 0, b.Level != null ? BadgeHeight(size) : 0)) + 2 * pad * 0.6;
+            }
+            if (need.Sum() <= box.Height) break;
+        }
+
+        double spare = Math.Max(0, box.Height - need.Sum()) / Math.Max(1, bands.Count);
+        var result = new List<(LevelBand, Rect, Rect, Rect?, Rect?)>();
+        double y = box.Y;
+        for (int i = 0; i < bands.Count; i++)
+        {
+            var b = bands[i];
+            double h = need[i] + spare;
+            var rect = new Rect(box.X, y, box.Width, h);
+            var col = TextCol(b, size);
+            Rect? badge = b.Level == null ? null
+                : new Rect(box.X + pad * 0.6, y + (h - BadgeHeight(size)) / 2, BadgeWidth(size), BadgeHeight(size));
+            Rect? pt = b.Pt.Length == 0 ? null : new Rect(box.Right - pad * 0.6 - ptW, y + (h - ptH) / 2, ptW, ptH);
+            result.Add((b, rect, new Rect(col.X, y, col.Width, h), badge, pt));
+            y += h;
+        }
+        return (result, size);
+    }
+
+    private static double BadgeWidth(double size) => size * 3.1;
+    private static double BadgeHeight(double size) => size * 2.5;
+
+    /// <summary>A leveler's text box (<i>Student of Warfare</i>): bands stacked top to bottom, each a shade darker
+    /// than the one above, the level bands with an arrow-shaped LEVEL badge on the left, and every band with
+    /// its own P/T box on the right (the base band shows the card's P/T, so there's no corner box).</summary>
+    private void DrawLevelUp(DrawingContext dc, CardModel card, TemplateSpec spec)
+    {
+        var (bands, size) = LevelUpLayout(card, spec);
+        if (bands.Count == 0) return;
+        double scale = size / spec.RulesFont.Size;
+        var divider = new Pen(new SolidColorBrush(Color.FromArgb(90, 40, 30, 10)), 1.2);
+        divider.Freeze();
+
+        for (int i = 0; i < bands.Count; i++)
+        {
+            var (band, rect, text, badge, pt) = bands[i];
+            if (i > 0)
+            {
+                dc.DrawRectangle(new SolidColorBrush(Color.FromArgb((byte)Math.Min(60, 16 * i), 60, 40, 10)), null, rect);
+                dc.DrawLine(divider, rect.TopLeft, rect.TopRight);
+            }
+
+            if (band.Text.Length > 0)
+            {
+                var probe = LayoutContent(band.Text, "", new Rect(text.X, 0, text.Width, 100000), spec.RulesFont, size,
+                    spec.FlavorFont, spec.FlavorFont.Size * scale, spec.RulesSymbolSize * scale, null);
+                double top = text.Y + Math.Max(0, (text.Height - probe.Height) / 2);
+                var lay = LayoutContent(band.Text, "", new Rect(text.X, top, text.Width, text.Height), spec.RulesFont, size,
+                    spec.FlavorFont, spec.FlavorFont.Size * scale, spec.RulesSymbolSize * scale, null);
+                foreach (var p in lay.Items)
+                {
+                    if (p.Text != null) DrawGlyphRun(dc, p.Text, new Point(p.X, p.Y), spec.RulesFont);
+                    else if (p.Sym != null) dc.DrawImage(p.Sym, new Rect(p.X, p.Y, p.SymSize, p.SymSize));
+                }
+            }
+
+            if (badge is { } b) DrawLevelBadge(dc, b, band.Level!, spec);
+            if (pt is { } r)
+            {
+                var inner = DrawPtStylePlate(dc, r, spec);
+                var f = NumeralFont(spec.PtFont);
+                f = new FontSpec
+                {
+                    Family = f.Family, Size = f.Size * 0.85, Bold = f.Bold, Italic = f.Italic, Align = f.Align,
+                    Color = f.Color, Shadow = f.Shadow, ShadowColor = f.ShadowColor,
+                };
+                DrawCentered(dc, band.Pt, inner, f);
+            }
+        }
+    }
+
+    /// <summary>The arrow-shaped LEVEL badge: a plate in the frame's colours pointing right, "LEVEL" small over
+    /// the range ("2-6", "7+").</summary>
+    private static void DrawLevelBadge(DrawingContext dc, Rect r, string level, TemplateSpec spec)
+    {
+        double tip = r.Height * 0.32;
+        var fig = new PathFigure { StartPoint = r.TopLeft, IsClosed = true };
+        fig.Segments.Add(new LineSegment(new Point(r.Right - tip, r.Top), true));
+        fig.Segments.Add(new LineSegment(new Point(r.Right, r.Top + r.Height / 2), true));
+        fig.Segments.Add(new LineSegment(new Point(r.Right - tip, r.Bottom), true));
+        fig.Segments.Add(new LineSegment(r.BottomLeft, true));
+        var geo = new PathGeometry(new[] { fig });
+        geo.Freeze();
+
+        var frame = TemplateSpec.ParseColor(spec.Colors.Frame);
+        var frame2 = TemplateSpec.ParseColor(spec.Colors.Frame2);
+        var fill = new LinearGradientBrush(LightenC(frame2, 0.35), DarkenC(frame, 0.10), new Point(0, 0), new Point(0, 1));
+        fill.Freeze();
+        dc.PushTransform(new TranslateTransform(-2, 3));
+        dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(90, 0, 0, 0)), null, geo);
+        dc.Pop();
+        dc.DrawGeometry(fill, new Pen(new SolidColorBrush(TemplateSpec.ParseColor(spec.Colors.PanelBorder)), 2), geo);
+
+        // Ink that reads on the plate, whatever the frame's colour.
+        var mid = LightenC(frame2, 0.15);
+        bool light = 0.299 * mid.R + 0.587 * mid.G + 0.114 * mid.B > 140;
+        var ink = light ? Color.FromRgb(0x1C, 0x18, 0x12) : Colors.White;
+        var small = new FontSpec { Family = "Segoe UI", Bold = true, Size = r.Height * 0.24, Color = light ? "#1C1812" : "#FFFFFF" };
+        var big = new FontSpec { Family = spec.PtFont.Family, Bold = true, Size = r.Height * 0.46, Color = small.Color };
+        var brush = new SolidColorBrush(ink);
+        double w = r.Width - tip - 4;
+        var top = FitText("LEVEL", small, small.Size, 6, w, brush);
+        var range = FitText(level, NumeralFont(big), big.Size, 8, w, brush);
+        double total = top.Height * 0.85 + range.Height * 0.9;
+        double y = r.Y + (r.Height - total) / 2;
+        dc.DrawText(top, new Point(r.X + 2 + (w - top.Width) / 2, y));
+        dc.DrawText(range, new Point(r.X + 2 + (w - range.Width) / 2, y + top.Height * 0.85));
     }
 
     /// <summary>Parses saga rules into (chapter marker, text) rows, e.g. "I, II — ...".</summary>
