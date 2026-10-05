@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 
 namespace Cardinator.Models;
@@ -30,6 +30,12 @@ public sealed class CardProject
     /// <summary>The format version the current build writes.</summary>
     public const int CurrentFormatVersion = 1;
 
+    /// <summary>True when this file was written by a NEWER Cardinator than the one reading it. The file
+    /// still loads (tolerant reads are the compatibility promise), but anything this build doesn't know
+    /// about is dropped on the next save — so the user is warned before they overwrite their own work.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsFromNewerVersion => FormatVersion > CurrentFormatVersion;
+
     // Shared across all persisted types — see JsonCompat for the backward-compatibility policy.
     private static JsonSerializerOptions JsonOpts => Cardinator.Services.JsonCompat.Options;
 
@@ -41,6 +47,7 @@ public sealed class CardProject
 
         // Guard against a malformed file with a null/absent cards array or null entries.
         project.Cards = project.Cards?.Where(c => c != null).ToList() ?? new List<CardModel>();
+        foreach (var c in project.Cards) c.CoalesceNullStrings();   // tolerate hand-edited nulls (see CardModel)
         project.Name ??= "Untitled Project";
         project.ArtBaseDir ??= "";
         project.DefaultTemplate ??= "";

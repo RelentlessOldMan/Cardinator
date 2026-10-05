@@ -229,7 +229,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public bool Busy
     {
         get => _busy;
-        private set
+        internal set   // internal: tests drive the busy state to check the guards
         {
             _busy = value;
             OnPropertyChanged();
@@ -468,6 +468,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public void Undo()
     {
+        if (_busy) return;             // CanUndo already blocks the button; Ctrl+Z bypasses it
         CommitHistory();               // flush any pending edit so it can be redone
         if (_histIdx <= 0) return;
         _histIdx--;
@@ -478,6 +479,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public void Redo()
     {
+        if (_busy) return;             // CanRedo already blocks the button; Ctrl+Y bypasses it
         CommitHistory();               // flush any pending edit first (a new edit correctly cancels redo)
         if (_histIdx >= _history.Count - 1) return;
         _histIdx++;
@@ -762,6 +764,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnDuplicateCard(object sender, RoutedEventArgs e)
     {
+        if (Busy) return;   // the button is disabled while busy; Ctrl+D would otherwise slip through
         if (_selectedCard == null) return;
         var copy = _selectedCard.Clone();
         int idx = Cards.IndexOf(_selectedCard);
@@ -786,6 +789,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnNewProject(object sender, RoutedEventArgs e)
     {
+        // Ctrl+N during an import/export would clear the project while the background job keeps filling
+        // the cards it captured, then report success over an empty project.
+        if (Busy) { Status = "Still working — wait for the current job to finish."; return; }
         if (!ConfirmDiscardIfDirty()) return;
         _loading = true;
         Cards.Clear();
@@ -806,6 +812,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnOpenProject(object sender, RoutedEventArgs e)
     {
+        if (Busy) { Status = "Still working — wait for the current job to finish."; return; }
         if (!ConfirmDiscardIfDirty()) return;
         var dlg = new OpenFileDialog
         {
@@ -861,6 +868,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = $"Opened project with {Cards.Count} card(s)."
                      + (missingArt > 0 ? $"  ⚠ {missingArt} card(s) have missing art (was the art/ folder included?)." : "");
             SeedHistory();
+
+            // Written by a newer Cardinator: it loaded (we always read old AND unknown fields tolerantly),
+            // but saving from here would quietly drop whatever this build doesn't understand.
+            if (project.IsFromNewerVersion)
+            {
+                ConfirmDialog.Show(this, "Saved by a newer Cardinator",
+                    $"“{Path.GetFileName(path)}” was saved by a newer version of Cardinator.\n\n"
+                    + "It opened fine, but anything this version doesn't know about won't be kept if you "
+                    + "save over it. Update Cardinator first if you want to keep everything.\n\n"
+                    + "(Every save also keeps a backup in the set's backups folder.)", affirmative: "OK");
+                Status += "  ⚠ Saved by a newer version — saving here may drop newer data.";
+            }
             return true;
         }
         catch (Exception ex)
@@ -1166,6 +1185,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             foreach (var c in chosen)
             {
                 if (string.IsNullOrEmpty(c.TemplateName)) c.TemplateName = def;
+                _setProfile.ApplyDefaults(c);   // W1: inherit the set's shared metadata, like every other add path
                 Cards.Add(c);
             }
             SelectedCard = chosen[0];
@@ -1693,16 +1713,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     /// <summary>Points the selected card at a new art file and resets its pan/zoom. The image is copied
     /// into the portable art cache so the project stays self-contained if the source later moves.</summary>
-    private void SetArt(string path)
+    private void SetArt(string path) => SetArt(ActiveFace, path);
+
+    /// <summary>Points a specific face at a new art file and resets its pan/zoom. Callers that await
+    /// anything first MUST capture the face and pass it here: the user can select another card (or flip to
+    /// the other side) mid-download, and re-reading ActiveFace would overwrite THAT face's art instead.</summary>
+    private void SetArt(CardModel? card, string path)
     {
-        var card = ActiveFace;
         if (card == null) return;
         var local = ImageIntake.EnsureLocalCopy(path);
         card.ArtPath = local;
         card.ArtScale = 1.0;
         card.ArtOffsetX = 0;
         card.ArtOffsetY = 0;
-        Status = "Loaded art: " + Path.GetFileName(local) + (_viewingBack ? " (back face)" : "");
+        Status = "Loaded art: " + Path.GetFileName(local) + (card.IsBackFace ? " (back face)" : "");
     }
 
     private void OnClearArt(object sender, RoutedEventArgs e)
@@ -1865,24 +1889,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// <summary>Pastes art from the clipboard: a bitmap, a copied image file, or an image URL.</summary>
     private async Task PasteArtAsync()
     {
-        if (ActiveFace == null) return;
+        var face = ActiveFace;   // capture: selecting another card / flipping mid-download must not retarget
+        if (face == null) return;
         try
         {
             // A real bitmap on the clipboard (e.g. a browser's "Copy image"). Read it robustly: the plain
             // Clipboard.GetImage() yields an all-black image for browser DIBs whose alpha channel is zeroed.
             var bmp = TryGetClipboardImage();
-            if (bmp != null) { SetArt(ImageIntake.SaveBitmap(bmp)); return; }
+            if (bmp != null) { SetArt(face, ImageIntake.SaveBitmap(bmp)); return; }
 
             if (System.Windows.Clipboard.ContainsFileDropList())
             {
                 var file = System.Windows.Clipboard.GetFileDropList().Cast<string>()
                     .FirstOrDefault(ImageIntake.LooksLikeImagePath);
-                if (file != null) { SetArt(file); return; }
+                if (file != null) { SetArt(face, file); return; }
             }
             if (System.Windows.Clipboard.ContainsText())
             {
                 var text = System.Windows.Clipboard.GetText().Trim();
-                if (ImageIntake.IsHttpUrl(text)) { await DownloadArtAsync(text); return; }
+                if (ImageIntake.IsHttpUrl(text)) { await DownloadArtAsync(text, face); return; }
             }
             Status = "Clipboard has no image, image file, or image URL to paste.";
         }
@@ -1925,13 +1950,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return img == null ? null : ImageIntake.RepairZeroAlpha(img);
     }
 
-    private async Task DownloadArtAsync(string url)
+    private async Task DownloadArtAsync(string url, CardModel? target = null)
     {
+        var face = target ?? ActiveFace;   // captured BEFORE the download; see SetArt(CardModel?, string)
         Status = "Downloading art…";
         try
         {
             var path = await ImageIntake.DownloadAsync(url);
-            SetArt(path);
+            SetArt(face, path);
         }
         catch (Exception ex)
         {

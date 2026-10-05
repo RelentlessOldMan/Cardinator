@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.IO.Compression;
 
 namespace Cardinator.Services;
@@ -60,8 +60,7 @@ public static class SetPackager
                 }
             }
 
-            if (File.Exists(destZipPath)) File.Delete(destZipPath);
-            File.Move(tmp, destZipPath);
+            File.Move(tmp, destZipPath, overwrite: true);   // atomic swap: a failed move can't lose the old zip
             return frames;
         }
         catch

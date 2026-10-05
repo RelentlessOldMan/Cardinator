@@ -221,6 +221,9 @@ close or open something else over unsaved work.
   **Change art…**. Cardinator never crashes on missing art — it just shows the empty window.
 - **"Couldn't open project" — the file may be corrupt.** Cardinator saves a copy next to it named
   `<yourproject>.cardinator.corrupt-backup` so nothing is lost; you can inspect or send that file.
+- **"Saved by a newer Cardinator."** The set opens normally, but it was written by a newer version, so
+  anything this version doesn't understand won't be kept if you save over it. Update Cardinator first if
+  you want to keep everything (and note every save still leaves a copy in `backups/`).
 - **I restored a backup — will I lose my art or overwrite the wrong file?** No. A restored backup keeps
   its art links (they resolve against the set folder, not the `backups/` folder), and **Save** writes back
   over the project you restored from — no Save-As, no second copy in the wrong place. If the backup itself

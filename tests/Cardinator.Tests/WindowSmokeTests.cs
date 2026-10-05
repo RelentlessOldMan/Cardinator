@@ -226,6 +226,25 @@ public class WindowSmokeTests
             Assert.False(main.Dirty, "a discarded back face still dirties the project");
         });
 
+    [Fact]
+    public void MainWindow_UndoRedo_AreIgnoredWhileBusy()   // D1: Ctrl+Z/Y bypassed the Busy gate
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            main.SelectedCard!.Name = "Before";
+            main.CommitHistory();
+            main.SelectedCard!.Name = "After";
+            main.CommitHistory();
+
+            main.Busy = true;
+            main.Undo();
+            Assert.Equal("After", main.SelectedCard!.Name);   // the import/export still owns these cards
+
+            main.Busy = false;
+            main.Undo();
+            Assert.Equal("Before", main.SelectedCard!.Name);  // and it works normally again afterwards
+        });
+
     /// <summary>Runs on an STA thread with an Application whose resources come from App.xaml.</summary>
     private static void OnAppThread(Action action)
     {

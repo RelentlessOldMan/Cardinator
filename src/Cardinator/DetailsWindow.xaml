@@ -118,8 +118,8 @@
                     </Grid.ColumnDefinitions>
                     <TextBox Grid.Column="0" Text="{Binding LandSymbol, UpdateSourceTrigger=PropertyChanged}"
                              ToolTip="Mana shown big on a land, e.g. {R}{G}. Blank = derive from the type line's land subtypes."/>
-                    <ComboBox Grid.Column="1" x:Name="LandStyleBox" Width="130" Margin="8,0,0,0" IsEditable="True"
-                              Text="{Binding LandSymbolStyle, UpdateSourceTrigger=PropertyChanged}"
+                    <ComboBox Grid.Column="1" x:Name="LandStyleBox" Width="130" Margin="8,0,0,0"
+                              SelectedValue="{Binding LandSymbolStyle, UpdateSourceTrigger=PropertyChanged}"
                               ToolTip="How 2–3 symbols are arranged"/>
                 </Grid>
 

@@ -773,7 +773,10 @@ public partial class FrameDesignWindow : Window
 
         if (ctrl && e.Key == Key.Z && !shift) { Undo(); e.Handled = true; return; }
         if (ctrl && (e.Key == Key.Y || (e.Key == Key.Z && shift))) { Redo(); e.Handled = true; return; }
-        if (e.Key == Key.Escape) { OnCancel(this, new RoutedEventArgs()); e.Handled = true; return; }
+        // Esc discards the whole layout session, so don't fire it while the user is typing in a field —
+        // there Esc is the usual "get me out of this box" reflex, not "throw away my work".
+        if (e.Key == Key.Escape && Keyboard.FocusedElement is not TextBox)
+        { OnCancel(this, new RoutedEventArgs()); e.Handled = true; return; }
         if (e.Key == Key.Enter && Keyboard.FocusedElement is not TextBox) { OnApply(this, new RoutedEventArgs()); e.Handled = true; return; }
 
         bool typing = Keyboard.FocusedElement is TextBox;
