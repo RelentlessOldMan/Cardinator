@@ -169,27 +169,77 @@ public sealed class CardRenderer
         DrawDfcIndicator(dc, card, spec, W, H);
     }
 
-    // --- split cards ---------------------------------------------------------
+    // --- split and aftermath cards ---------------------------------------------
 
-    /// <summary>Where a split card's parts go, in READING coordinates: the card turned a quarter clockwise, so
-    /// it is <c>CanvasHeight</c> wide and <c>CanvasWidth</c> tall. The front half is on the left and the other
-    /// half on the right, each the frame's normal card scaled by <see cref="Scale"/>; a shared reminder line
-    /// (Fuse, a Room's door rules) gets a bar across the bottom; the reading view's left strip is the upright
-    /// card's bottom edge, where the card's credits go.</summary>
-    internal sealed record SplitLayout(Rect Left, Rect Right, double Scale, Rect Bar, string SharedLine,
-        double FooterStrip, double ReadingWidth, double ReadingHeight)
+    /// <summary>One half of a split or aftermath card as it's drawn: the plain card it's drawn as, the template
+    /// it's drawn with, and <see cref="ToCard"/> — where that template's own canvas lands on the upright card
+    /// (scale, quarter turn and offset). Everything that has to know where a half is (drawing, the preview's
+    /// hit-testing and drag-to-pan) goes through this one matrix.</summary>
+    internal sealed record SplitPart(CardModel Card, Template Template, Matrix ToCard, double Scale)
     {
-        /// <summary>Reading coordinates → the upright card: the reading view's left edge is the card's bottom.</summary>
-        public static Matrix ToCard(double canvasHeight) => new(0, -1, 1, 0, 0, canvasHeight);
+        public double Width => Template.Spec.CanvasWidth;
+        public double Height => Template.Spec.CanvasHeight;
+
+        /// <summary>A point on the upright card in this half's own canvas, or null when it's outside the half.</summary>
+        public Point? FromCard(Point p)
+        {
+            var m = ToCard; m.Invert();
+            var q = m.Transform(p);
+            return q.X >= 0 && q.Y >= 0 && q.X <= Width && q.Y <= Height ? q : null;
+        }
+
+        /// <summary>A movement on the upright card as a movement in this half's own canvas.</summary>
+        public Vector FromCard(Vector v)
+        {
+            var m = ToCard; m.Invert();
+            return m.Transform(v);
+        }
     }
 
-    internal static SplitLayout SplitGeometry(CardModel card, TemplateSpec spec)
+    /// <summary>How a split or aftermath card is put together. Split: in READING coordinates (the card turned a
+    /// quarter clockwise) the first half is on the left and the other half on the right, each the frame's normal
+    /// card made smaller; a shared reminder (Fuse, a Room's door rules) gets a <see cref="Bar"/> across the
+    /// bottom. Aftermath: the first half is upright across the top in the frame's wide (sideways) layout, and the
+    /// other half below it is the normal card turned a quarter the other way (its top along the card's right
+    /// edge). Either way the card's credits run upright along its bottom edge, <see cref="FooterStrip"/> deep.</summary>
+    internal sealed record SplitLayout(SplitPart First, SplitPart Other, string SharedLine, Rect Bar, double FooterStrip,
+        bool Aftermath)
     {
+        /// <summary>Split reading coordinates → the upright card: the reading view's left edge is the card's bottom.</summary>
+        public static Matrix ReadingToCard(double canvasHeight) => new(0, -1, 1, 0, 0, canvasHeight);
+    }
+
+    internal static SplitLayout SplitGeometry(CardModel card, Template template)
+    {
+        var spec = template.Spec;
         double W = spec.CanvasWidth, H = spec.CanvasHeight;
-        double rw = H, rh = W;
         double side = Math.Min(W, H);
         double m = Math.Max(6, side * 0.016);                          // outer margin and the gutter
         double foot = Math.Max(spec.BorderThickness, side * 0.042);    // the card's bottom edge (credits)
+        var (front, half) = SplitHalves(card);
+
+        if (card.IsAftermath)
+        {
+            // The first half reads upright in the frame's sideways layout: a drawn frame derives it, a picture
+            // frame uses its landscape version (or, lacking one, its normal upright picture).
+            front.Orientation = "landscape";
+            var wide = TemplateService.ResolveFor(front, template);
+            double tw = wide.Spec.CanvasWidth, th = wide.Spec.CanvasHeight;
+            double availW = W - 2 * m, availH = H - foot - 2 * m;
+            double s1 = Math.Min(availW / tw, availH * 0.56 / th);
+            var top = new Matrix(s1, 0, 0, s1, (W - tw * s1) / 2, m);
+
+            // The other half: the normal card turned a quarter counter-clockwise to read — its canvas x runs DOWN
+            // the card and its y runs LEFT from the right edge.
+            double regionY = m + th * s1 + m, regionH = H - foot - regionY;
+            double s2 = Math.Max(0.05, Math.Min(regionH / W, availW / H));
+            double readW = W * s2, readH = H * s2;
+            var bottom = new Matrix(0, s2, -s2, 0, (W + readH) / 2, regionY + (regionH - readW) / 2);
+            return new SplitLayout(new SplitPart(front, wide, top, s1), new SplitPart(half, template, bottom, s2),
+                "", Rect.Empty, foot, Aftermath: true);
+        }
+
+        double rw = H, rh = W;
         var shared = SplitSharedLine(card).shared;
         double barH = shared.Length > 0 ? side * 0.075 : 0;
         double slotW = (rw - foot - 2 * m) / 2;
@@ -199,15 +249,24 @@ public sealed class CardRenderer
         var left = new Rect(foot + (slotW - hw) / 2, y, hw, hh);
         var right = new Rect(foot + slotW + m + (slotW - hw) / 2, y, hw, hh);
         var bar = barH > 0 ? new Rect(left.X, rh - m - barH, right.Right - left.X, barH) : Rect.Empty;
-        return new SplitLayout(left, right, s, bar, shared, foot, rw, rh);
+        Matrix Place(Rect r)
+        {
+            var mx = new Matrix(s, 0, 0, s, r.X, r.Y);
+            mx.Append(SplitLayout.ReadingToCard(H));
+            return mx;
+        }
+        return new SplitLayout(new SplitPart(front, template, Place(left), s), new SplitPart(half, template, Place(right), s),
+            shared, bar, foot, Aftermath: false);
     }
 
-    /// <summary>A reminder both halves end with — Fuse, or a Room's "(You may cast either half…)" — is printed
-    /// ONCE across the card, so it comes off both halves' rules. Only a "Fuse…" line or a fully parenthesized
-    /// one counts, so two halves that merely end alike ("Draw a card.") keep their text.</summary>
+    /// <summary>A reminder both halves of a split card end with — Fuse, or a Room's "(You may cast either half…)"
+    /// — is printed ONCE across the card, so it comes off both halves' rules. Only a "Fuse…" line or a fully
+    /// parenthesized one counts, so two halves that merely end alike ("Draw a card.") keep their text. An
+    /// aftermath card has no shared line (its Aftermath reminder is the second half's own).</summary>
     internal static (string front, string half, string shared) SplitSharedLine(CardModel card)
     {
         string a = card.RulesText ?? "", b = card.OtherHalf?.RulesText ?? "";
+        if (card.IsAftermath) return (a, b, "");
         static (string body, string last) Last(string t)
         {
             var lines = t.Replace("\r\n", "\n").TrimEnd().Split('\n');
@@ -235,53 +294,55 @@ public sealed class CardRenderer
         return (front, half);
     }
 
-    /// <summary>A split card: two small cards side by side, laid out in the reading view (turned a quarter
-    /// clockwise) and drawn onto the upright card through <see cref="SplitLayout.ToCard"/>. Each half is the
-    /// frame's normal card at a smaller scale — so every frame (drawn or picture) works unchanged — without
-    /// its own credits; the card's credits run upright along its bottom edge, like a real split card's.</summary>
+    /// <summary>A split or aftermath card (<see cref="SplitGeometry"/>): each half is drawn as a plain card with
+    /// its own template through its <see cref="SplitPart.ToCard"/> — so every frame (drawn or picture) works
+    /// unchanged — without its own credits; the card's credits run upright along its bottom edge.</summary>
     private void DrawSplit(DrawingContext dc, CardModel card, Template template, bool previewHints)
     {
         var spec = template.Spec;
         double W = spec.CanvasWidth, H = spec.CanvasHeight;
         double cardR = Math.Max(4, spec.CornerRadius);
-        var g = SplitGeometry(card, spec);
-        var (front, half) = SplitHalves(card);
-
-        // The halves are drawn small, but a split half's few lines read at a normal card's size: start the
-        // rules (and flavor/symbols) as large as the scale took away; the text box still shrinks to fit.
-        var halfSpec = spec.Clone();
-        double grow = Math.Min(1.6, 1 / g.Scale);
-        halfSpec.RulesFont.Size *= grow;
-        halfSpec.FlavorFont.Size *= grow;
-        halfSpec.RulesSymbolSize *= grow;
-        var halfTemplate = new Template
-        {
-            Name = template.Name, Spec = halfSpec, FramePath = template.FramePath,
-            FrameImage = template.FrameImage, Variants = template.Variants,
-        };
+        var g = SplitGeometry(card, template);
 
         var clip = new RectangleGeometry(new Rect(0, 0, W, H), cardR, cardR);
         clip.Freeze();
         dc.PushClip(clip);
         dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x08, 0x08, 0x0A)), null, new Rect(0, 0, W, H));
 
-        dc.PushTransform(new MatrixTransform(SplitLayout.ToCard(H)));
-        foreach (var (part, at) in new[] { (front, g.Left), (half, g.Right) })
+        foreach (var part in new[] { g.First, g.Other })
         {
-            dc.PushTransform(new TranslateTransform(at.X, at.Y));
-            dc.PushTransform(new ScaleTransform(g.Scale, g.Scale));
-            Draw(dc, part, halfTemplate, previewHints, footer: false);
-            dc.Pop();
+            dc.PushTransform(new MatrixTransform(part.ToCard));
+            Draw(dc, part.Card, Grown(part.Template, part.Scale), previewHints, footer: false);
             dc.Pop();
         }
-        if (g.SharedLine.Length > 0) DrawSplitBar(dc, g, spec);
-        dc.Pop();
+        if (g.SharedLine.Length > 0)
+        {
+            dc.PushTransform(new MatrixTransform(SplitLayout.ReadingToCard(H)));
+            DrawSplitBar(dc, g, spec);
+            dc.Pop();
+        }
 
-        // The card's credits, upright on its bottom edge (the reading view's left strip).
+        // The card's credits, upright on its bottom edge.
         var footSpec = spec.Clone();
         footSpec.BorderThickness = g.FooterStrip;
         DrawFooter(dc, card, footSpec, onBorder: true);
         dc.Pop();
+    }
+
+    /// <summary>A half is drawn small, but its few lines should read at a normal card's size: start the rules
+    /// (and flavor/symbols) as large as the scale took away; the text box still shrinks them to fit.</summary>
+    private static Template Grown(Template template, double scale)
+    {
+        var s = template.Spec.Clone();
+        double grow = Math.Min(1.6, 1 / Math.Max(0.05, scale));
+        s.RulesFont.Size *= grow;
+        s.FlavorFont.Size *= grow;
+        s.RulesSymbolSize *= grow;
+        return new Template
+        {
+            Name = template.Name, Spec = s, FramePath = template.FramePath,
+            FrameImage = template.FrameImage, Variants = template.Variants,
+        };
     }
 
     /// <summary>The shared reminder bar across the bottom of a split card's reading view.</summary>

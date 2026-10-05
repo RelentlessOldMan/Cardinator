@@ -11,16 +11,17 @@ namespace Cardinator.Services;
 /// </summary>
 public static class RenderInspector
 {
-    /// <summary>Inspects what <paramref name="renderer"/> draws for a card. A split card is two small normal
-    /// cards, so each half is rendered and inspected on its own (the other half's issues labelled); anything
+    /// <summary>Inspects what <paramref name="renderer"/> draws for a card. A split or aftermath card is two
+    /// small plain cards, so each half is rendered and inspected on its own, with the template it's drawn with (the other half's issues labelled); anything
     /// else inspects <paramref name="rendered"/> (or a fresh render).</summary>
     public static IReadOnlyList<ValidationIssue> InspectCard(CardRenderer renderer, CardModel card, Template template,
         BitmapSource? rendered = null)
     {
         if (!card.IsSplit) return Inspect(rendered ?? renderer.RenderToBitmap(card, template), card, template.Spec);
-        var (front, half) = CardRenderer.SplitHalves(card);
-        return Inspect(renderer.RenderToBitmap(front, template), front, template.Spec)
-            .Concat(Inspect(renderer.RenderToBitmap(half, template), half, template.Spec)
+        var g = CardRenderer.SplitGeometry(card, template);
+        var (a, b) = (g.First, g.Other);
+        return Inspect(renderer.RenderToBitmap(a.Card, a.Template), a.Card, a.Template.Spec)
+            .Concat(Inspect(renderer.RenderToBitmap(b.Card, b.Template), b.Card, b.Template.Spec)
                 .Select(i => new ValidationIssue(i.Severity, i.Code, "Other half: " + i.Message, i.Field)))
             .ToList();
     }

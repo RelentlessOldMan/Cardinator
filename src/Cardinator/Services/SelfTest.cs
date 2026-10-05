@@ -666,6 +666,8 @@ public static class SelfTest
             (WithSplitHalf(C("QA Wear", "{1}{R}", "Instant", "Destroy target artifact.\nFuse (You may cast one or both halves of this card from your hand.)", art)), "Ocean Blue", "Split card (Fuse)"),
             (WithSplitHalf(C("QA Pool", "{U}", "Enchantment — Room", "When you unlock this door, draw a card.\n(You may cast either half. That door unlocks on the battlefield.)", art)), "Showcase", "Split card (Room, borderless)"),
             (WithSplitHalf(C("QA Fire", "{1}{R}", "Instant", "Fire deals 2 damage divided as you choose among one or two targets.", art)), "Alchemist's Steel", "Split card (picture frame)"),
+            (WithAftermath(C("QA Destined", "{1}{B}", "Instant", "Target creature gets +1/+0 and gains indestructible until end of turn.", art)), "Midnight", "Aftermath"),
+            (WithAftermath(C("QA Fated", "{2}{G}", "Sorcery", "Search your library for a basic land card.", art)), "Sealed Gate", "Aftermath (picture frame's sideways version)"),
         };
 
         static CardModel WithDefense(CardModel c, string defense) { c.Defense = defense; return c; }
@@ -677,6 +679,16 @@ public static class SelfTest
             {
                 Name = c.Name + " Too", ManaCost = "{2}{W}", TypeLine = c.TypeLine,
                 RulesText = "Tap target creature. Draw a card." + shared, ArtPath = c.ArtPath,
+            };
+            return c;
+        }
+        static CardModel WithAftermath(CardModel c)
+        {
+            c.HalfLayout = "split";
+            c.OtherHalf = new CardModel
+            {
+                Name = c.Name + " After", ManaCost = "{3}{G}", TypeLine = "Sorcery", ArtPath = c.ArtPath,
+                RulesText = "Aftermath (Cast this spell only from your graveyard. Then exile it.)\nAll creatures able to block target creature this turn do so.",
             };
             return c;
         }

@@ -329,6 +329,31 @@ public class WindowSmokeTests
         });
 
     [Fact]
+    public void MainWindow_ReadSideways_TurnsAnAftermathCardCounterClockwise()   // 1.6.3 aftermath
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            card.HalfLayout = "split";
+            card.OtherHalf = new CardModel { Name = "Lead", TypeLine = "Sorcery", RulesText = "Aftermath (Cast this spell only from your graveyard.)" };
+            main.RenderPreview();
+            var upright = main.PreviewImage!;
+            Invoke(main, "OnShowFlipped", null, null);
+            var turned = main.PreviewImage!;
+
+            // 90° counter-clockwise: the upright pixel (x, y) lands at (y, W-1-x).
+            var a = TestHelpers.Pixels(upright); var b = TestHelpers.Pixels(turned);
+            int w = upright.PixelWidth, h = upright.PixelHeight, tw = turned.PixelWidth;
+            Assert.Equal(h, tw);
+            for (int y = 0; y < h; y += 37)
+                for (int x = 0; x < w; x += 29)
+                {
+                    int i = (y * w + x) * 4, j = ((w - 1 - x) * tw + y) * 4;
+                    Assert.True(Math.Abs(a[i] - b[j]) < 3 && Math.Abs(a[i + 1] - b[j + 1]) < 3, $"pixel {x},{y} isn't the turned one");
+                }
+        });
+
+    [Fact]
     public void MainWindow_SplitCard_ArtMovesOnTheChosenHalf_AndDirtiesTheProject()
         => OnAppThread(() =>
         {

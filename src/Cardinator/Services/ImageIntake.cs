@@ -75,9 +75,10 @@ public static class ImageIntake
         return fixedBmp;
     }
 
-    /// <summary>Cuts an image down the middle into its left and right halves, saved into the art cache as
-    /// PNGs (Scryfall's split-card art holds both halves' art side by side).</summary>
-    public static (string left, string right) SplitSideBySide(string path)
+    /// <summary>Cuts an image into a left and a right part at <paramref name="at"/> (a fraction of its width;
+    /// the middle by default), saved into the art cache as PNGs (Scryfall's split-card art holds both halves'
+    /// art side by side).</summary>
+    public static (string left, string right) SplitSideBySide(string path, double at = 0.5)
     {
         var img = new BitmapImage();
         img.BeginInit();
@@ -86,7 +87,7 @@ public static class ImageIntake
         img.StreamSource = new MemoryStream(File.ReadAllBytes(path));
         img.EndInit();
         img.Freeze();
-        int w = img.PixelWidth, h = img.PixelHeight, half = w / 2;
+        int w = img.PixelWidth, h = img.PixelHeight, half = (int)Math.Round(w * Math.Clamp(at, 0.05, 0.95));
         if (half < 1 || h < 1) throw new InvalidOperationException("Image too small to split.");
         var name = Path.GetFileNameWithoutExtension(path);
         var left = new CroppedBitmap(img, new System.Windows.Int32Rect(0, 0, half, h));

@@ -102,6 +102,7 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Plane / Phenomenon** | Type line contains "Plane" or "Phenomenon" | **Sideways** card (Planechase) |
 | **Flip card** | Look up a real flip card, or **Make flip card** | Two halves on one face: the other half **upside down** below the art |
 | **Split card** | Look up a real split card or Room, or **Make split card** | Two small cards **side by side**, read with the card turned sideways |
+| **Aftermath** | A split card whose other half's rules start with **Aftermath** | First half **upright across the top**, the other half **sideways** below it |
 
 **Double-faced cards (DFC).** A card can have a **back face** — a front/back card that flips. Looking up a real
 double-faced card imports it as **one card with both faces**, whether you use **Ctrl+L**, a deck/CSV import or
@@ -157,6 +158,18 @@ half…)"* — is printed **once**, in a bar across both halves. Every frame wor
 the frame's own card, just smaller. A split card prints on one side, like a flip card.
 
 <p><img src="images/split-card.png" width="360" alt="A split card: two small cards side by side, turned sideways, with a Fuse bar across both"></p>
+
+**Aftermath cards.** An aftermath card (*Destined // Lead*, Amonkhet) is a split card arranged differently: the
+first half reads **upright across the top** — in the frame's wide, sideways layout — and the other half sits
+below it **turned sideways**, its title along the card's right edge (turn the card counter-clockwise to read it).
+Cardinator spots one by its keyword: a split card whose other half's rules start with **Aftermath**. Looking one
+up gets this automatically (with each half's art cut from Scryfall's picture); to make one yourself, make a split
+card and begin the other half's rules with *"Aftermath (Cast this spell only from your graveyard. Then exile it.)"*.
+**Read sideways** turns the preview the right way to read the sideways half. The drawn frames make the wide layout
+themselves and the *Partial Cardboard Chemist* frames bring their sideways versions; another imported picture
+frame without one shows its normal upright picture in the top half.
+
+<p><img src="images/aftermath-card.png" width="360" alt="An aftermath card: the first half upright across the top, the other half turned sideways below"></p>
 
 **Authoring them by hand:** open **Edit details…** and use the **Special layouts** section to set a
 **Subtitle** (a small plate under the title, on any card), the **Adventure** half (name/cost/type/text —
