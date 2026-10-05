@@ -34,6 +34,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool _viewingBack;                // DFC: preview is showing the back face (preview-only flip)
     private bool _viewingFlipped;             // flip card: preview is turned upside down to read the other half
     private bool _readingSideways;            // split card: preview is turned a quarter clockwise to read the halves
+    private bool _viewingMelded;              // meld card: the preview shows the whole melded card, not this back's half
+    private CardModel? _meldPartner;          // meld card: the card in the set whose back prints the melded card's other half
     private bool _activeHalf;                 // split card: art/pan/zoom go to the other half (picked by clicking it)
     private CardModel? _subscribedBack;       // the back face whose edits we're currently tracking
     private CardModel? _subscribedHalf;       // a flip card's other half, tracked the same way
@@ -90,6 +92,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DfcStyleBox.ItemsSource = DfcStyleOptions;
         RefreshDfcControls();
         RefreshFlipControls();
+        RefreshMeldControls();
 
         // Download authentic Scryfall symbols in the background; re-render as they arrive.
         _symbols.Updated += OnSymbolsUpdated;
@@ -105,6 +108,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         new("No indicator", "none"),
         new("Flip arrow", "arrow"),
         new("Sun / moon", "sunmoon"),
+        new("Meld", "meld"),
     };
 
     private bool _syncingDfcControls;
@@ -139,7 +143,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     affirmative: "Remove", cancel: "Cancel") != ConfirmResult.Affirmative)
                 return;
             _selectedCard.BackFace = null;
+            _selectedCard.MeldHalf = "";
             _viewingBack = false;
+            _viewingMelded = false;
+            _meldPartner = null;
             Status = "Removed the back face.";
         }
         else
@@ -155,6 +162,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CommitHistory();
         RefreshDfcControls();
         RefreshFlipControls();   // a double-faced card can't also be a flip card
+        RefreshMeldControls();
         RenderPreview();
     }
 
@@ -172,7 +180,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (_selectedCard?.BackFace == null) return;
         _viewingBack = !_viewingBack;
+        if (!_viewingBack) _viewingMelded = false;
         RefreshDfcControls();
+        RefreshMeldControls();
         RenderPreview();
     }
 
@@ -186,6 +196,124 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             QueueUndoCommit();
             RenderPreview();
         }
+    }
+
+    // --- meld (two cards whose backs make one big card) --------------------------
+
+    /// <summary>Syncs the meld buttons to the selected card's state.</summary>
+    private void RefreshMeldControls()
+    {
+        var card = _selectedCard;
+        bool meld = card?.IsMeld == true;
+        MeldToggleBtn.Content = meld ? "Remove meld" : "Make meld card";
+        MeldToggleBtn.IsEnabled = card != null && card.OtherHalf == null;
+        MeldPartnerBtn.IsEnabled = meld && _meldPartner == null;
+        MeldPartnerBtn.Content = meld && _meldPartner != null ? "Partner in set ✓" : "Add meld partner";
+        MeldHalfBtn.IsEnabled = meld;
+        MeldHalfBtn.Content = card?.IsMeldBottom == true ? "Back: bottom half" : "Back: top half";
+        MeldShowBtn.IsEnabled = meld;
+        MeldShowBtn.Content = _viewingMelded ? "Show this half" : "Show melded card";
+    }
+
+    /// <summary>The card in the set whose back prints the other half of <paramref name="card"/>'s melded card: another
+    /// meld card with the opposite half and the same melded card (or named as its partner), or null.</summary>
+    internal CardModel? MeldPartner(CardModel card)
+    {
+        if (!card.IsMeld) return null;
+        var others = Cards.Where(c => !ReferenceEquals(c, card) && c.IsMeld && c.IsMeldBottom != card.IsMeldBottom).ToList();
+        return others.FirstOrDefault(c => string.Equals(c.BackFace!.Name.Trim(), card.BackFace!.Name.Trim(), StringComparison.OrdinalIgnoreCase))
+            ?? others.FirstOrDefault(c => card.MeldWith.Length > 0 && string.Equals(c.Name.Trim(), card.MeldWith.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Copies one changed property of the selected meld card's back (the melded card) onto its partner's
+    /// back, so both halves always show the same melded card — whatever edited it (details, art, pan, zoom).</summary>
+    private void SyncMeldBack(string? property)
+    {
+        if (_selectedCard?.BackFace is not { } back || _meldPartner?.BackFace is not { } other || property == null) return;
+        if (property is nameof(CardModel.MeldHalf) or nameof(CardModel.IsBackFace) or nameof(CardModel.BackFace)
+            or nameof(CardModel.OtherHalf) or nameof(CardModel.DfcStyle)) return;
+        var p = typeof(CardModel).GetProperty(property);
+        if (p is { CanRead: true, CanWrite: true } && p.GetIndexParameters().Length == 0)
+            p.SetValue(other, p.GetValue(back));
+    }
+
+    private void OnToggleMeld(object sender, RoutedEventArgs e)
+    {
+        var card = _selectedCard;
+        if (card == null || card.OtherHalf != null) return;
+        if (card.IsMeld)
+        {
+            card.MeldHalf = "";   // the back stays, as an ordinary double-faced card's back
+            if (card.DfcStyle == "meld") card.DfcStyle = "sunmoon";
+            _viewingMelded = false;
+            _meldPartner = null;
+            Status = "It's no longer a meld card — its back is now an ordinary back face.";
+        }
+        else
+        {
+            if (card.BackFace == null)
+            {
+                var back = new CardModel { TemplateName = card.TemplateName };
+                _setProfile.ApplyDefaults(back);
+                card.BackFace = back;
+            }
+            card.MeldHalf = "top";
+            if (string.IsNullOrWhiteSpace(card.DfcStyle) || card.DfcStyle is "none" or "sunmoon" or "arrow") card.DfcStyle = "meld";
+            _meldPartner = MeldPartner(card);
+            Status = "Made a meld card — “Edit back face…” is the melded card; this card's back prints its top half. "
+                     + "Use “Add meld partner” for the card that prints the bottom half.";
+        }
+        MarkDirty();
+        CommitHistory();
+        RefreshDfcControls();
+        RefreshFlipControls();
+        RefreshMeldControls();
+        RenderPreview();
+    }
+
+    private void OnAddMeldPartner(object sender, RoutedEventArgs e)
+    {
+        var card = _selectedCard;
+        if (card?.IsMeld != true || MeldPartner(card) != null) return;
+        var partner = new CardModel { Name = card.MeldWith, TemplateName = card.TemplateName, DfcStyle = card.DfcStyle };
+        _setProfile.ApplyDefaults(partner);
+        partner.BackFace = card.BackFace!.Clone();
+        partner.MeldHalf = card.IsMeldBottom ? "top" : "bottom";
+        partner.MeldWith = card.Name;
+        Cards.Insert(Cards.IndexOf(card) + 1, partner);
+        _meldPartner = partner;
+        MarkDirty();
+        CommitHistory();
+        RefreshMeldControls();
+        OnPropertyChanged(nameof(ProjectSummary));
+        OnPropertyChanged(nameof(HasCards));
+        Status = partner.Name.Length > 0
+            ? $"Added “{partner.Name}” after this card — its back prints the {partner.MeldHalf} half. Select it and look it up (Ctrl+L) to fill its front."
+            : $"Added the meld partner after this card — its back prints the {partner.MeldHalf} half. Select it to fill in its front.";
+    }
+
+    private void OnSwapMeldHalf(object sender, RoutedEventArgs e)
+    {
+        var card = _selectedCard;
+        if (card?.IsMeld != true) return;
+        card.MeldHalf = card.IsMeldBottom ? "top" : "bottom";
+        if (_meldPartner != null) _meldPartner.MeldHalf = card.IsMeldBottom ? "top" : "bottom";
+        MarkDirty();
+        CommitHistory();
+        RefreshMeldControls();
+        RenderPreview();
+        Status = $"This card's back now prints the {card.MeldHalf} half"
+                 + (_meldPartner != null ? $"; “{_meldPartner.Name}” prints the other." : ".");
+    }
+
+    private void OnShowMelded(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCard?.IsMeld != true) return;
+        _viewingMelded = !_viewingMelded;
+        _viewingBack = true;   // the melded card is the back face's content
+        RefreshDfcControls();
+        RefreshMeldControls();
+        RenderPreview();
     }
 
     // --- flip cards (two-part, one side) ------------------------------------
@@ -289,6 +417,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var card = PreviewSide;
         if (card?.IsFlip == true && _viewingFlipped) return (-dx, -dy);
+        if (card?.IsMeldBack == true && !_viewingMelded && TemplateFor(card) is { } meldTemplate)
+        {
+            // This back shows half of the melded card, bigger and turned: move its art the way the mouse goes.
+            var part = CardRenderer.MeldPart(card, meldTemplate);
+            var v = part.FromCard(new System.Windows.Vector(dx * meldTemplate.Spec.CanvasWidth, dy * meldTemplate.Spec.CanvasHeight));
+            return (v.X / part.Width, v.Y / part.Height);
+        }
         if (card?.IsSplit == true && TemplateFor(card) is { } template)
         {
             var (toCard, dw, dh) = PreviewToCard(card, template.Spec);
@@ -355,6 +490,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _viewingFlipped = false;
             _readingSideways = false;
             _activeHalf = false;
+            _viewingMelded = false;
+            _meldPartner = _selectedCard != null ? MeldPartner(_selectedCard) : null;
             if (_selectedCard != null)
             {
                 AttachCardEvents(_selectedCard);
@@ -366,6 +503,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OnPropertyChanged(nameof(CanEditSelected));
             RefreshDfcControls();
             RefreshFlipControls();
+            RefreshMeldControls();
             RenderPreview();
         }
     }
@@ -530,6 +668,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // A back face added/removed/replaced means a different object to track from now on.
         if (e.PropertyName == nameof(CardModel.BackFace)) SyncBackFaceSubscription(_selectedCard);
         if (e.PropertyName == nameof(CardModel.OtherHalf)) SyncOtherHalfSubscription(_selectedCard);
+        if (ReferenceEquals(sender, _subscribedBack) && !_restoring) SyncMeldBack(e.PropertyName);
         MarkDirty();
         _renderTimer.Stop();
         _renderTimer.Start();   // debounce rapid edits (typing, slider drags)
@@ -871,6 +1010,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         BitmapSource? inspectBmp = null;
         try
         {
+            if (_viewingMelded && card.IsMeldBack) card = CardRenderer.MeldedCard(card);   // the whole melded card
             PreviewImage = _renderer.RenderToBitmap(card, template, supersample: 1, previewHints: true);
             if (_viewingFlipped && card.IsFlip)
             {
@@ -1826,6 +1966,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 Cards.Add(extra);
             }
 
+            // A meld part (Bruna): its back is the melded card (Brisela), fetched separately.
+            bool melded = await CardDetailsFill.AttachMeldAsync(_scryfall, card, f);
+            if (melded && card.BackFace is { } mb)
+            {
+                _ = _symbols.PrimeAsync(ManaText.SymbolTokens(mb.ManaCost, mb.RulesText));
+                if (ReferenceEquals(card, _selectedCard)) _meldPartner = MeldPartner(card);
+            }
+
             _ = _symbols.PrimeAsync(faces.SelectMany(x => ManaText.SymbolTokens(x.ManaCost, x.RulesText)));
 
             // Pull the real art from Scryfall only for a face that doesn't already have art — a card's own
@@ -1846,7 +1994,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 ? " Your art and frame are unchanged."
                 : gotArt ? " Added matching art; your frame is unchanged."
                          : " No art found; your frame is unchanged.";
-            Status = card.IsDoubleFaced
+            RefreshDfcControls();
+            RefreshMeldControls();
+            Status = card.IsMeld
+                ? $"Loaded “{f.Name}” from Scryfall as a meld card: its back is the {card.MeldHalf} half of “{card.BackFace!.Name}”."
+                  + (MeldPartner(card) == null && card.MeldWith.Length > 0 ? $" Use “Add meld partner” for “{card.MeldWith}”." : "") + artNote
+                : card.IsDoubleFaced
                 ? $"Loaded “{f.Name}” from Scryfall as one double-faced card — use Show back to flip.{artNote}"
                 : card.IsSplit
                 ? $"Loaded “{f.Name} // {card.OtherHalf!.Name}” from Scryfall as one split card.{artNote}"

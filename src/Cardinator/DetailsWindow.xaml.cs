@@ -103,7 +103,11 @@ public partial class DetailsWindow : Window
             // Same for a flip card's other half: only onto a plain card that has neither.
             bool canTakeABack = !_card.IsBackFace && !_card.IsOtherHalf && !_card.IsDoubleFaced && _card.OtherHalf == null;
             if (canTakeABack) CardDetailsFill.AttachFaces(_card, faces);
-            if (canTakeABack && _card.IsDoubleFaced)
+            bool melded = canTakeABack && await CardDetailsFill.AttachMeldAsync(_scryfall, _card, f);
+            if (melded)
+                extra = $" Its back is the {_card.MeldHalf} half of the melded card “{_card.BackFace!.Name}”"
+                        + (_card.MeldWith.Length > 0 ? $" (the other half goes on “{_card.MeldWith}”)." : ".");
+            else if (canTakeABack && _card.IsDoubleFaced)
                 extra = $" Added the back face “{_card.BackFace!.Name}” — use “Show back” to preview it.";
             else if (canTakeABack && _card.IsSplit)
                 extra = $" Made it a split card with “{_card.OtherHalf!.Name}” as the other half.";

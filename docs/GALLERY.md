@@ -5,7 +5,7 @@ special **layout** it lays out automatically. (Two newer styles, `modern`/**Azur
 `composable`/**Ironwrought Showcase**, aren't pictured here — see them live in the app's Frame
 dropdown or via `Cardinator.exe --frames`.) All art here is original art we generated for the demo;
 in the app you drop in your own image or pull a card's real artwork from Scryfall. Frames, mana symbols, loyalty
-badges, saga chapters, the adventure sub-box, rarity pips, the P/T box and the footer are all drawn
+badges, saga chapters, the adventure storybook pages, rarity pips, the P/T box and the footer are all drawn
 by Cardinator.
 
 Set a card's look with **`frameStyle`** (plus `fullArt`) in its template — see
@@ -78,7 +78,7 @@ leafy crown on Legendary cards, and loyalty badges on planeswalkers.
 ## Faded — the frame melts into the art (`faded`)
 
 Wide gradient bands dissolve the frame into the artwork on all four sides — no hard keyline. Shown on
-an Adventure card (note the spell sub-box).
+an Adventure card (note the storybook text box: the spell on the left page).
 
 <p>
   <img src="images/gallery/sunset-adventure.png" width="300" alt="Faded adventure card">

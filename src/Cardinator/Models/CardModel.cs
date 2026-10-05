@@ -47,6 +47,8 @@ public sealed class CardModel : INotifyPropertyChanged
     private CardModel? _backFace;
     private string _halfLayout = "";
     private CardModel? _otherHalf;
+    private string _meldHalf = "";
+    private string _meldWith = "";
 
     /// <summary>Card title, e.g. "Edward Elric, The Fullmetal Alchemist".</summary>
     public string Name { get => _name; set => Set(ref _name, value); }
@@ -152,7 +154,7 @@ public sealed class CardModel : INotifyPropertyChanged
         get => _backFace;
         set
         {
-            if (value != null) { value._backFace = null; value.IsBackFace = true; value._dfcStyle = _dfcStyle; }
+            if (value != null) { value._backFace = null; value.IsBackFace = true; value._dfcStyle = _dfcStyle; value._meldHalf = _meldHalf; }
             Set(ref _backFace, value);
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDoubleFaced)));
         }
@@ -166,6 +168,46 @@ public sealed class CardModel : INotifyPropertyChanged
     /// <summary>True when this card has a back face (is double-faced).</summary>
     [JsonIgnore]
     public bool IsDoubleFaced => _backFace != null;
+
+    // --- meld (Bruna + Gisela -> Brisela) ------------------------------------------
+
+    /// <summary>A meld card (<i>Bruna, the Fading Light</i>): a double-faced card whose back face is the MELDED card
+    /// (<i>Brisela, Voice of Nightmares</i>), of which this card's back prints only one half — "top" or "bottom".
+    /// The partner card's back prints the other half, so the two backs laid side by side make the one big card.
+    /// Empty for a normal card. Kept in step on the back face (like <see cref="DfcStyle"/>) so the renderer, handed
+    /// just the back, knows which half to draw.</summary>
+    public string MeldHalf
+    {
+        get => _meldHalf;
+        set
+        {
+            Set(ref _meldHalf, value);
+            if (_backFace != null) _backFace.MeldHalf = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsMeld)));
+        }
+    }
+
+    /// <summary>The name of the card this one melds with (from Scryfall, e.g. "Gisela, the Broken Blade"); a hint
+    /// for finding or adding the partner. Optional.</summary>
+    public string MeldWith { get => _meldWith; set => Set(ref _meldWith, value); }
+
+    /// <summary>Transient: the Scryfall address of the melded card, from a lookup of a meld part. Not saved.</summary>
+    [JsonIgnore]
+    public string MeldResultUrl { get; set; } = "";
+
+    private static bool IsMeldHalfValue(string? h) => (h ?? "").Trim().ToLowerInvariant() is "top" or "bottom";
+
+    /// <summary>A meld part's front: a double-faced card whose back is half of a melded card.</summary>
+    [JsonIgnore]
+    public bool IsMeld => _backFace != null && IsMeldHalfValue(_meldHalf);
+
+    /// <summary>A meld part's back: it prints one half of the melded card, turned sideways.</summary>
+    [JsonIgnore]
+    public bool IsMeldBack => IsBackFace && IsMeldHalfValue(_meldHalf);
+
+    /// <summary>True when this card's back prints the melded card's bottom half (else the top half).</summary>
+    [JsonIgnore]
+    public bool IsMeldBottom => string.Equals((_meldHalf ?? "").Trim(), "bottom", StringComparison.OrdinalIgnoreCase);
 
     // --- two-part cards (flip, split; aftermath to follow) -------------------------
 

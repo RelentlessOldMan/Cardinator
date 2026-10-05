@@ -71,7 +71,28 @@ public static class ScryfallMapper
             return list;
         }
 
-        return new List<CardModel> { MapFace(root, root, layout, setCode, collector, rarity) };
+        var card = MapFace(root, root, layout, setCode, collector, rarity);
+        if (layout.Equals("meld", StringComparison.OrdinalIgnoreCase)) ReadMeldParts(card, root);
+        return new List<CardModel> { card };
+    }
+
+    /// <summary>A meld part (<i>Bruna, the Fading Light</i>) names its partner and the melded card in
+    /// <c>all_parts</c>: remember the partner's name and where to fetch the melded card. The melded card itself
+    /// (<i>Brisela</i>) lists the same parts but is the result, so it gets neither.</summary>
+    private static void ReadMeldParts(CardModel card, JsonElement root)
+    {
+        if (!root.TryGetProperty("all_parts", out var parts) || parts.ValueKind != JsonValueKind.Array) return;
+        string resultName = "", resultUri = "", partner = "";
+        foreach (var p in parts.EnumerateArray())
+        {
+            var component = Str(p, "component");
+            if (component == "meld_result") { resultName = Str(p, "name"); resultUri = Str(p, "uri"); }
+            else if (component == "meld_part" && !Str(p, "name").Equals(card.Name, StringComparison.OrdinalIgnoreCase))
+                partner = Str(p, "name");
+        }
+        if (resultName.Length == 0 || resultName.Equals(card.Name, StringComparison.OrdinalIgnoreCase)) return;
+        card.MeldWith = partner;
+        card.MeldResultUrl = resultUri;
     }
 
     private static CardModel MapFace(JsonElement el, JsonElement root, string layout,
