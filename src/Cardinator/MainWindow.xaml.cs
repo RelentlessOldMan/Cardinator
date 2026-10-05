@@ -255,8 +255,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (_selectedCard.IsDoubleFaced || _selectedCard.OtherHalf != null) return;   // disabled for these
             _selectedCard.HalfLayout = "split";
             _selectedCard.OtherHalf = new CardModel { TemplateName = _selectedCard.TemplateName };
-            Status = "Made a split card — use “Edit other half…” for the second half. Click a half in the preview "
-                     + "to give it art or move its art.";
+            Status = "Made a split card — use “Edit other half…” for the second half (start its rules with "
+                     + "“Aftermath” for an aftermath card). Click a half in the preview to give it art or move its art.";
         }
         MarkDirty();
         CommitHistory();
@@ -284,41 +284,49 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     /// <summary>Turns a drag or nudge on the preview (a fraction of the shown image's width/height) into the
     /// change to the active part's art offset, so the art always moves the way the mouse does: reversed while
-    /// a flip card is shown upside down, and for a split card turned and scaled into the small half.</summary>
+    /// a flip card is shown upside down, and for a split/aftermath card turned and scaled into the small half.</summary>
     private (double dx, double dy) PanDelta(double dx, double dy)
     {
         var card = PreviewSide;
         if (card?.IsFlip == true && _viewingFlipped) return (-dx, -dy);
-        if (card?.IsSplit == true && TemplateFor(card)?.Spec is { } spec)
+        if (card?.IsSplit == true && TemplateFor(card) is { } template)
         {
-            var g = CardRenderer.SplitGeometry(card, spec);
-            double W = spec.CanvasWidth, H = spec.CanvasHeight;
-            // Into reading coordinates (canvas units): the sideways preview IS the reading view (H wide, W tall);
-            // on the upright card the reading view's x runs up the card and its y runs right.
-            double rdx = _readingSideways ? dx * H : -dy * H;
-            double rdy = _readingSideways ? dy * W : dx * W;
-            return (rdx / (g.Scale * W), rdy / (g.Scale * H));
+            var (toCard, dw, dh) = PreviewToCard(card, template.Spec);
+            var part = ActivePart(CardRenderer.SplitGeometry(card, template));
+            var v = part.FromCard(toCard.Transform(new System.Windows.Vector(dx * dw, dy * dh)));
+            return (v.X / part.Width, v.Y / part.Height);
         }
         return (dx, dy);
     }
 
-    /// <summary>Split card: which half is under a point on the preview — false = the first half, true = the
-    /// other half, null = neither (or not a split card).</summary>
+    /// <summary>Where the preview image's coordinates (in card units) land on the upright card, and the shown
+    /// image's size in card units: identity when upright, a quarter turn back when a split card is being read
+    /// sideways (clockwise) or an aftermath card (counter-clockwise).</summary>
+    private (System.Windows.Media.Matrix toCard, double w, double h) PreviewToCard(CardModel card, TemplateSpec spec)
+    {
+        double W = spec.CanvasWidth, H = spec.CanvasHeight;
+        if (!(_readingSideways && card.IsSplit)) return (System.Windows.Media.Matrix.Identity, W, H);
+        return card.IsAftermath ? (new System.Windows.Media.Matrix(0, 1, -1, 0, W, 0), H, W) : (new System.Windows.Media.Matrix(0, -1, 1, 0, 0, H), H, W);
+    }
+
+    private CardRenderer.SplitPart ActivePart(CardRenderer.SplitLayout g) => _activeHalf ? g.Other : g.First;
+
+    /// <summary>Split/aftermath card: which half is under a point on the preview — false = the first half,
+    /// true = the other half, null = neither (or not such a card).</summary>
     private bool? SplitHalfAt(System.Windows.Point p)
     {
         var card = PreviewSide;
-        if (card?.IsSplit != true || TemplateFor(card)?.Spec is not { } spec) return null;
+        if (card?.IsSplit != true || TemplateFor(card) is not { } template) return null;
         var (w, h) = DisplayedCardSize();
         if (w <= 0 || h <= 0) return null;
         double u = (p.X - (PreviewImageControl.ActualWidth - w) / 2) / w;
         double v = (p.Y - (PreviewImageControl.ActualHeight - h) / 2) / h;
         if (u < 0 || u > 1 || v < 0 || v > 1) return null;
-        var g = CardRenderer.SplitGeometry(card, spec);
-        var at = _readingSideways
-            ? new System.Windows.Point(u * g.ReadingWidth, v * g.ReadingHeight)
-            : new System.Windows.Point(spec.CanvasHeight - v * spec.CanvasHeight, u * spec.CanvasWidth);
-        if (g.Left.Contains(at)) return false;
-        if (g.Right.Contains(at)) return true;
+        var (toCard, dw, dh) = PreviewToCard(card, template.Spec);
+        var at = toCard.Transform(new System.Windows.Point(u * dw, v * dh));
+        var g = CardRenderer.SplitGeometry(card, template);
+        if (g.First.FromCard(at) != null) return false;
+        if (g.Other.FromCard(at) != null) return true;
         return null;
     }
 
@@ -873,8 +881,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
             else if (_readingSideways && card.IsSplit)
             {
-                // Turned a quarter clockwise, the way a split card is read.
-                var turned = new TransformedBitmap(PreviewImage, new System.Windows.Media.RotateTransform(90));
+                // Turned a quarter the way it's read: clockwise for a split card, counter-clockwise for the
+                // sideways half of an aftermath card.
+                var turned = new TransformedBitmap(PreviewImage,
+                    new System.Windows.Media.RotateTransform(card.IsAftermath ? 270 : 90));
                 turned.Freeze();
                 PreviewImage = turned;
             }

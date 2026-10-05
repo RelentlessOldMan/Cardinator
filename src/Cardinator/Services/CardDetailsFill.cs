@@ -74,13 +74,18 @@ public static class CardDetailsFill
     /// <summary>Scryfall's art for a split card is BOTH halves' art side by side (left half first). Once a
     /// lookup has downloaded it onto the card, give each half its own side. Only touches a split card whose
     /// other half has no art yet; if the image can't be cut, both halves share it.</summary>
+    /// <summary>Where Scryfall's aftermath art crop changes from the top half's picture to the other half's
+    /// (measured on <i>Destined // Lead</i>: 628 of 1024 px).</summary>
+    internal const double AftermathArtCut = 0.613;
+
     public static void SplitSharedArt(CardModel card)
     {
         if (!card.IsSplit || card.OtherHalf is not { } half) return;
         if (string.IsNullOrWhiteSpace(card.ArtPath) || !string.IsNullOrWhiteSpace(half.ArtPath)) return;
         try
         {
-            var (left, right) = ImageIntake.SplitSideBySide(card.ArtPath);
+            // An aftermath card's art is the wide top picture, then the sideways half's narrower one.
+            var (left, right) = ImageIntake.SplitSideBySide(card.ArtPath, card.IsAftermath ? AftermathArtCut : 0.5);
             card.ArtPath = left;
             half.ArtPath = right;
         }

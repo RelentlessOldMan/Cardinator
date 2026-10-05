@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -10,7 +10,7 @@ using Cardinator.Services;
 namespace Cardinator.Tests;
 
 /// <summary>
-/// 1.6.2 split cards (<i>Wear // Tear</i>, Duskmourn Rooms): one card whose two halves are small cards side
+/// 1.6.2 split cards (<i>Wear // Tear</i>, Duskmourn Rooms) and 1.6.3 aftermath (<i>Destined // Lead</i>): one card whose two halves are small cards side
 /// by side, read with the card turned sideways. Covers the model, the shared reminder bar (Fuse / a Room's
 /// door rules), the layout geometry, the renderer putting each half where a real split card has it, every
 /// frame (drawn and picture) working unchanged, lookup (incl. cutting Scryfall's side-by-side art), CSV, and
@@ -28,6 +28,18 @@ public class SplitCardTests
         OtherHalf = new CardModel
         {
             Name = "Tear", ManaCost = "{W}", TypeLine = "Instant", RulesText = "Destroy target enchantment.\n" + Fuse,
+        },
+    };
+
+    private static CardModel Aftermath(string template = "") => new()
+    {
+        Name = "Destined", ManaCost = "{1}{B}", TypeLine = "Instant",
+        RulesText = "Target creature gets +1/+0 and gains indestructible until end of turn.",
+        SetCode = "AKH", CollectorNumber = "217", Rarity = "U", TemplateName = template, HalfLayout = "split",
+        OtherHalf = new CardModel
+        {
+            Name = "Lead", ManaCost = "{3}{G}", TypeLine = "Sorcery",
+            RulesText = "Aftermath (Cast this spell only from your graveyard. Then exile it.)\nAll creatures able to block target creature this turn do so.",
         },
     };
 
@@ -87,41 +99,103 @@ public class SplitCardTests
 
     // --- geometry ------------------------------------------------------------------------------------
 
+    /// <summary>Where a half's whole canvas lands on the upright card.</summary>
+    private static Rect OnCard(CardRenderer.SplitPart part)
+    {
+        var r = new Rect(0, 0, part.Width, part.Height);
+        r.Transform(part.ToCard);
+        return r;
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void Geometry_TwoEqualCardShapedHalves_SideBySide_InsideTheCard(bool fuse)
+    public void Geometry_TwoEqualCardShapedHalves_StackedUpTheCard_InsideIt(bool fuse) => TestHelpers.RunSta(() =>
     {
-        var spec = new TemplateSpec();
-        var card = Split();
+        var tpl = new TemplateService().LoadAll().First(t => t.Name == "Crimson Red");
+        double W = tpl.Spec.CanvasWidth, H = tpl.Spec.CanvasHeight;
+        var card = Split(tpl.Name);
         if (!fuse) { card.RulesText = "Destroy target artifact."; card.OtherHalf!.RulesText = "Destroy target enchantment."; }
-        var g = CardRenderer.SplitGeometry(card, spec);
-        var reading = new Rect(0, 0, g.ReadingWidth, g.ReadingHeight);
+        var g = CardRenderer.SplitGeometry(card, tpl);
+        var a = OnCard(g.First); var b = OnCard(g.Other);
+        var cardRect = new Rect(0, 0, W, H + 0.001);
 
-        Assert.Equal(spec.CanvasHeight, g.ReadingWidth);     // the card turned sideways
-        Assert.Equal(spec.CanvasWidth, g.ReadingHeight);
-        Assert.True(reading.Contains(g.Left) && reading.Contains(g.Right));
-        Assert.True(g.Left.Right < g.Right.Left, "the halves overlap");
-        Assert.Equal(g.Left.Size, g.Right.Size);
-        Assert.Equal(spec.CanvasWidth / (double)spec.CanvasHeight, g.Left.Width / g.Left.Height, 3);   // card-shaped
-        Assert.True(g.Left.Left >= g.FooterStrip, "a half runs into the card's credits edge");
-        Assert.True(g.Scale > 0.55, $"halves drawn too small ({g.Scale:0.00})");
-        if (fuse)
-        {
-            Assert.False(g.Bar.IsEmpty);
-            Assert.True(g.Bar.Top > g.Left.Bottom, "the Fuse bar overlaps the halves");
-            Assert.True(g.Bar.Bottom <= g.ReadingHeight);
-        }
-        else Assert.True(g.Bar.IsEmpty);
+        Assert.False(g.Aftermath);
+        Assert.True(cardRect.Contains(a) && cardRect.Contains(b), $"{a} / {b} leave the card");
+        Assert.True(b.Bottom < a.Top, "the other half isn't above the first (or they overlap)");
+        Assert.Equal(a.Width, b.Width, 3);
+        Assert.Equal(H / W, a.Width / a.Height, 3);           // card-shaped, lying on its side
+        Assert.True(a.Bottom <= H - g.FooterStrip + 0.001, "a half runs into the card's credits edge");
+        Assert.True(g.First.Scale > 0.55, $"halves drawn too small ({g.First.Scale:0.00})");
+        Assert.Equal(fuse, !g.Bar.IsEmpty);
+    });
+
+    [Fact]
+    public void Geometry_TheFirstHalfReadsWithTheCardTurnedClockwise() => TestHelpers.RunSta(() =>
+    {
+        var tpl = new TemplateService().LoadAll().First(t => t.Name == "Crimson Red");
+        var g = CardRenderer.SplitGeometry(Split(tpl.Name), tpl);
+        // The half's own "up" (its title bar) runs along the card's LEFT edge; its right edge is the card's top.
+        var up = g.First.ToCard.Transform(new Vector(0, -1));
+        var right = g.First.ToCard.Transform(new Vector(1, 0));
+        Assert.True(up.X < 0 && Math.Abs(up.Y) < 1e-9, $"up = {up}");
+        Assert.True(right.Y < 0 && Math.Abs(right.X) < 1e-9, $"right = {right}");
+        Assert.Equal(new Point(0, 1050), CardRenderer.SplitLayout.ReadingToCard(1050).Transform(new Point(0, 0)));
+    });
+
+    [Fact]
+    public void Aftermath_FirstHalfUprightAcrossTheTop_OtherHalfTurnedTheOtherWayBelow() => TestHelpers.RunSta(() =>
+    {
+        var tpl = new TemplateService().LoadAll().First(t => t.Name == "Crimson Red");
+        double W = tpl.Spec.CanvasWidth, H = tpl.Spec.CanvasHeight;
+        var card = Aftermath(tpl.Name);
+        Assert.True(card.IsSplit && card.IsAftermath);
+        var g = CardRenderer.SplitGeometry(card, tpl);
+        var a = OnCard(g.First); var b = OnCard(g.Other);
+
+        Assert.True(g.Aftermath);
+        Assert.True(g.First.Template.Spec.IsLandscape, "the top half isn't the frame's wide layout");
+        Assert.True(g.First.ToCard.M12 == 0 && g.First.ToCard.M11 > 0, "the top half isn't upright");
+        Assert.True(a.Bottom < b.Top, "the top half isn't above the other half (or they overlap)");
+        Assert.True(a.Width > W * 0.9, "the top half doesn't span the card");
+        Assert.True(new Rect(0, 0, W, H + 0.001).Contains(b));
+        Assert.True(b.Bottom <= H - g.FooterStrip + 0.001);
+        // The other half's "up" is the card's RIGHT edge (read with the card turned counter-clockwise).
+        var up = g.Other.ToCard.Transform(new Vector(0, -1));
+        Assert.True(up.X > 0 && Math.Abs(up.Y) < 1e-9, $"up = {up}");
+        Assert.Equal("", g.SharedLine);   // its Aftermath reminder is the half's own text, not a shared bar
+    });
+
+    [Fact]
+    public void OnlyAnAftermathKeyword_MakesItAftermath()
+    {
+        Assert.False(Split().IsAftermath);
+        var card = Split(); card.OtherHalf!.RulesText = "  aftermath (Cast this spell only from your graveyard.)";
+        Assert.True(card.IsAftermath);
+        card.HalfLayout = "flip";
+        Assert.False(card.IsAftermath);   // only a split card
     }
 
     [Fact]
-    public void ReadingView_MapsOntoTheUprightCard_LeftEdgeBecomesTheBottom()
+    public void PartFromCard_FindsTheHalfUnderAPoint_AndTurnsMovesIntoIt() => TestHelpers.RunSta(() =>
     {
-        var m = CardRenderer.SplitLayout.ToCard(1050);
-        Assert.Equal(new Point(0, 1050), m.Transform(new Point(0, 0)));      // reading top-left → card bottom-left
-        Assert.Equal(new Point(750, 0), m.Transform(new Point(1050, 750)));  // reading bottom-right → card top-right
-    }
+        var tpl = new TemplateService().LoadAll().First(t => t.Name == "Crimson Red");
+        foreach (var card in new[] { Split(tpl.Name), Aftermath(tpl.Name) })
+        {
+            var g = CardRenderer.SplitGeometry(card, tpl);
+            foreach (var (part, other) in new[] { (g.First, g.Other), (g.Other, g.First) })
+            {
+                var centre = part.ToCard.Transform(new Point(part.Width / 2, part.Height / 2));
+                var back = part.FromCard(centre)!.Value;
+                Assert.Equal(part.Width / 2, back.X, 3);
+                Assert.Equal(part.Height / 2, back.Y, 3);
+                Assert.Null(other.FromCard(centre));
+                // A move across the half's whole width on the card is a move of its whole width in the half.
+                var across = part.ToCard.Transform(new Vector(part.Width, 0));
+                Assert.Equal(part.Width, part.FromCard(across).X, 3);
+            }
+        }
+    });
 
     // --- rendering -----------------------------------------------------------------------------------
 
@@ -187,8 +261,8 @@ public class SplitCardTests
     {
         var r = new CardRenderer(new SymbolService());
         foreach (var tpl in new TemplateService().LoadAll())
+        foreach (var card in new[] { Split(tpl.Name), Aftermath(tpl.Name) })
         {
-            var card = Split(tpl.Name);
             var bmp = r.RenderToBitmap(card, tpl);
             Assert.True(TestHelpers.HasContent(bmp), tpl.Name);
             Assert.Empty(RenderInspector.Inspect(bmp, card, tpl.Spec));   // the whole render isn't measured…
@@ -277,13 +351,47 @@ public class SplitCardTests
         Assert.Contains(CardValidator.ValidateOtherHalf(card, new TemplateSpec()), i => i.Code == "art-missing");
     }
 
+    [Fact]
+    public void Aftermath_TopHalfDrawsAtTheTop_OtherHalfBelowRunningDown() => TestHelpers.RunSta(() =>
+    {
+        var tpl = new TemplateService().LoadAll().First(t => t.Name == "Crimson Red");
+        var r = new CardRenderer(new SymbolService());
+        var full = r.RenderToBitmap(Aftermath(tpl.Name), tpl);
+        int h = full.PixelHeight;
+
+        var noTop = Aftermath(tpl.Name); noTop.Name = "";
+        var (tx0, ty0, tx1, ty1) = DiffBox(full, r.RenderToBitmap(noTop, tpl));
+        Assert.True(ty1 < h * 0.2 && tx1 - tx0 > ty1 - ty0, $"the top half's name drew at {tx0},{ty0}..{tx1},{ty1}");
+
+        var noHalf = Aftermath(tpl.Name); noHalf.OtherHalf!.Name = "";
+        var (hx0, hy0, hx1, hy1) = DiffBox(full, r.RenderToBitmap(noHalf, tpl));
+        Assert.True(hy0 > h / 2, $"the other half's name drew at y={hy0}, not in the bottom part");
+        Assert.True(hy1 - hy0 > hx1 - hx0, "the other half's name isn't running down the card");
+        Assert.True(hx0 > 750 * 0.8, $"the other half's name isn't along the card's right edge (x={hx0})");
+    });
+
+    [Fact]
+    public void AftermathArt_IsCutWhereTheWidePictureEnds() => TestHelpers.RunSta(() =>
+    {
+        var dir = Directory.CreateTempSubdirectory("after-cut").FullName;
+        try
+        {
+            var path = SolidPng(Path.Combine(dir, "both.png"), Colors.Gray, 1000, 200);
+            var card = Aftermath(); card.ArtPath = path;
+            CardDetailsFill.SplitSharedArt(card);
+            Assert.Equal(613, Load(card.ArtPath).PixelWidth);
+            Assert.Equal(387, Load(card.OtherHalf!.ArtPath).PixelWidth);
+        }
+        finally { Directory.Delete(dir, true); }
+    });
+
     // --- helpers --------------------------------------------------------------------------------------
 
-    private static string SolidPng(string path, Color color)
+    private static string SolidPng(string path, Color color, int w = 60, int h = 60)
     {
-        var rt = new RenderTargetBitmap(60, 60, 96, 96, PixelFormats.Pbgra32);
+        var rt = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
         var v = new DrawingVisual();
-        using (var dc = v.RenderOpen()) dc.DrawRectangle(new SolidColorBrush(color), null, new Rect(0, 0, 60, 60));
+        using (var dc = v.RenderOpen()) dc.DrawRectangle(new SolidColorBrush(color), null, new Rect(0, 0, w, h));
         rt.Render(v);
         CardExporter.SavePng(rt, path);
         return path;

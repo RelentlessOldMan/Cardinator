@@ -210,6 +210,13 @@ public sealed class CardModel : INotifyPropertyChanged
     [JsonIgnore]
     public bool IsSplit => _otherHalf != null && string.Equals(_halfLayout?.Trim(), "split", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>An aftermath card (<i>Destined // Lead</i>): a split card whose other half starts with the
+    /// Aftermath keyword. Scryfall lists these as split cards too; the keyword is what changes the arrangement —
+    /// the first half upright across the top, the other half turned sideways below it.</summary>
+    [JsonIgnore]
+    public bool IsAftermath => IsSplit
+        && (_otherHalf!.RulesText ?? "").TrimStart().StartsWith("Aftermath", StringComparison.OrdinalIgnoreCase);
+
     private void RaiseTwoPart()
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsTwoPart)));

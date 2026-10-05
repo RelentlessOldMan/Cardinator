@@ -139,7 +139,7 @@ output are all checked in.** Click a thumbnail for that example's guide.
   (chapter markers), **classes** (level badges), **adventures** (spell sub-box), and
   **flip cards** (Kamigawa-style: the other half printed upside down below the art, on any drawn frame),
   **split cards** (*Wear // Tear*, Rooms: two small cards side by side with their own art, Fuse bar included,
-  on every frame),
+  on every frame), **aftermath cards** (*Destined // Lead*: one half upright on top, the other sideways below),
   **double-faced cards** (one card with two faces: flip the preview, a drawn corner indicator, both sides
   exported), and **sideways cards** — **Battles** (with a defense shield), **Planes** and **Phenomena** turn
   landscape automatically on every drawn frame, and print sheets rotate them back into a normal slot. Split
