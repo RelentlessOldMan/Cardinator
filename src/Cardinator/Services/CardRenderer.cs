@@ -68,8 +68,10 @@ public sealed class CardRenderer
         return rtb;
     }
 
-    private void Draw(DrawingContext dc, CardModel card, Template template, bool previewHints)
+    private void Draw(DrawingContext dc, CardModel card, Template template, bool previewHints, bool footer = true)
     {
+        if (card.IsSplit) { DrawSplit(dc, card, template, previewHints); return; }
+
         // When the royal sub-border is on, all regions are inset to make room for it — use the same inset
         // spec the frame generator baked frame.png from, so text/P·T/footer line up with the panels.
         var spec = template.Spec.WithSubBorderApplied();
@@ -151,7 +153,7 @@ public sealed class CardRenderer
 
         // Footer placement: "frame" draws it on the colored card (inside the clip, before the border);
         // "border" draws it on the black rim (after the border); "none" skips it.
-        var footerPlacement = (spec.FooterPlacement ?? "frame").Trim().ToLowerInvariant();
+        var footerPlacement = footer ? (spec.FooterPlacement ?? "frame").Trim().ToLowerInvariant() : "none";
         if (footerPlacement == "frame")
             DrawFooter(dc, card, spec, onBorder: false);
 
@@ -165,6 +167,140 @@ public sealed class CardRenderer
             DrawFooter(dc, card, spec, onBorder: true);
 
         DrawDfcIndicator(dc, card, spec, W, H);
+    }
+
+    // --- split cards ---------------------------------------------------------
+
+    /// <summary>Where a split card's parts go, in READING coordinates: the card turned a quarter clockwise, so
+    /// it is <c>CanvasHeight</c> wide and <c>CanvasWidth</c> tall. The front half is on the left and the other
+    /// half on the right, each the frame's normal card scaled by <see cref="Scale"/>; a shared reminder line
+    /// (Fuse, a Room's door rules) gets a bar across the bottom; the reading view's left strip is the upright
+    /// card's bottom edge, where the card's credits go.</summary>
+    internal sealed record SplitLayout(Rect Left, Rect Right, double Scale, Rect Bar, string SharedLine,
+        double FooterStrip, double ReadingWidth, double ReadingHeight)
+    {
+        /// <summary>Reading coordinates → the upright card: the reading view's left edge is the card's bottom.</summary>
+        public static Matrix ToCard(double canvasHeight) => new(0, -1, 1, 0, 0, canvasHeight);
+    }
+
+    internal static SplitLayout SplitGeometry(CardModel card, TemplateSpec spec)
+    {
+        double W = spec.CanvasWidth, H = spec.CanvasHeight;
+        double rw = H, rh = W;
+        double side = Math.Min(W, H);
+        double m = Math.Max(6, side * 0.016);                          // outer margin and the gutter
+        double foot = Math.Max(spec.BorderThickness, side * 0.042);    // the card's bottom edge (credits)
+        var shared = SplitSharedLine(card).shared;
+        double barH = shared.Length > 0 ? side * 0.075 : 0;
+        double slotW = (rw - foot - 2 * m) / 2;
+        double slotH = rh - 2 * m - (barH > 0 ? barH + m : 0);
+        double s = Math.Max(0.05, Math.Min(slotW / W, slotH / H));
+        double hw = W * s, hh = H * s, y = m + (slotH - hh) / 2;
+        var left = new Rect(foot + (slotW - hw) / 2, y, hw, hh);
+        var right = new Rect(foot + slotW + m + (slotW - hw) / 2, y, hw, hh);
+        var bar = barH > 0 ? new Rect(left.X, rh - m - barH, right.Right - left.X, barH) : Rect.Empty;
+        return new SplitLayout(left, right, s, bar, shared, foot, rw, rh);
+    }
+
+    /// <summary>A reminder both halves end with — Fuse, or a Room's "(You may cast either half…)" — is printed
+    /// ONCE across the card, so it comes off both halves' rules. Only a "Fuse…" line or a fully parenthesized
+    /// one counts, so two halves that merely end alike ("Draw a card.") keep their text.</summary>
+    internal static (string front, string half, string shared) SplitSharedLine(CardModel card)
+    {
+        string a = card.RulesText ?? "", b = card.OtherHalf?.RulesText ?? "";
+        static (string body, string last) Last(string t)
+        {
+            var lines = t.Replace("\r\n", "\n").TrimEnd().Split('\n');
+            return (string.Join("\n", lines[..^1]).TrimEnd(), lines[^1].Trim());
+        }
+        var (ab, al) = Last(a);
+        var (bb, bl) = Last(b);
+        bool reminder = al.StartsWith("Fuse", StringComparison.OrdinalIgnoreCase)
+                        || (al.StartsWith('(') && al.EndsWith(')'));
+        if (al.Length == 0 || !reminder || !string.Equals(al, bl, StringComparison.Ordinal)) return (a, b, "");
+        return (ab, bb, al);
+    }
+
+    /// <summary>The two halves of a split card as they're drawn: plain cards (no other half, no back), the
+    /// shared reminder taken off their rules, and the set identity the card's own (as on a real split card).</summary>
+    internal static (CardModel front, CardModel half) SplitHalves(CardModel card)
+    {
+        var (fr, hr, _) = SplitSharedLine(card);
+        var front = card.Clone();
+        front.OtherHalf = null; front.HalfLayout = ""; front.BackFace = null;
+        front.RulesText = fr;
+        var half = OtherHalfForRender(card);
+        half.IsOtherHalf = false;
+        half.RulesText = hr;
+        return (front, half);
+    }
+
+    /// <summary>A split card: two small cards side by side, laid out in the reading view (turned a quarter
+    /// clockwise) and drawn onto the upright card through <see cref="SplitLayout.ToCard"/>. Each half is the
+    /// frame's normal card at a smaller scale — so every frame (drawn or picture) works unchanged — without
+    /// its own credits; the card's credits run upright along its bottom edge, like a real split card's.</summary>
+    private void DrawSplit(DrawingContext dc, CardModel card, Template template, bool previewHints)
+    {
+        var spec = template.Spec;
+        double W = spec.CanvasWidth, H = spec.CanvasHeight;
+        double cardR = Math.Max(4, spec.CornerRadius);
+        var g = SplitGeometry(card, spec);
+        var (front, half) = SplitHalves(card);
+
+        // The halves are drawn small, but a split half's few lines read at a normal card's size: start the
+        // rules (and flavor/symbols) as large as the scale took away; the text box still shrinks to fit.
+        var halfSpec = spec.Clone();
+        double grow = Math.Min(1.6, 1 / g.Scale);
+        halfSpec.RulesFont.Size *= grow;
+        halfSpec.FlavorFont.Size *= grow;
+        halfSpec.RulesSymbolSize *= grow;
+        var halfTemplate = new Template
+        {
+            Name = template.Name, Spec = halfSpec, FramePath = template.FramePath,
+            FrameImage = template.FrameImage, Variants = template.Variants,
+        };
+
+        var clip = new RectangleGeometry(new Rect(0, 0, W, H), cardR, cardR);
+        clip.Freeze();
+        dc.PushClip(clip);
+        dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x08, 0x08, 0x0A)), null, new Rect(0, 0, W, H));
+
+        dc.PushTransform(new MatrixTransform(SplitLayout.ToCard(H)));
+        foreach (var (part, at) in new[] { (front, g.Left), (half, g.Right) })
+        {
+            dc.PushTransform(new TranslateTransform(at.X, at.Y));
+            dc.PushTransform(new ScaleTransform(g.Scale, g.Scale));
+            Draw(dc, part, halfTemplate, previewHints, footer: false);
+            dc.Pop();
+            dc.Pop();
+        }
+        if (g.SharedLine.Length > 0) DrawSplitBar(dc, g, spec);
+        dc.Pop();
+
+        // The card's credits, upright on its bottom edge (the reading view's left strip).
+        var footSpec = spec.Clone();
+        footSpec.BorderThickness = g.FooterStrip;
+        DrawFooter(dc, card, footSpec, onBorder: true);
+        dc.Pop();
+    }
+
+    /// <summary>The shared reminder bar across the bottom of a split card's reading view.</summary>
+    private static void DrawSplitBar(DrawingContext dc, SplitLayout g, TemplateSpec spec)
+    {
+        var bar = g.Bar;
+        double r = bar.Height * 0.22;
+        var fill = new SolidColorBrush(Color.FromRgb(0xEE, 0xE7, 0xD8));
+        var pen = new Pen(new SolidColorBrush(Color.FromRgb(0x5A, 0x52, 0x46)), Math.Max(1, bar.Height * 0.04));
+        dc.DrawRoundedRectangle(fill, pen, bar, r, r);
+        var font = new FontSpec
+        {
+            Family = spec.RulesFont.Family, Size = spec.RulesFont.Size, Italic = g.SharedLine.StartsWith('('),
+            Align = "left", Color = "#1C1A17",
+        };
+        var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
+        double pad = bar.Height * 0.35;
+        var ft = FitText(g.SharedLine, font, Math.Min(font.Size, bar.Height * 0.48), 7, bar.Width - 2 * pad, brush);
+        dc.DrawText(ft, new Point(bar.X + (bar.Width - ft.Width) / 2, bar.Y + (bar.Height - ft.Height) / 2));
     }
 
     /// <summary>One half of a flip card in the flip layout: name + mana, the type line (shortened so the set

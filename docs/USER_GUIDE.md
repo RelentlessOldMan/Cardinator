@@ -101,11 +101,12 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Battle** | Type line contains "Battle" (e.g. *Battle — Siege*), set **Defense** | **Sideways** card + a defense shield bottom-right |
 | **Plane / Phenomenon** | Type line contains "Plane" or "Phenomenon" | **Sideways** card (Planechase) |
 | **Flip card** | Look up a real flip card, or **Make flip card** | Two halves on one face: the other half **upside down** below the art |
+| **Split card** | Look up a real split card or Room, or **Make split card** | Two small cards **side by side**, read with the card turned sideways |
 
 **Double-faced cards (DFC).** A card can have a **back face** — a front/back card that flips. Looking up a real
 double-faced card imports it as **one card with both faces**, whether you use **Ctrl+L**, a deck/CSV import or
-the search inside **Edit details…**. (A **split** card like *Fire // Ice* is printed on one side, so for now
-it still comes in as two separate cards.) To build one yourself, click **Make double-faced**
+the search inside **Edit details…**. (A **split** card like *Fire // Ice* is printed on one side, so it comes
+in as one split card — see below — not a double-faced one.) To build one yourself, click **Make double-faced**
 (under the editor), then **Edit back face…** to fill the back's fields and art, and **Show back** to flip the
 preview. The style dropdown adds a corner indicator — **Flip arrow**, or **Sun / moon** (sun on the front,
 crescent moon on the back) — drawn by Cardinator (no third-party art). Exporting writes both sides
@@ -141,6 +142,21 @@ Every drawn frame lays itself out as a flip card automatically. The three *Parti
 come with their own flip and sideways versions, so they work too. Any other *imported* frame image is a fixed
 picture: CHECKS warns that only the upright half can show, and the card prints as a normal card until you pick a
 frame that has a flip layout. A flip card prints on **one** side — no back, one slot on a print sheet.
+
+**Split cards.** A split card (*Wear // Tear*, *Fire // Ice*, and Duskmourn's **Rooms**) has two halves side by side
+on one face, each a small card of its own — name, mana cost, art, type line and rules — read with the card
+turned sideways: the first half is on the left (the bottom of the upright card), the other half on the right, and
+the card's credits run along its bottom edge. Looking up a real one brings both halves as **one card**, and
+Scryfall's art (both halves' pictures side by side) is cut so each half gets its own. To make one yourself, click
+**Make split card**, then **Edit other half…** for the second half. **Click a half in the preview** to choose which
+half **Change art…**, paste, drag-to-move and scroll-to-zoom work on (or drop an image straight onto a half), and
+**Read sideways** turns the preview so you can read it.
+
+A reminder both halves end with — **Fuse** (*"You may cast one or both halves…"*) or a Room's *"(You may cast either
+half…)"* — is printed **once**, in a bar across both halves. Every frame works, drawn or imported: each half is
+the frame's own card, just smaller. A split card prints on one side, like a flip card.
+
+<p><img src="images/split-card.png" width="360" alt="A split card: two small cards side by side, turned sideways, with a Fuse bar across both"></p>
 
 **Authoring them by hand:** open **Edit details…** and use the **Special layouts** section to set a
 **Subtitle** (a small plate under the title, on any card), the **Adventure** half (name/cost/type/text —

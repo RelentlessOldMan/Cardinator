@@ -38,7 +38,7 @@ public static class SetValidator
                 issues.AddRange(backIssues);
             }
 
-            // A flip card's upside-down half is printed too — check its content the same way.
+            // A two-part card's other half (flip or split) is printed too — check its content the same way.
             issues.AddRange(CardValidator.ValidateOtherHalf(card, resolveSpec(card))
                 .Where(i => i.Severity != IssueSeverity.Info));
 

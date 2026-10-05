@@ -39,8 +39,7 @@ public class DfcCorrectnessTests
     }
 
     [Theory]
-    [InlineData("split")]
-    [InlineData("aftermath")]   // (a "flip" card becomes ONE card with its half since 1.6.0 — FlipCardTests)
+    [InlineData("aftermath")]   // ("flip" / "split" become ONE card with their half since 1.6.0 / 1.6.2 — FlipCardTests, SplitCardTests)
     [InlineData("adventure")]
     [InlineData("")]
     public void SingleSidedMultiFaceLayouts_DoNotBecomeDoubleFaced(string layout)

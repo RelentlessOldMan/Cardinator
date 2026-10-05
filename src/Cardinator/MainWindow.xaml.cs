@@ -33,6 +33,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private SetProfile _setProfile = new();  // the set's shared metadata defaults (W1), inherited by new/imported cards
     private bool _viewingBack;                // DFC: preview is showing the back face (preview-only flip)
     private bool _viewingFlipped;             // flip card: preview is turned upside down to read the other half
+    private bool _readingSideways;            // split card: preview is turned a quarter clockwise to read the halves
+    private bool _activeHalf;                 // split card: art/pan/zoom go to the other half (picked by clicking it)
     private CardModel? _subscribedBack;       // the back face whose edits we're currently tracking
     private CardModel? _subscribedHalf;       // a flip card's other half, tracked the same way
     private bool _isExporting;
@@ -115,7 +117,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             bool dfc = _selectedCard?.IsDoubleFaced == true;
             DfcToggleBtn.Content = dfc ? "Remove back face" : "Make double-faced";
-            DfcToggleBtn.IsEnabled = dfc || _selectedCard?.OtherHalf == null;   // a flip card can't also have a back
+            DfcToggleBtn.IsEnabled = dfc || _selectedCard?.OtherHalf == null;   // a flip/split card can't also have a back
             DfcEditBackBtn.IsEnabled = dfc;
             DfcFlipBtn.IsEnabled = dfc;
             DfcStyleBox.IsEnabled = dfc;   // the indicator only draws on a double-faced card
@@ -188,15 +190,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     // --- flip cards (two-part, one side) ------------------------------------
 
-    /// <summary>Syncs the flip-card buttons to the selected card's state.</summary>
+    /// <summary>Syncs the flip/split buttons to the selected card's state.</summary>
     private void RefreshFlipControls()
     {
-        bool flip = _selectedCard?.OtherHalf != null;
-        FlipToggleBtn.Content = flip ? "Remove flipped half" : "Make flip card";
-        FlipToggleBtn.IsEnabled = _selectedCard != null && (flip || !_selectedCard.IsDoubleFaced);   // not both
-        FlipEditBtn.IsEnabled = flip;
-        FlipShowBtn.IsEnabled = flip;
-        FlipShowBtn.Content = _viewingFlipped ? "Show upright" : "Show flipped";
+        bool hasHalf = _selectedCard?.OtherHalf != null;
+        bool split = _selectedCard?.IsSplit == true;
+        bool canAdd = _selectedCard != null && !hasHalf && !_selectedCard.IsDoubleFaced;   // one kind at a time
+        FlipToggleBtn.Content = hasHalf && !split ? "Remove flipped half" : "Make flip card";
+        FlipToggleBtn.IsEnabled = canAdd || (hasHalf && !split);
+        SplitToggleBtn.Content = split ? "Remove other half" : "Make split card";
+        SplitToggleBtn.IsEnabled = canAdd || split;
+        FlipEditBtn.IsEnabled = hasHalf;
+        FlipShowBtn.IsEnabled = hasHalf;
+        FlipEditBtn.Content = split ? "Edit other half…" : "Edit flipped half…";
+        FlipShowBtn.Content = split ? (_readingSideways ? "Show upright" : "Read sideways")
+                                    : (_viewingFlipped ? "Show upright" : "Show flipped");
     }
 
     private void OnToggleFlip(object sender, RoutedEventArgs e)
@@ -215,7 +223,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         else
         {
-            if (_selectedCard.IsDoubleFaced) return;   // the button is disabled for these; belt and braces
+            if (_selectedCard.IsDoubleFaced || _selectedCard.OtherHalf != null) return;   // disabled for these; belt and braces
             _selectedCard.HalfLayout = "flip";
             _selectedCard.OtherHalf = new CardModel { TemplateName = _selectedCard.TemplateName };
             Status = "Made a flip card — use “Edit flipped half…” for the upside-down half.";
@@ -227,10 +235,40 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         RenderPreview();
     }
 
+    private void OnToggleSplit(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCard == null) return;
+        if (_selectedCard.IsSplit)
+        {
+            if (ConfirmDialog.Show(this, "Remove other half",
+                    $"Remove the other half “{_selectedCard.OtherHalf!.Name}”? This can't be undone except with Undo.",
+                    affirmative: "Remove", cancel: "Cancel") != ConfirmResult.Affirmative)
+                return;
+            _selectedCard.OtherHalf = null;
+            _selectedCard.HalfLayout = "";
+            _readingSideways = false;
+            _activeHalf = false;
+            Status = "Removed the other half.";
+        }
+        else
+        {
+            if (_selectedCard.IsDoubleFaced || _selectedCard.OtherHalf != null) return;   // disabled for these
+            _selectedCard.HalfLayout = "split";
+            _selectedCard.OtherHalf = new CardModel { TemplateName = _selectedCard.TemplateName };
+            Status = "Made a split card — use “Edit other half…” for the second half. Click a half in the preview "
+                     + "to give it art or move its art.";
+        }
+        MarkDirty();
+        CommitHistory();
+        RefreshFlipControls();
+        RefreshDfcControls();
+        RenderPreview();
+    }
+
     private void OnEditFlippedHalf(object sender, RoutedEventArgs e)
     {
         if (_selectedCard?.OtherHalf == null) return;
-        new DetailsWindow(_selectedCard.OtherHalf, _scryfall) { Owner = this }.ShowDialog();
+        new DetailsWindow(_selectedCard.OtherHalf, _scryfall, _selectedCard.HalfLayout) { Owner = this }.ShowDialog();
         CommitHistory();   // recomputes Dirty from history, so a cancelled edit stays clean
         RenderPreview();
     }
@@ -238,14 +276,60 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnShowFlipped(object sender, RoutedEventArgs e)
     {
         if (_selectedCard?.OtherHalf == null) return;
-        _viewingFlipped = !_viewingFlipped;
+        if (_selectedCard.IsSplit) _readingSideways = !_readingSideways;
+        else _viewingFlipped = !_viewingFlipped;
         RefreshFlipControls();
         RenderPreview();
     }
 
-    /// <summary>Pan direction on the preview: reversed while it's shown upside down, so the art still moves
-    /// the way the mouse does.</summary>
-    private double PanSign => _viewingFlipped && _selectedCard?.IsFlip == true ? -1 : 1;
+    /// <summary>Turns a drag or nudge on the preview (a fraction of the shown image's width/height) into the
+    /// change to the active part's art offset, so the art always moves the way the mouse does: reversed while
+    /// a flip card is shown upside down, and for a split card turned and scaled into the small half.</summary>
+    private (double dx, double dy) PanDelta(double dx, double dy)
+    {
+        var card = PreviewSide;
+        if (card?.IsFlip == true && _viewingFlipped) return (-dx, -dy);
+        if (card?.IsSplit == true && TemplateFor(card)?.Spec is { } spec)
+        {
+            var g = CardRenderer.SplitGeometry(card, spec);
+            double W = spec.CanvasWidth, H = spec.CanvasHeight;
+            // Into reading coordinates (canvas units): the sideways preview IS the reading view (H wide, W tall);
+            // on the upright card the reading view's x runs up the card and its y runs right.
+            double rdx = _readingSideways ? dx * H : -dy * H;
+            double rdy = _readingSideways ? dy * W : dx * W;
+            return (rdx / (g.Scale * W), rdy / (g.Scale * H));
+        }
+        return (dx, dy);
+    }
+
+    /// <summary>Split card: which half is under a point on the preview — false = the first half, true = the
+    /// other half, null = neither (or not a split card).</summary>
+    private bool? SplitHalfAt(System.Windows.Point p)
+    {
+        var card = PreviewSide;
+        if (card?.IsSplit != true || TemplateFor(card)?.Spec is not { } spec) return null;
+        var (w, h) = DisplayedCardSize();
+        if (w <= 0 || h <= 0) return null;
+        double u = (p.X - (PreviewImageControl.ActualWidth - w) / 2) / w;
+        double v = (p.Y - (PreviewImageControl.ActualHeight - h) / 2) / h;
+        if (u < 0 || u > 1 || v < 0 || v > 1) return null;
+        var g = CardRenderer.SplitGeometry(card, spec);
+        var at = _readingSideways
+            ? new System.Windows.Point(u * g.ReadingWidth, v * g.ReadingHeight)
+            : new System.Windows.Point(spec.CanvasHeight - v * spec.CanvasHeight, u * spec.CanvasWidth);
+        if (g.Left.Contains(at)) return false;
+        if (g.Right.Contains(at)) return true;
+        return null;
+    }
+
+    /// <summary>Split card: makes the half under <paramref name="p"/> the one art/pan/zoom go to, and says so
+    /// when that changes.</summary>
+    private void PickSplitHalfAt(System.Windows.Point p)
+    {
+        if (SplitHalfAt(p) is not { } other || other == _activeHalf) return;
+        _activeHalf = other;
+        Status = $"Art now goes to “{ActiveFace?.Name}” — drag to move its art, scroll to zoom.";
+    }
 
     // --- bindable state -----------------------------------------------------
 
@@ -261,6 +345,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _selectedCard = value;
             _viewingBack = false;   // always start a newly-selected card on its front face
             _viewingFlipped = false;
+            _readingSideways = false;
+            _activeHalf = false;
             if (_selectedCard != null)
             {
                 AttachCardEvents(_selectedCard);
@@ -278,9 +364,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public bool HasSelection => _selectedCard != null;
 
-    /// <summary>The face the preview currently shows — the back when flipped (DFC), otherwise the front.</summary>
-    private CardModel? ActiveFace =>
+    /// <summary>The side the preview currently shows — the back when flipped (DFC), otherwise the front.</summary>
+    private CardModel? PreviewSide =>
         _viewingBack && _selectedCard?.BackFace != null ? _selectedCard.BackFace : _selectedCard;
+
+    /// <summary>The part that art, pan and zoom go to: the shown side — or, on a split card, the other half
+    /// once it has been clicked in the preview.</summary>
+    private CardModel? ActiveFace =>
+        _activeHalf && PreviewSide is { IsSplit: true } s ? s.OtherHalf : PreviewSide;
 
     /// <summary>The template a given face ACTUALLY renders with: its own frame (falling back to the current one),
     /// turned to its landscape layout when the face is a Battle/Plane. Resolving here means the CHECKS panel
@@ -765,7 +856,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// <see cref="RenderInspector"/> for the CHECKS panel (M5). Skipped during live drag to stay smooth.</param>
     private void RenderPreview(bool inspect)
     {
-        var card = ActiveFace;
+        var card = PreviewSide;
         if (card == null) { PreviewImage = null; UpdateValidation(null); return; }
         var template = TemplateFor(card);
         if (template == null) return;
@@ -777,6 +868,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 // Same card, turned upside down — the flipped half reads upright.
                 var turned = new TransformedBitmap(PreviewImage, new System.Windows.Media.RotateTransform(180));
+                turned.Freeze();
+                PreviewImage = turned;
+            }
+            else if (_readingSideways && card.IsSplit)
+            {
+                // Turned a quarter clockwise, the way a split card is read.
+                var turned = new TransformedBitmap(PreviewImage, new System.Windows.Media.RotateTransform(90));
                 turned.Freeze();
                 PreviewImage = turned;
             }
@@ -799,7 +897,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// missing/thin border) are merged in too (M5).</summary>
     private void UpdateValidation(BitmapSource? inspectBmp, CardModel? face = null, Template? faceTemplate = null)
     {
-        var card = face ?? ActiveFace;
+        var card = face ?? PreviewSide;
         var template = faceTemplate ?? (card != null ? TemplateFor(card) : null);
         if (card == null || template == null)
         {
@@ -813,7 +911,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (inspectBmp != null)
         {
             // Pixel inspection is best-effort — never let it break the live panel.
-            try { issues = LiveChecks.Merge(issues, RenderInspector.Inspect(inspectBmp, card, template.Spec)); }
+            try { issues = LiveChecks.Merge(issues, RenderInspector.InspectCard(_renderer, card, template, inspectBmp)); }
             catch { /* keep the rule-based issues */ }
         }
         int errors = issues.Count(i => i.Severity == IssueSeverity.Error);
@@ -1725,6 +1823,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // so the status line can honestly say what changed.
             bool hadArt = !string.IsNullOrWhiteSpace(card.ArtPath);
             bool gotArt = await FillArtFromScryfall(card, f.ArtUrl);
+            if (gotArt && !hadArt) CardDetailsFill.SplitSharedArt(card);
             if (card.BackFace is { } back) await FillArtFromScryfall(back, back.ArtUrl);
             for (int i = 1; i < faces.Count; i++)
                 if (Cards.Contains(faces[i])) await FillArtFromScryfall(faces[i], faces[i].ArtUrl);
@@ -1739,6 +1838,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                          : " No art found; your frame is unchanged.";
             Status = card.IsDoubleFaced
                 ? $"Loaded “{f.Name}” from Scryfall as one double-faced card — use Show back to flip.{artNote}"
+                : card.IsSplit
+                ? $"Loaded “{f.Name} // {card.OtherHalf!.Name}” from Scryfall as one split card.{artNote}"
+                : card.IsFlip
+                ? $"Loaded “{f.Name}” from Scryfall as one flip card — use Show flipped to read the other half.{artNote}"
                 : faces.Count > 1
                     ? $"Loaded “{f.Name}” details from Scryfall (+{faces.Count - 1} card for the other half).{artNote}"
                     : $"Loaded “{f.Name}” details from Scryfall.{artNote}";
@@ -1790,7 +1893,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         card.ArtScale = 1.0;
         card.ArtOffsetX = 0;
         card.ArtOffsetY = 0;
-        Status = "Loaded art: " + Path.GetFileName(local) + (card.IsBackFace ? " (back face)" : "");
+        Status = "Loaded art: " + Path.GetFileName(local)
+                 + (card.IsBackFace ? " (back face)" : card.IsOtherHalf ? $" (for “{card.Name}”)" : "");
     }
 
     private void OnClearArt(object sender, RoutedEventArgs e)
@@ -1858,6 +1962,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnPreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         PreviewImageControl.Focus();   // so the arrow keys nudge the art after you click the preview
+        PickSplitHalfAt(e.GetPosition(PreviewImageControl));   // a split card: the clicked half takes the art
         if (ActiveFace is not { ArtPath: { Length: > 0 } }) return;
         _isPanning = true;
         _panStart = e.GetPosition(PreviewImageControl);
@@ -1872,8 +1977,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var (w, h) = DisplayedCardSize();
         if (w <= 0 || h <= 0) return;
 
-        card.ArtOffsetX = Clamp(card.ArtOffsetX + PanSign * (p.X - _panStart.X) / w, -0.5, 0.5);
-        card.ArtOffsetY = Clamp(card.ArtOffsetY + PanSign * (p.Y - _panStart.Y) / h, -0.5, 0.5);
+        var (ax, ay) = PanDelta((p.X - _panStart.X) / w, (p.Y - _panStart.Y) / h);
+        card.ArtOffsetX = Clamp(card.ArtOffsetX + ax, -0.5, 0.5);
+        card.ArtOffsetY = Clamp(card.ArtOffsetY + ay, -0.5, 0.5);
         _panStart = p;
         RenderPreviewLive();   // live feedback while dragging (the debounce timer alone never fires mid-drag)
     }
@@ -1903,8 +2009,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var card = ActiveFace;
         if (card == null) return;
-        card.ArtOffsetX = Clamp(card.ArtOffsetX + PanSign * dx, -0.5, 0.5);
-        card.ArtOffsetY = Clamp(card.ArtOffsetY + PanSign * dy, -0.5, 0.5);
+        var (ax, ay) = PanDelta(dx, dy);
+        card.ArtOffsetX = Clamp(card.ArtOffsetX + ax, -0.5, 0.5);
+        card.ArtOffsetY = Clamp(card.ArtOffsetY + ay, -0.5, 0.5);
         RenderPreview();
     }
 
@@ -2067,6 +2174,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var image = files.FirstOrDefault(ImageIntake.LooksLikeImagePath);
             if (image == null) { Status = "That file type isn't an image, project, or card list."; return; }
             if (ActiveFace == null) { Status = "Select a card first, then drop art onto it."; return; }
+            PickSplitHalfAt(e.GetPosition(PreviewImageControl));   // dropped onto a split card's half: that half
             SetArt(image);
         }
         catch (Exception ex)
@@ -2077,7 +2185,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnCopyImage(object sender, RoutedEventArgs e)
     {
-        var card = ActiveFace;
+        var card = PreviewSide;
         if (card == null) return;
         var template = TemplateFor(card);
         if (template == null) return;

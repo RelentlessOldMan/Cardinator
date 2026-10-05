@@ -161,16 +161,20 @@
                         </UniformGrid>
                     </StackPanel>
 
-                    <TextBlock Text="FLIP CARD" Style="{StaticResource SectionLabel}"/>
+                    <TextBlock Text="FLIP / SPLIT CARD" Style="{StaticResource SectionLabel}"/>
                     <StackPanel Margin="0,0,0,16">
                         <UniformGrid Rows="1" Columns="2" Margin="0,0,0,8">
                             <Button x:Name="FlipToggleBtn" Content="Make flip card" Click="OnToggleFlip" Margin="0,0,3,0"
                                     ToolTip="Add or remove a flipped half (a Kamigawa flip card: the other half is printed upside down below the art)"/>
-                            <Button x:Name="FlipEditBtn" Content="Edit flipped half…" Click="OnEditFlippedHalf" Margin="3,0,0,0"
-                                    ToolTip="Edit the upside-down half's name, type, rules and power/toughness"/>
+                            <Button x:Name="SplitToggleBtn" Content="Make split card" Click="OnToggleSplit" Margin="3,0,0,0"
+                                    ToolTip="Add or remove a second half side by side (a split card like Wear // Tear, or a Room)"/>
                         </UniformGrid>
-                        <Button x:Name="FlipShowBtn" Content="Show flipped" Click="OnShowFlipped"
-                                ToolTip="Turn the preview upside down to read the flipped half"/>
+                        <UniformGrid Rows="1" Columns="2">
+                            <Button x:Name="FlipEditBtn" Content="Edit flipped half…" Click="OnEditFlippedHalf" Margin="0,0,3,0"
+                                    ToolTip="Edit the other half's name, cost, type, rules and power/toughness"/>
+                            <Button x:Name="FlipShowBtn" Content="Show flipped" Click="OnShowFlipped" Margin="3,0,0,0"
+                                    ToolTip="Turn the preview to read the other half"/>
+                        </UniformGrid>
                     </StackPanel>
 
                     <TextBlock Text="CHECKS" Style="{StaticResource SectionLabel}"/>

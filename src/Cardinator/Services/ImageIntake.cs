@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net.Http;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -73,6 +73,26 @@ public static class ImageIntake
         var fixedBmp = BitmapSource.Create(w, h, bgra.DpiX, bgra.DpiY, PixelFormats.Bgra32, null, px, stride);
         fixedBmp.Freeze();
         return fixedBmp;
+    }
+
+    /// <summary>Cuts an image down the middle into its left and right halves, saved into the art cache as
+    /// PNGs (Scryfall's split-card art holds both halves' art side by side).</summary>
+    public static (string left, string right) SplitSideBySide(string path)
+    {
+        var img = new BitmapImage();
+        img.BeginInit();
+        img.CacheOption = BitmapCacheOption.OnLoad;
+        img.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+        img.StreamSource = new MemoryStream(File.ReadAllBytes(path));
+        img.EndInit();
+        img.Freeze();
+        int w = img.PixelWidth, h = img.PixelHeight, half = w / 2;
+        if (half < 1 || h < 1) throw new InvalidOperationException("Image too small to split.");
+        var name = Path.GetFileNameWithoutExtension(path);
+        var left = new CroppedBitmap(img, new System.Windows.Int32Rect(0, 0, half, h));
+        var right = new CroppedBitmap(img, new System.Windows.Int32Rect(half, 0, w - half, h));
+        left.Freeze(); right.Freeze();
+        return (SaveBitmap(left, name + "-left"), SaveBitmap(right, name + "-right"));
     }
 
     /// <summary>Saves a bitmap into the art cache as a PNG and returns its full path.</summary>

@@ -167,18 +167,19 @@ public sealed class CardModel : INotifyPropertyChanged
     [JsonIgnore]
     public bool IsDoubleFaced => _backFace != null;
 
-    // --- two-part cards (flip; split and aftermath to follow) ---------------------
+    // --- two-part cards (flip, split; aftermath to follow) -------------------------
 
     /// <summary>How a two-part card arranges its halves on ONE side of the card: "flip" (Kamigawa: the other
-    /// half printed upside down below the art). Empty for a normal card. Only meaningful with an
-    /// <see cref="OtherHalf"/>.</summary>
+    /// half printed upside down below the art) or "split" (two small cards side by side, read with the card
+    /// turned sideways). Empty for a normal card. Only meaningful with an <see cref="OtherHalf"/>.</summary>
     public string HalfLayout { get => _halfLayout; set { Set(ref _halfLayout, value); RaiseTwoPart(); } }
 
-    /// <summary>The second half of a two-part card (flip), or null. Like <see cref="BackFace"/> it's a full
+    /// <summary>The second half of a two-part card (flip or split), or null. Like <see cref="BackFace"/> it's a full
     /// <see cref="CardModel"/> so the text renderer is reused, one level only (its own halves/back are null)
     /// and flagged <see cref="IsOtherHalf"/>. Unlike a back face it is NOT a side of its own: it prints on the
     /// same face as the front, so exports and print sheets never give it a slot or a back. Set-level fields
-    /// (set, rarity, collector number, credits) and — for a flip card — the art are the front's.</summary>
+    /// (set, rarity, collector number, credits) and — for a flip card — the art are the front's; a split half has
+    /// its own art.</summary>
     public CardModel? OtherHalf
     {
         get => _otherHalf;
@@ -203,10 +204,17 @@ public sealed class CardModel : INotifyPropertyChanged
     [JsonIgnore]
     public bool IsFlip => _otherHalf != null && string.Equals(_halfLayout?.Trim(), "flip", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>A split card (<i>Wear // Tear</i>, <i>Fire // Ice</i>, a Duskmourn Room): the two halves are small
+    /// cards side by side, each with its own name, cost, type, rules and art, read with the card turned
+    /// sideways.</summary>
+    [JsonIgnore]
+    public bool IsSplit => _otherHalf != null && string.Equals(_halfLayout?.Trim(), "split", StringComparison.OrdinalIgnoreCase);
+
     private void RaiseTwoPart()
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsTwoPart)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsFlip)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSplit)));
     }
 
     /// <summary>Replaces any null string field with "" — System.Text.Json happily writes null into a
