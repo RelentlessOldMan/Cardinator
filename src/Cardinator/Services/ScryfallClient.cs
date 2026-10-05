@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using Cardinator.Models;
@@ -47,6 +47,19 @@ public sealed class ScryfallClient
         var json = await GetAsync(url, ct);
         if (json is null) return Array.Empty<CardModel>();
 
+        try { return ScryfallMapper.MapFaces(json); }
+        catch (JsonException) { throw new ScryfallException("Scryfall returned an unexpected response."); }
+    }
+
+    /// <summary>Fetches one card by its Scryfall API address (e.g. a meld part's melded card from
+    /// <c>all_parts</c>). Empty if it isn't found. Only api.scryfall.com addresses are followed.</summary>
+    public async Task<IReadOnlyList<CardModel>> LookupUriAsync(string uri, CancellationToken ct = default)
+    {
+        if (!Uri.TryCreate(uri, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps
+            || !u.Host.Equals("api.scryfall.com", StringComparison.OrdinalIgnoreCase))
+            return Array.Empty<CardModel>();
+        var json = await GetAsync(u.AbsoluteUri, ct);
+        if (json is null) return Array.Empty<CardModel>();
         try { return ScryfallMapper.MapFaces(json); }
         catch (JsonException) { throw new ScryfallException("Scryfall returned an unexpected response."); }
     }

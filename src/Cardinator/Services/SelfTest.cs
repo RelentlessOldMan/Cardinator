@@ -314,6 +314,12 @@ public static class SelfTest
                 ok++;
                 Console.WriteLine($"  {card.Name}  ->  {name}.png  [{tpl.Name}]"
                     + (missing ? $"  (templateName '{card.TemplateName}' not found — used fallback)" : ""));
+                if (card.BackFace is { } back)   // a double-faced card's back, named like an export's
+                {
+                    var backTpl = (!string.IsNullOrEmpty(back.TemplateName) && byName.TryGetValue(back.TemplateName, out var bt)) ? bt : tpl;
+                    CardExporter.SavePng(renderer.RenderToBitmap(back, backTpl, scale), Path.Combine(outDir, name + "-back.png"));
+                    Console.WriteLine($"  {back.Name}  ->  {name}-back.png  [{backTpl.Name}]");
+                }
             }
 
             Console.WriteLine($"Rendered {ok}/{cards.Count} card(s) to {outDir}.");
@@ -655,6 +661,10 @@ public static class SelfTest
             (C("QA Saga", "{2}{G}", "Enchantment — Saga", "I, II — Search your library for a Forest.\nIII — Create a 5/5 Wurm.", art), "Showcase", "Saga"),
             (C("QA Class", "{1}{B}", "Enchantment — Class", "At the start, gain 1 life.\n{2}: Level 2\nEach opponent loses 1 life.", art), "Azure Modern", "Class"),
             (C("QA Leveler", "{W}", "Creature — Human Knight", "Level up {W} ({W}: Put a level counter on this. Level up only as a sorcery.)\nLEVEL 2-6\n3/3\nFirst strike\nLEVEL 7+\n4/4\nDouble strike", art, "1", "1"), "Gold Multicolor", "Level up"),
+            (MeldBack(C("QA Brisela", "", "Legendary Creature — Eldrazi Angel", "Flying, first strike, vigilance, lifelink", art, "9", "10"), "top"), "Gold Multicolor", "Meld back (top half)"),
+            (MeldBack(C("QA Brisela", "", "Legendary Creature — Eldrazi Angel", "Flying, first strike, vigilance, lifelink", art, "9", "10"), "bottom"), "Alchemist's Steel", "Meld back (bottom half, picture frame)"),
+            (WithAdventure(C("QA Giant", "{2}{R}", "Creature — Giant", "Whenever this creature becomes the target of a spell, it deals 2 damage to that spell's controller.", art, "4", "3")), "Crimson Red", "Adventure (storybook)"),
+            (WithAdventure(C("QA Rider", "{1}{B}{B}", "Creature — Zombie Knight", "Lifelink", art, "2", "3")), "Full Art", "Adventure (full art)"),
             (C("QA Prototype", "{7}", "Artifact Creature — Construct", "Prototype {2}{R} — 3/2 (You may cast this spell with different mana cost, color, and size. It keeps its abilities and types.)\nHaste", art, "6", "4"), "Slate Artifact", "Prototype"),
             (C("QA Mutant", "{3}{G}", "Creature — Beast", "Mutate {1}{G}{G} (If you cast this spell for its mutate cost, put it over or under target non-Human creature you own.)\nReach, trample", art, "4", "4"), "Midnight", "Mutate (dark text box)"),
             (C("QA Artifact", "{4}", "Legendary Artifact — Equipment", "Equipped creature gets +1/+1.\nEquip {2}", art, flavor: "Cold to the touch."), "Slate Artifact", "Artifact (no P/T)"),
@@ -673,6 +683,20 @@ public static class SelfTest
             (WithAftermath(C("QA Fated", "{2}{G}", "Sorcery", "Search your library for a basic land card.", art)), "Sealed Gate", "Aftermath (picture frame's sideways version)"),
         };
 
+        static CardModel MeldBack(CardModel melded, string half)
+        {
+            // A meld part's back IS the melded card, of which it prints one half.
+            var part = new CardModel { Name = "QA Meld Part", MeldHalf = half, DfcStyle = "meld" };
+            part.BackFace = melded;
+            return part.BackFace;
+        }
+        static CardModel WithAdventure(CardModel c)
+        {
+            c.Layout = "adventure";
+            c.AdventureName = "QA Stomp"; c.AdventureCost = "{1}{R}"; c.AdventureType = "Instant — Adventure";
+            c.AdventureText = "Damage can't be prevented this turn. QA Stomp deals 2 damage to any target.";
+            return c;
+        }
         static CardModel WithDefense(CardModel c, string defense) { c.Defense = defense; return c; }
         static CardModel WithSplitHalf(CardModel c)
         {

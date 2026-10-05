@@ -13,10 +13,16 @@ public static class RenderInspector
 {
     /// <summary>Inspects what <paramref name="renderer"/> draws for a card. A split or aftermath card is two
     /// small plain cards, so each half is rendered and inspected on its own, with the template it's drawn with (the other half's issues labelled); anything
-    /// else inspects <paramref name="rendered"/> (or a fresh render).</summary>
+    /// else inspects <paramref name="rendered"/> (or a fresh render). A meld part's back is half of the melded card,
+    /// so the melded card is inspected whole instead.</summary>
     public static IReadOnlyList<ValidationIssue> InspectCard(CardRenderer renderer, CardModel card, Template template,
         BitmapSource? rendered = null)
     {
+        if (card.IsMeldBack)
+        {
+            var melded = CardRenderer.MeldedCard(card);
+            return Inspect(renderer.RenderToBitmap(melded, template), melded, template.Spec);
+        }
         if (!card.IsSplit) return Inspect(rendered ?? renderer.RenderToBitmap(card, template), card, template.Spec);
         var g = CardRenderer.SplitGeometry(card, template);
         var (a, b) = (g.First, g.Other);
@@ -30,7 +36,7 @@ public static class RenderInspector
     {
         // A split card's render is two small cards turned sideways — not the layout these checks measure.
         // InspectCard inspects its halves instead.
-        if (card.IsSplit) return System.Array.Empty<ValidationIssue>();
+        if (card.IsSplit || card.IsMeldBack) return System.Array.Empty<ValidationIssue>();
 
         var issues = new List<ValidationIssue>();
         var spec = templateSpec.WithSubBorderApplied();

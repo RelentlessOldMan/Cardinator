@@ -161,6 +161,22 @@
                         </UniformGrid>
                     </StackPanel>
 
+                    <TextBlock Text="MELD" Style="{StaticResource SectionLabel}"/>
+                    <StackPanel Margin="0,0,0,16">
+                        <UniformGrid Rows="1" Columns="2" Margin="0,0,0,8">
+                            <Button x:Name="MeldToggleBtn" Content="Make meld card" Click="OnToggleMeld" Margin="0,0,3,0"
+                                    ToolTip="Make this a meld card: its back face is the melded card, of which this card's back prints one half"/>
+                            <Button x:Name="MeldPartnerBtn" Content="Add meld partner" Click="OnAddMeldPartner" Margin="3,0,0,0"
+                                    ToolTip="Add the card that melds with this one: its back prints the other half of the same melded card"/>
+                        </UniformGrid>
+                        <UniformGrid Rows="1" Columns="2">
+                            <Button x:Name="MeldHalfBtn" Content="Back: top half" Click="OnSwapMeldHalf" Margin="0,0,3,0"
+                                    ToolTip="Which half of the melded card this card's back prints (its partner prints the other)"/>
+                            <Button x:Name="MeldShowBtn" Content="Show melded card" Click="OnShowMelded" Margin="3,0,0,0"
+                                    ToolTip="Preview the whole melded card, or this card's half of it as printed on its back"/>
+                        </UniformGrid>
+                    </StackPanel>
+
                     <TextBlock Text="FLIP / SPLIT CARD" Style="{StaticResource SectionLabel}"/>
                     <StackPanel Margin="0,0,0,16">
                         <UniformGrid Rows="1" Columns="2" Margin="0,0,0,8">

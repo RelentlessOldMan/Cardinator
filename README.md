@@ -32,7 +32,7 @@ Simple by design: type a name, pick a frame, drop in art, export. Everything els
 Cardinator draws cards across a range of frame **styles** — ornate, clean, classic, faded,
 borderless, full-art, the cinematic **overlay** (full-bleed art with the text over the bottom), and
 the flowing **wave** crown. Every part — frames, mana symbols, loyalty badges, saga chapters, the
-adventure sub-box, rarity pips, the P/T box and footer — is drawn by the app.
+adventure storybook pages, rarity pips, the P/T box and footer — is drawn by the app.
 
 ### **[→ See the full gallery: 13 cards across the classic frame styles](docs/GALLERY.md)**
 
@@ -136,11 +136,12 @@ output are all checked in.** Click a thumbnail for that example's guide.
 ## What it supports
 
 - **Card types:** creatures, spells, **planeswalkers** (loyalty box + ability badges), **sagas**
-  (chapter markers), **classes** (level badges), **adventures** (spell sub-box), and
+  (chapter markers), **classes** (level badges), **adventures** (storybook: the spell on the left page, the creature on the right), and
   **flip cards** (Kamigawa-style: the other half printed upside down below the art, on any drawn frame),
   **split cards** (*Wear // Tear*, Rooms: two small cards side by side with their own art, Fuse bar included,
   on every frame), **aftermath cards** (*Destined // Lead*: one half upright on top, the other sideways below),
   **level up** (*Student of Warfare*: level bands with LEVEL badges and a P/T box each),
+  **meld** (*Bruna* + *Gisela*: two cards whose backs, side by side, make one big melded card),
   **prototype** and **mutate** (the band across the top of the text box, a prototype's in its own colour),
   **double-faced cards** (one card with two faces: flip the preview, a drawn corner indicator, both sides
   exported), and **sideways cards** — **Battles** (with a defense shield), **Planes** and **Phenomena** turn

@@ -71,6 +71,7 @@ public sealed class CardRenderer
     private void Draw(DrawingContext dc, CardModel card, Template template, bool previewHints, bool footer = true)
     {
         if (card.IsSplit) { DrawSplit(dc, card, template, previewHints); return; }
+        if (card.IsMeldBack) { DrawMeldBack(dc, card, template, previewHints); return; }
 
         // When the royal sub-border is on, all regions are inset to make room for it — use the same inset
         // spec the frame generator baked frame.png from, so text/P·T/footer line up with the panels.
@@ -402,6 +403,74 @@ public sealed class CardRenderer
         return half;
     }
 
+    // --- meld (two cards' backs make one big card) ---------------------------
+
+    /// <summary>The melded card itself (<i>Brisela</i>) from a meld part's back face: the same fields drawn as a
+    /// normal, whole card — no half, no double-faced indicator.</summary>
+    internal static CardModel MeldedCard(CardModel back)
+    {
+        var c = back.Clone();   // a clone is never a back face
+        c.MeldHalf = "";
+        c.DfcStyle = "";
+        return c;
+    }
+
+    /// <summary>Where the melded card sits on a meld part's back. The two parts laid side by side make one wide
+    /// rectangle; the melded card fills it, made bigger and turned a quarter counter-clockwise (so it reads with the
+    /// pair turned a quarter clockwise, like a split card), its top half on the left card and its bottom half on
+    /// the right. Each back shows its own half: the "top" part is the left card, the "bottom" part the right.</summary>
+    internal static SplitPart MeldPart(CardModel back, Template template)
+    {
+        var spec = template.Spec;
+        double W = spec.CanvasWidth, H = spec.CanvasHeight;
+        double s = Math.Min(2 * W / H, H / W);                      // as big as fits the pair (×1.4 on a 5:7 card)
+        double ox = (2 * W - s * H) / 2, oy = (H - s * W) / 2;      // centred on the pair
+        double dx = back.IsMeldBottom ? W : 0;                      // the right card sees the pair shifted left
+        // Melded (x, y) → pair (ox + s·y, oy + s·(W − x)): a quarter turn counter-clockwise, top to the left.
+        var m = new Matrix(0, -s, s, 0, ox - dx, oy + s * W);
+        return new SplitPart(MeldedCard(back), template, m, s);
+    }
+
+    /// <summary>A meld part's back: its half of the melded card (drawn whole, through <see cref="MeldPart"/>, and
+    /// cut off at the card's edge), inside the card's own black border.</summary>
+    private void DrawMeldBack(DrawingContext dc, CardModel card, Template template, bool previewHints)
+    {
+        var spec = template.Spec;
+        double W = spec.CanvasWidth, H = spec.CanvasHeight;
+        double cardR = Math.Max(4, spec.CornerRadius);
+        var part = MeldPart(card, template);
+
+        var clip = new RectangleGeometry(new Rect(0, 0, W, H), cardR, cardR);
+        clip.Freeze();
+        dc.PushClip(clip);
+        dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x08, 0x08, 0x0A)), null, new Rect(0, 0, W, H));
+        dc.PushTransform(new MatrixTransform(part.ToCard));
+        Draw(dc, part.Card, template, previewHints);
+        dc.Pop();
+        dc.Pop();
+        DrawOuterBorder(dc, W, H, cardR, spec);
+    }
+
+    /// <summary>The meld icon on a meld part's front: two halves of a triangle closing together.</summary>
+    private static void DrawMeldGlyph(DrawingContext dc, Point c, double r)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(0xED, 0xE6, 0xD0));
+        double h = r * 1.05, w = r * 0.62, gap = r * 0.09;
+        double top = c.Y - h / 2, bottom = c.Y + h / 2;
+        foreach (var side in new[] { -1, 1 })
+        {
+            var g = new StreamGeometry();
+            using (var s = g.Open())
+            {
+                s.BeginFigure(new Point(c.X + side * gap, top), true, true);
+                s.LineTo(new Point(c.X + side * (gap + w), bottom), true, false);
+                s.LineTo(new Point(c.X + side * gap, bottom), true, false);
+            }
+            g.Freeze();
+            dc.DrawGeometry(brush, null, g);
+        }
+    }
+
     /// <summary>The badge (center, radius) for the DFC indicator, or null when the card shows none. Always
     /// keyed to the title panel's top-left corner — never to the card corner — so it sits in the same spot on
     /// the title bar whatever the frame's border or top decoration (it isn't user-positionable). Only if the
@@ -438,7 +507,11 @@ public sealed class CardRenderer
         var rim = new Pen(new SolidColorBrush(Color.FromArgb(0xFF, 0xED, 0xE6, 0xD0)), Math.Max(1.5, r * 0.10));
         dc.DrawEllipse(badgeFill, rim, c, r, r);
 
-        if (style == "sunmoon")
+        if (style == "meld")
+        {
+            DrawMeldGlyph(dc, c, r);
+        }
+        else if (style == "sunmoon")
         {
             if (card.IsBackFace) DrawMoon(dc, c, r); else DrawSun(dc, c, r);
         }
@@ -2454,56 +2527,122 @@ public sealed class CardRenderer
         return g;
     }
 
-    // --- adventure (creature + spell sub-box) -------------------------------
+    // --- adventure (storybook: the spell on the left page, the creature on the right) ---------------
+
+    /// <summary>Where an adventure card's text box parts go, the modern storybook way (<i>Bonecrusher Giant</i>
+    /// from Wilds of Eldraine on): the text box opens like a book, the adventure spell on the left page — a
+    /// name bar with its cost, its type line, then its rules — and the creature's rules and flavor on the right
+    /// page, around the P/T box. Both pages share one rules size, shrunk until both fit.</summary>
+    internal (Rect Left, Rect NameBar, Rect TypeRow, Rect LeftText, Rect Right, double Size) AdventureLayout(
+        CardModel card, TemplateSpec spec, Rect? avoid)
+    {
+        var tb = ToRect(spec.EffectiveTextBox);
+        double inset = 3, pad = 10, gap = 4;
+        var box = new Rect(tb.X + inset, tb.Y + inset, Math.Max(0, tb.Width - 2 * inset), Math.Max(0, tb.Height - 2 * inset));
+        double leftW = Math.Max(0, box.Width * 0.5 - gap / 2);
+        var left = new Rect(box.X, box.Y, leftW, box.Height);
+        var right = new Rect(left.Right + gap, box.Y, Math.Max(0, box.Right - left.Right - gap), box.Height);
+
+        double size = spec.RulesFont.Size, nameH = 0, typeH = 0;
+        double minSize = Math.Min(9, spec.RulesFont.Size);
+        for (size = Math.Max(minSize, spec.RulesFont.Size); size >= minSize; size -= 1)
+        {
+            double scale = size / spec.RulesFont.Size;
+            nameH = AdventureNameHeight(size);
+            typeH = size * 1.5;
+            double sym = spec.RulesSymbolSize * scale;
+            var lcol = new Rect(left.X + pad, left.Y + nameH + typeH + pad * 0.6, Math.Max(20, left.Width - 2 * pad), 100000);
+            double lh = (card.AdventureText ?? "").Trim().Length == 0 ? 0
+                : LayoutContent(card.AdventureText!, "", lcol, spec.RulesFont, size, spec.FlavorFont, spec.FlavorFont.Size * scale, sym, null).Height;
+            var rcol = new Rect(right.X + pad, right.Y + pad, Math.Max(20, right.Width - 2 * pad), 100000);
+            double rh = card.RulesText.Trim().Length + card.FlavorText.Trim().Length == 0 ? 0
+                : LayoutContent(card.RulesText, card.FlavorText, rcol, spec.RulesFont, size, spec.FlavorFont, spec.FlavorFont.Size * scale, sym, avoid).Height;
+            if (nameH + typeH + pad * 0.6 + lh + pad <= box.Height && rh + 2 * pad <= box.Height) break;
+        }
+        size = Math.Max(size, minSize);
+        nameH = AdventureNameHeight(size);
+        typeH = size * 1.5;
+
+        var nameBar = new Rect(left.X, left.Y, left.Width, Math.Min(nameH, left.Height));
+        var typeRow = new Rect(left.X + pad, nameBar.Bottom, Math.Max(0, left.Width - 2 * pad), Math.Min(typeH, Math.Max(0, left.Bottom - nameBar.Bottom)));
+        var leftText = new Rect(left.X + pad, typeRow.Bottom + pad * 0.6, Math.Max(20, left.Width - 2 * pad),
+            Math.Max(0, left.Bottom - typeRow.Bottom - pad * 1.6));
+        var rightText = new Rect(right.X + pad, right.Y + pad, Math.Max(20, right.Width - 2 * pad), Math.Max(0, right.Height - 2 * pad));
+        return (left, nameBar, typeRow, leftText, rightText, size);
+    }
+
+    private static double AdventureNameHeight(double size) => size * 2.0;
 
     private void DrawAdventure(DrawingContext dc, CardModel card, TemplateSpec spec)
     {
-        var tb = ToRect(spec.EffectiveTextBox);
-        double advH = tb.Height * 0.44;
-        var advRect = new Rect(tb.X + 10, tb.Y + 8, tb.Width - 20, advH - 14);
+        // The creature's rules always wrap around its P/T box (the right page ends right above it).
+        Rect? avoid = card.HasDefense ? DefenseRect(spec) : card.HasPowerToughness ? PtRect(spec) : null;
+        var (left, nameBar, typeRow, leftText, rightText, size) = AdventureLayout(card, spec, avoid);
+        double scale = size / spec.RulesFont.Size;
+        double sym = spec.RulesSymbolSize * scale;
 
-        dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)),
-            new Pen(new SolidColorBrush(Color.FromArgb(130, 60, 50, 20)), 1.5), advRect, 8, 8);
+        // Left page: a light wash of the spell's colour, its name bar a stronger band of the same colour.
+        var tint = PrototypeTint(card.AdventureCost);
+        var edge = DarkenC(tint, 0.35);
+        double r = Math.Min(10, nameBar.Height * 0.3);
+        dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(60, tint.R, tint.G, tint.B)),
+            new Pen(new SolidColorBrush(Color.FromArgb(150, edge.R, edge.G, edge.B)), 1.4), left, r, r);
+        var light = LightenC(tint, 0.12);
+        var fill = new LinearGradientBrush(Color.FromArgb(240, light.R, light.G, light.B),
+            Color.FromArgb(240, tint.R, tint.G, tint.B), new Point(0, 0), new Point(0, 1));
+        fill.Freeze();
+        dc.DrawRoundedRectangle(fill, new Pen(new SolidColorBrush(edge), 1.8), nameBar, r, r);
 
-        double pad = 14;
-        double innerX = advRect.X + pad, innerR = advRect.Right - pad;
-        var brush = new SolidColorBrush(TemplateSpec.ParseColor(spec.TypeFont.Color));
-
-        // name + adventure mana cost
-        double symSize = spec.RulesSymbolSize;
-        double symGap = symSize * 0.08;
+        // Name and cost on the bar — always dark ink, as the bar is always a light tint.
+        var ink = new SolidColorBrush(Color.FromRgb(0x1C, 0x1A, 0x17));
         var costTokens = ManaText.Tokenize(ManaText.NormalizeCost(card.AdventureCost)).Where(t => t.IsSymbol).ToList();
-        double manaW = costTokens.Count == 0 ? 0 : costTokens.Count * symSize + (costTokens.Count - 1) * symGap;
-
-        double rowY = advRect.Y + pad * 0.6;
+        double nameSym = Math.Min(sym, nameBar.Height * 0.72), symGap = nameSym * 0.08;
+        double manaW = costTokens.Count == 0 ? 0 : costTokens.Count * nameSym + (costTokens.Count - 1) * symGap;
+        double padX = 10;
         var nameFt = FitText(card.AdventureName,
-            new FontSpec { Family = spec.TitleFont.Family, Bold = true, Color = spec.TypeFont.Color },
-            spec.TypeFont.Size, 12, innerR - innerX - manaW - 6, brush);
-        dc.DrawText(nameFt, new Point(innerX, rowY));
-
-        double cx = innerR - manaW, symY = rowY + (nameFt.Height - symSize) / 2;
+            new FontSpec { Family = spec.TitleFont.Family, Bold = true, Color = "#1C1A17" },
+            size * 1.1, 8, Math.Max(10, nameBar.Width - 2 * padX - manaW - 6), ink);
+        dc.DrawText(nameFt, new Point(nameBar.X + padX, nameBar.Y + (nameBar.Height - nameFt.Height) / 2));
+        double cx = nameBar.Right - padX - manaW, symY = nameBar.Y + (nameBar.Height - nameSym) / 2;
         foreach (var t in costTokens)
         {
-            var s = _symbols.GetSymbol(t.Value);
-            if (s != null) dc.DrawImage(s, new Rect(cx, symY, symSize, symSize));
-            cx += symSize + symGap;
+            if (_symbols.GetSymbol(t.Value) is { } s) dc.DrawImage(s, new Rect(cx, symY, nameSym, nameSym));
+            cx += nameSym + symGap;
         }
 
-        // adventure type line
-        double typeY = rowY + nameFt.Height + 1;
-        var typeFt = MakeText(card.AdventureType,
-            new FontSpec { Family = spec.TypeFont.Family, Italic = true, Color = spec.TypeFont.Color },
-            spec.TypeFont.Size * 0.8, brush);
-        dc.DrawText(typeFt, new Point(innerX, typeY));
+        // The spell's type line, in the page's ink.
+        var typeFont = new FontSpec
+        {
+            Family = spec.TypeFont.Family, Italic = true, Color = spec.RulesFont.Color,
+            Shadow = spec.RulesFont.Shadow, ShadowColor = spec.RulesFont.ShadowColor,
+        };
+        var typeFt = FitText(card.AdventureType, typeFont, size * 0.95, 8, Math.Max(10, typeRow.Width),
+            new SolidColorBrush(TemplateSpec.ParseColor(spec.RulesFont.Color)));
+        DrawGlyphRun(dc, typeFt, new Point(typeRow.X, typeRow.Y + (typeRow.Height - typeFt.Height) / 2), typeFont);
 
-        // adventure rules text
-        double advTextTop = typeY + typeFt.Height;
-        var advTextRegion = new Region { X = advRect.X + 2, Y = advTextTop - 6, W = Math.Max(0, advRect.Width - 4), H = Math.Max(0, advRect.Bottom - advTextTop + 2) };
-        DrawTextBox(dc, card.AdventureText, "", advTextRegion, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize * 0.9);
+        var rules = SizedFont(spec.RulesFont, size);
+        var flavor = SizedFont(spec.FlavorFont, spec.FlavorFont.Size * scale);
+        DrawLaidOut(dc, LayoutContent(card.AdventureText ?? "", "", leftText, rules, size, flavor, flavor.Size, sym, null), rules, leftText);
+        DrawLaidOut(dc, LayoutContent(card.RulesText, card.FlavorText, rightText, rules, size, flavor, flavor.Size, sym, avoid), rules, rightText);
+    }
 
-        // creature rules below the sub-box
-        var rulesRegion = new Region { X = tb.X, Y = tb.Y + advH, W = tb.Width, H = Math.Max(0, tb.Height - advH) };
-        DrawTextBox(dc, card.RulesText, card.FlavorText, rulesRegion, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize);
+    private static FontSpec SizedFont(FontSpec f, double size) => new()
+    {
+        Family = f.Family, Size = size, Bold = f.Bold, Italic = f.Italic, Align = f.Align,
+        Color = f.Color, Shadow = f.Shadow, ShadowColor = f.ShadowColor,
+    };
+
+    /// <summary>Draws text laid out by <see cref="LayoutContent"/> (its glyphs, symbols and flavor divider).</summary>
+    private void DrawLaidOut(DrawingContext dc, TextLayout layout, FontSpec rulesFont, Rect box)
+    {
+        foreach (var p in layout.Items)
+        {
+            if (p.Text != null) DrawGlyphRun(dc, p.Text, new Point(p.X, p.Y), rulesFont);
+            else if (p.Sym != null) dc.DrawImage(p.Sym, new Rect(p.X, p.Y, p.SymSize, p.SymSize));
+        }
+        var dividerPen = new Pen(new SolidColorBrush(Color.FromArgb(70, 40, 30, 10)), 1.2);
+        foreach (var d in layout.Dividers)
+            dc.DrawLine(dividerPen, new Point(box.X + box.Width * 0.12, d), new Point(box.Right - box.Width * 0.12, d));
     }
 
     // --- text helpers -------------------------------------------------------

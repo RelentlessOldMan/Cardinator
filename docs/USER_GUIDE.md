@@ -96,7 +96,7 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Planeswalker** | Type line contains "Planeswalker", set **Loyalty** | Loyalty box + one badge per ability line (`+2:`, `-3:`, `-8:`) |
 | **Saga** | Type line contains "Saga" | Chapter badges (`I`, `II`, `III`) beside each chapter |
 | **Class** | Type line contains "Class" | Level badges beside each level's abilities |
-| **Adventure** | Fill the **Adventure** fields (or import an adventure card) | A spell sub-box on the creature |
+| **Adventure** | Fill the **Adventure** fields (or import an adventure card) | A storybook text box: the spell on the left page, the creature's rules on the right |
 | **Double-faced** | Look up a real DFC, or **Make double-faced** | One card with a **front + back face** you can flip |
 | **Battle** | Type line contains "Battle" (e.g. *Battle — Siege*), set **Defense** | **Sideways** card + a defense shield bottom-right |
 | **Plane / Phenomenon** | Type line contains "Plane" or "Phenomenon" | **Sideways** card (Planechase) |
@@ -105,6 +105,7 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Level up** | Rules with lines like `LEVEL 2-6`, then `3/3`, then that level's rules | Text box split into **level bands**, each with a LEVEL badge and its own P/T box |
 | **Prototype** | First rules line like `Prototype {2}{R} — 3/2 (…)` | A band across the top of the text box in the prototype's colour, with its own cost and P/T |
 | **Mutate** | First rules line like `Mutate {1}{G}{G} (…)` | The mutate line in a shaded band across the top of the text box |
+| **Meld** | **Make meld card** (MELD section), or look up a meld card | Two double-faced cards whose backs, side by side, make one big melded card |
 | **Aftermath** | A split card whose other half's rules start with **Aftermath** | First half **upright across the top**, the other half **sideways** below it |
 
 **Double-faced cards (DFC).** A card can have a **back face** — a front/back card that flips. Looking up a real
@@ -162,6 +163,14 @@ the frame's own card, just smaller. A split card prints on one side, like a flip
 
 <p><img src="images/split-card.png" width="360" alt="A split card: two small cards side by side, turned sideways, with a Fuse bar across both"></p>
 
+**Adventures.** An adventure card (*Bonecrusher Giant*) opens its text box like a book, the way cards have since
+*Wilds of Eldraine*: the adventure spell is on the **left page** — a name bar in the spell's colour with its cost,
+its type line, then its rules — and the creature's rules and flavor are on the **right page**, wrapping above the
+P/T box. Both pages use the same rules size, so the spell reads as easily as the creature. Fill the **Adventure**
+fields in **Edit details…** (or look an adventure card up) and it's drawn this way on every frame.
+
+<p><img src="images/adventure-card.png" width="360" alt="An adventure card: the spell on the left page of the text box, the creature's rules on the right"></p>
+
 **Level up.** A leveler (*Student of Warfare*) lists its levels the way Scryfall writes them — a line
 `LEVEL 2-6`, then that level's power/toughness on its own line (`3/3`), then its rules, and so on up to `LEVEL 7+`.
 Cardinator splits the text box into **bands**: the first holds the *Level up* text with the card's own P/T, and each
@@ -191,9 +200,23 @@ frame without one shows its normal upright picture in the top half.
 
 <p><img src="images/aftermath-card.png" width="360" alt="An aftermath card: the first half upright across the top, the other half turned sideways below"></p>
 
+**Meld.** A meld pair (*Bruna, the Fading Light* and *Gisela, the Broken Blade*) are two double-faced cards whose
+**backs are the two halves of one big card** (*Brisela, Voice of Nightmares*): put the two cards side by side, turn
+them a quarter clockwise, and the melded card reads across both. In Cardinator each part is a double-faced card whose
+**back face is the melded card**; the back prints only its half. The **MELD** section has the controls:
+**Make meld card** (its back becomes the melded card — edit it with **Edit back face…**), **Add meld partner** (adds
+the other card, its back printing the other half of the same melded card), **Back: top half / bottom half** (which
+half this card's back prints; the partner gets the other), and **Show melded card** (preview the whole melded card,
+or this card's half as printed). Edits to the melded card through either part — its text, art, pan and zoom — reach
+both. Looking up a meld card brings its melded card along and picks the right half; the status line names the
+partner to add. The fronts show a meld icon. Exports and print sheets give each part its own back, so printing
+double-sided just works: the top-half card goes on the left.
+
+<p><img src="images/meld-card.png" width="520" alt="A meld pair's backs side by side: one big card, turned sideways, split across the two"></p>
+
 **Authoring them by hand:** open **Edit details…** and use the **Special layouts** section to set a
 **Subtitle** (a small plate under the title, on any card), the **Adventure** half (name/cost/type/text —
-filling the name turns on the adventure sub-box), or a land's **big mana symbols** (`{R}{G}`) and how they're
+filling the name turns on the storybook text box), or a land's **big mana symbols** (`{R}{G}`) and how they're
 arranged (`row`, `splitv`, `splith`, `pie`, `yinyang`). Planeswalker/Saga/Class still come from the type
 line + rules-text syntax. Everything in Edit details… can be backed out with **Cancel**.
 

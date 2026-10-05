@@ -375,6 +375,61 @@ public class WindowSmokeTests
             Assert.True(main.Dirty, "moving the other half's art did not dirty the project");
         });
 
+    [Fact]
+    public void MainWindow_MeldCard_PartnerPrintsTheOtherHalf_AndTheMeldedCardStaysInSync()   // 1.6.5 meld
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            card.Name = "Gisela, the Broken Blade";
+            Invoke(main, "OnToggleMeld", null, null);
+            Assert.True(card.IsMeld);
+            Assert.Equal("top", card.MeldHalf);
+            card.BackFace!.Name = "Brisela, Voice of Nightmares";
+
+            int before = main.Cards.Count;
+            Invoke(main, "OnAddMeldPartner", null, null);
+            Assert.Equal(before + 1, main.Cards.Count);
+            var partner = main.Cards[main.Cards.IndexOf(card) + 1];
+            Assert.True(partner.IsMeld);
+            Assert.Equal("bottom", partner.MeldHalf);
+            Assert.Equal("Brisela, Voice of Nightmares", partner.BackFace!.Name);
+            Assert.Same(partner, main.MeldPartner(card));
+
+            // An edit to the melded card through one part reaches the other part's back.
+            card.BackFace.RulesText = "Flying, first strike, vigilance, lifelink";
+            card.BackFace.ArtOffsetX = 0.2;
+            Assert.Equal("Flying, first strike, vigilance, lifelink", partner.BackFace.RulesText);
+            Assert.Equal(0.2, partner.BackFace.ArtOffsetX);
+            Assert.Equal("bottom", partner.BackFace.MeldHalf);   // its own half is kept
+
+            // Swapping the halves swaps both.
+            Invoke(main, "OnSwapMeldHalf", null, null);
+            Assert.Equal("bottom", card.MeldHalf);
+            Assert.Equal("top", partner.MeldHalf);
+
+            // "Show melded card" previews the whole melded card: an upright card, not this back's half.
+            Invoke(main, "OnShowMelded", null, null);
+            var whole = TestHelpers.Pixels(main.PreviewImage!);
+            Invoke(main, "OnShowMelded", null, null);
+            var half = TestHelpers.Pixels(main.PreviewImage!);
+            Assert.NotEqual(whole, half);
+        });
+
+    [Fact]
+    public void MainWindow_MeldBack_ArtMovesTheWayTheMouseGoes()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            Invoke(main, "OnToggleMeld", null, null);
+            card.BackFace!.ArtPath = "brisela.png";
+            Invoke(main, "OnFlipPreview", null, null);   // show the back (the melded card's top half, turned)
+            Invoke(main, "NudgeArt", 0.0, 0.01);         // down on the back = towards the melded card's left edge
+            Assert.True(card.BackFace.ArtOffsetX < 0, "the melded card's art didn't move left");
+            Assert.Equal(0, card.BackFace.ArtOffsetY, 6);
+        });
+
     private static void Invoke(object target, string method, params object?[] args)
         => target.GetType().GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .Invoke(target, args);

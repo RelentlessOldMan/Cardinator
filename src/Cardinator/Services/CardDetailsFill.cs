@@ -71,6 +71,46 @@ public static class CardDetailsFill
         return Array.Empty<CardModel>();
     }
 
+    /// <summary>Makes a looked-up meld part (<i>Bruna</i>, from <paramref name="part"/>) a meld card: its back face
+    /// becomes the melded card (<paramref name="melded"/>, <i>Brisela</i>), of which this card prints one half. The
+    /// melded card's collector number is the bottom half's part's number plus a letter ("14b" on <i>Bruna</i>'s
+    /// 14 — the bottom half carries the credits), so that part prints the bottom half and its partner the top.
+    /// Only onto a card with no back or other half yet.</summary>
+    public static bool AttachMeld(CardModel card, CardModel part, CardModel? melded)
+    {
+        if (!string.IsNullOrWhiteSpace(part.MeldWith)) card.MeldWith = part.MeldWith;
+        if (melded == null || card.IsDoubleFaced || card.OtherHalf != null) return false;
+        var url = melded.ArtUrl;
+        var back = melded.Clone();
+        back.ArtUrl = url;
+        back.TemplateName = card.TemplateName;
+        back.Layout = "";
+        card.MeldHalf = NumberRoot(melded.CollectorNumber) is { Length: > 0 } root
+                        && root == NumberRoot(part.CollectorNumber) ? "bottom" : "top";
+        card.BackFace = back;
+        if (string.IsNullOrWhiteSpace(card.DfcStyle) || card.DfcStyle == "none") card.DfcStyle = "meld";
+        return true;
+    }
+
+    /// <summary>The digits a collector number starts with ("14b" → "14").</summary>
+    private static string NumberRoot(string? n)
+        => new((n ?? "").Trim().TakeWhile(char.IsDigit).ToArray());
+
+    /// <summary>Fetches a looked-up meld part's melded card (when <see cref="CardModel.MeldResultUrl"/> is set) and
+    /// attaches it with <see cref="AttachMeld"/>. Best effort: false when there's nothing to fetch or it fails.</summary>
+    public static async Task<bool> AttachMeldAsync(ScryfallClient client, CardModel card, CardModel part, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(part.MeldResultUrl) || card.IsDoubleFaced || card.OtherHalf != null)
+        {
+            if (!string.IsNullOrWhiteSpace(part.MeldWith)) card.MeldWith = part.MeldWith;
+            return false;
+        }
+        IReadOnlyList<CardModel> faces;
+        try { faces = await client.LookupUriAsync(part.MeldResultUrl, ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { return false; }
+        return AttachMeld(card, part, faces.FirstOrDefault());
+    }
+
     /// <summary>Scryfall's art for a split card is BOTH halves' art side by side (left half first). Once a
     /// lookup has downloaded it onto the card, give each half its own side. Only touches a split card whose
     /// other half has no art yet; if the image can't be cut, both halves share it.</summary>

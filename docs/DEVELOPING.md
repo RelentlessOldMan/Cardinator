@@ -138,7 +138,7 @@ examples/                  Worked examples (inputs + outputs): real-cards/custom
    show through. Full-art frames are just a thin border, and legibility scrims + per-font `shadow`
    outlines keep the text readable directly on the art.
 3. **Title + mana**, **type line + rarity pip**, then the **body** — which branches by card type:
-   planeswalker / saga / class (badged rows), adventure (sub-box), or a normal rules+flavor box.
+   planeswalker / saga / class (badged rows), adventure (storybook pages), or a normal rules+flavor box.
 4. **Power/Toughness** (or **loyalty**), then the **footer** (collector / set / artist).
 
 The live preview renders at `supersample: 1`; export uses `supersample: 2` for print quality.
