@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -154,6 +154,19 @@ public sealed class CardModel : INotifyPropertyChanged
     [JsonIgnore]
     public bool IsDoubleFaced => _backFace != null;
 
+    /// <summary>Replaces any null string field with "" — System.Text.Json happily writes null into a
+    /// non-nullable string property, and a hand-edited or third-party file with <c>"typeLine": null</c>
+    /// would then throw from the computed properties (IsPlaneswalker, IsSaga…) and fail to render. Part of
+    /// the tolerant-read promise; applied after every load.</summary>
+    internal void CoalesceNullStrings()
+    {
+        foreach (var p in typeof(CardModel).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            if (p.PropertyType == typeof(string) && p.CanRead && p.CanWrite
+                && p.GetIndexParameters().Length == 0 && p.GetValue(this) == null)
+                p.SetValue(this, "");
+        _backFace?.CoalesceNullStrings();
+    }
+
     /// <summary>This card and its back face (when double-faced), front first — one level only, matching the
     /// model invariant. Use this wherever a per-card operation must cover BOTH faces: art localization,
     /// relative/absolute path rewriting, missing-art counts and validation. Forgetting the back face is how
@@ -235,8 +248,10 @@ public sealed class CardModel : INotifyPropertyChanged
     public static CardModel Load(string path)
     {
         var json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<CardModel>(json, JsonOpts)
+        var card = JsonSerializer.Deserialize<CardModel>(json, JsonOpts)
                ?? throw new InvalidDataException($"Could not parse card: {path}");
+        card.CoalesceNullStrings();
+        return card;
     }
 
     public void Save(string path)

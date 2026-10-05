@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.RegularExpressions;
 using Cardinator.Models;
 
@@ -54,7 +54,15 @@ public static class ImportService
     /// the UI uses this to steer the user to the site's Export button rather than attempting a doomed fetch.
     /// </summary>
     private static string NameKey(string? name)
-        => (name ?? "").Trim().ToLowerInvariant();
+    {
+        var n = (name ?? "").Trim();
+        // A double-faced card is written either way ("Delver of Secrets" or "Delver of Secrets // Insectile
+        // Aberration"), and Scryfall canonicalises to the front face — so key on the front half, otherwise
+        // re-importing the same deck list silently appends duplicates instead of warning.
+        int split = n.IndexOf("//", StringComparison.Ordinal);
+        if (split > 0) n = n[..split].Trim();
+        return n.ToLowerInvariant();
+    }
 
     /// <summary>Counts how many incoming cards share a name (case-insensitive) with a card already in the
     /// project — so re-importing the same list can warn instead of silently appending duplicates (L3).</summary>

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.RegularExpressions;
 using Cardinator.Models;
 
@@ -27,6 +27,8 @@ public static class CardValidator
     private static readonly Regex KnownSymbol = new(
         @"^(?:\d+|[WUBRGCS]|[XYZ]|T|Q|E|P|CHAOS|½|∞|" +
         @"(?:2|W|U|B|R|G|C)/(?:W|U|B|R|G|C|P)|" +
+        @"(?:W|U|B|R|G|C)/(?:W|U|B|R|G|C)/P|" +   // two-colour Phyrexian, e.g. {G/U/P} (Tamiyo, Compleated)
+        @"H[WUBRG]|" +                            // half symbols, e.g. {HW} (Unhinged)
         @"(?:W|U|B|R|G|C)/P)$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
