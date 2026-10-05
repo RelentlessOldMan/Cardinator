@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -26,6 +26,16 @@ public sealed class CardRenderer
     private const int ArtCacheMax = 12;
 
     public CardRenderer(SymbolService symbols) => _symbols = symbols;
+
+    /// <summary>Drops the caches derived from mana-symbol ART (the big-land coin silhouette and the pip
+    /// background colors). Call this when <see cref="SymbolService"/> reports new symbols: the pips
+    /// themselves pick up the real Scryfall SVGs immediately, but anything sampled FROM a pip would
+    /// otherwise keep the colors it derived from the offline drawn fallback until the app restarted.</summary>
+    public void ClearSymbolCaches()
+    {
+        _iconSil.Clear();
+        _pipBg.Clear();
+    }
 
     /// <param name="previewHints">
     /// When true (the live preview), an empty art window shows a subtle "add art" placeholder.
@@ -92,7 +102,8 @@ public sealed class CardRenderer
         DrawTypeLine(dc, card, spec);
 
         if (card.IsPlaneswalker)
-            DrawBadgedRows(dc, ParseAbilities(card.RulesText), spec, loyaltyShields: true);
+            DrawBadgedRows(dc, ParseAbilities(card.RulesText), spec, loyaltyShields: true,
+                avoid: string.IsNullOrWhiteSpace(card.Loyalty) ? null : LoyaltyRect(spec));
         else if (card.IsSaga)
             DrawBadgedRows(dc, ParseChapters(card.RulesText), spec);
         else if (card.IsClass)
@@ -116,7 +127,7 @@ public sealed class CardRenderer
 
         // Footer placement: "frame" draws it on the colored card (inside the clip, before the border);
         // "border" draws it on the black rim (after the border); "none" skips it.
-        var footerPlacement = (spec.FrameStyle == null ? "frame" : spec.FooterPlacement ?? "frame").Trim().ToLowerInvariant();
+        var footerPlacement = (spec.FooterPlacement ?? "frame").Trim().ToLowerInvariant();
         if (footerPlacement == "frame")
             DrawFooter(dc, card, spec, onBorder: false);
 
@@ -411,7 +422,7 @@ public sealed class CardRenderer
             if (line.Length == 0) return;
             var bfont = new FontSpec
             {
-                Family = spec.CreditFont.Family, Size = Math.Min(spec.CreditFont.Size, t - 12),
+                Family = spec.CreditFont.Family, Size = Math.Max(7, Math.Min(spec.CreditFont.Size, t - 12)),
                 Italic = spec.CreditFont.Italic, Align = "left", Color = "#ECECEC",
             };
             var bbrush = new SolidColorBrush(TemplateSpec.ParseColor(bfont.Color));
@@ -929,7 +940,9 @@ public sealed class CardRenderer
 
         // One panel spanning the type line down through the rules box.
         var type = ToRect(spec.TypeBar);
-        var text = ToRect(spec.TextBox);
+        // EffectiveTextBox, not TextBox: with the footer on the border (or off), the text box extends lower,
+        // and sizing the scrim from the raw TextBox left those last lines sitting on bare art.
+        var text = ToRect(spec.EffectiveTextBox);
         var lower = new Rect(Math.Min(type.X, text.X) - grow, type.Y - grow,
             Math.Max(type.Width, text.Width) + 2 * grow,
             (text.Bottom - type.Y) + 2 * grow);
@@ -1519,7 +1532,9 @@ public sealed class CardRenderer
             if (levelUp.Success)
             {
                 rows.Add((null, t));                 // show the level-up cost line as-is
-                level = int.Parse(levelUp.Groups[1].Value);
+                // TryParse: a 10+ digit level ("Level 2147483648" — a typo or a held key) would otherwise
+                // throw OverflowException out of the render and abort a batch/sheet export.
+                if (int.TryParse(levelUp.Groups[1].Value, out var parsed)) level = parsed;
             }
             else
             {
@@ -1529,23 +1544,11 @@ public sealed class CardRenderer
         return rows;
     }
 
-    private void DrawBadgedRows(DrawingContext dc, List<(string? cost, string text)> rows, TemplateSpec spec, bool loyaltyShields = false)
+    private void DrawBadgedRows(DrawingContext dc, List<(string? cost, string text)> rows, TemplateSpec spec, bool loyaltyShields = false, Rect? avoid = null)
     {
         if (rows.Count == 0) return;
 
-        double pad = 18;
-        var tb0 = spec.EffectiveTextBox;
-        var box = new Rect(tb0.X + pad, tb0.Y + pad,
-            Math.Max(0, tb0.W - 2 * pad), Math.Max(0, tb0.H - 2 * pad));
-
-        // Always run at least once (floor never above the preferred size) so small-font templates still draw.
-        PwLayout? best = null;
-        double minSize = Math.Min(11, spec.RulesFont.Size);
-        for (double size = Math.Max(minSize, spec.RulesFont.Size); size >= minSize; size -= 1)
-        {
-            best = LayoutPw(rows, box, spec.RulesFont, size, spec.RulesSymbolSize * (size / spec.RulesFont.Size), loyaltyShields);
-            if (best.Height <= box.Height) break;
-        }
+        var (best, box) = BestBadgedLayout(rows, spec, loyaltyShields, avoid);
         if (best == null) return;
 
         // Badges/loyalty shields share the P/T box's look by default: same frame-color fill, panel-border
@@ -1578,7 +1581,9 @@ public sealed class CardRenderer
         }
         foreach (var p in best.Placed)
         {
-            if (p.Text != null) dc.DrawText(p.Text, new Point(p.X, p.Y));
+            // DrawGlyphRun (not DrawText) so a shadowed font gets its outline here too — the full-art,
+            // showcase and cinematic templates use white rules text that vanishes on light art without it.
+            if (p.Text != null) DrawGlyphRun(dc, p.Text, new Point(p.X, p.Y), spec.RulesFont);
             else if (p.Sym != null) dc.DrawImage(p.Sym, new Rect(p.X, p.Y, p.SymSize, p.SymSize));
         }
         var dividerPen = new Pen(new SolidColorBrush(Color.FromArgb(70, 40, 30, 10)), 1.2);
@@ -1586,7 +1591,44 @@ public sealed class CardRenderer
             dc.DrawLine(dividerPen, new Point(box.X, d), new Point(box.Right, d));
     }
 
-    private PwLayout LayoutPw(List<(string? cost, string text)> rows, Rect box, FontSpec font, double fontSize, double symSize, bool loyaltyShields = false)
+    /// <summary>Picks the badged-row layout the renderer will actually draw: the text box inset by the
+    /// standard padding, with the font shrunk a point at a time until the rows fit. Separated from the
+    /// drawing so QA/tests can inspect the chosen layout (see <see cref="InspectPlaneswalkerLayout"/>).</summary>
+    private (PwLayout? best, Rect box) BestBadgedLayout(List<(string? cost, string text)> rows, TemplateSpec spec,
+        bool loyaltyShields, Rect? avoid)
+    {
+        double pad = 18;
+        var tb0 = spec.EffectiveTextBox;
+        var box = new Rect(tb0.X + pad, tb0.Y + pad,
+            Math.Max(0, tb0.W - 2 * pad), Math.Max(0, tb0.H - 2 * pad));
+
+        // Always run at least once (floor never above the preferred size) so small-font templates still draw.
+        PwLayout? best = null;
+        double minSize = Math.Min(11, spec.RulesFont.Size);
+        for (double size = Math.Max(minSize, spec.RulesFont.Size); size >= minSize; size -= 1)
+        {
+            best = LayoutPw(rows, box, spec.RulesFont, size, spec.RulesSymbolSize * (size / spec.RulesFont.Size), loyaltyShields, avoid);
+            if (best.Height <= box.Height) break;
+        }
+        return (best, box);
+    }
+
+    /// <summary>QA hook: the rectangles a planeswalker's ability text lays out into, plus the starting-loyalty
+    /// shield's rect. The shield is drawn ON TOP of the abilities, so text running underneath it is invisible
+    /// rather than ugly — it just silently loses words, which is why this is asserted geometrically.</summary>
+    internal (List<Rect> TextRuns, Rect Loyalty) InspectPlaneswalkerLayout(CardModel card, TemplateSpec spec)
+    {
+        var loyalty = LoyaltyRect(spec);
+        var avoid = string.IsNullOrWhiteSpace(card.Loyalty) ? (Rect?)null : loyalty;
+        var (best, _) = BestBadgedLayout(ParseAbilities(card.RulesText), spec, loyaltyShields: true, avoid);
+        var runs = new List<Rect>();
+        foreach (var p in best?.Placed ?? new List<Placed>())
+            if (p.Text != null) runs.Add(new Rect(p.X, p.Y, p.Text.Width, p.Text.Height));
+            else if (p.Sym != null) runs.Add(new Rect(p.X, p.Y, p.SymSize, p.SymSize));
+        return (runs, loyalty);
+    }
+
+    private PwLayout LayoutPw(List<(string? cost, string text)> rows, Rect box, FontSpec font, double fontSize, double symSize, bool loyaltyShields = false, Rect? avoid = null)
     {
         var L = new PwLayout();
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
@@ -1596,6 +1638,13 @@ public sealed class CardRenderer
         double spaceWidth = MakeText(" ", font, fontSize, brush).WidthIncludingTrailingWhitespace;
         var badgeFont = new FontSpec { Family = "Segoe UI", Bold = true };
         double y = box.Y;
+
+        // Lines that overlap a reserved rect (the starting-loyalty shield, bottom-right) wrap early so the
+        // last ability's words don't disappear underneath it.
+        double RightAt(double lineTop) =>
+            avoid is { } a && lineTop + lineHeight > a.Top && lineTop < a.Bottom
+                ? Math.Min(box.Right, a.Left - gap)
+                : box.Right;
 
         for (int r = 0; r < rows.Count; r++)
         {
@@ -1614,7 +1663,7 @@ public sealed class CardRenderer
             foreach (var word in BuildWords(text, font, fontSize, symSize, brush))
             {
                 double g = (first || word.NoLeadingGap) ? 0 : spaceWidth;
-                if (!first && x + g + word.Width > box.Right) { x = box.X; lineY += lineHeight; g = 0; }
+                if (!first && x + g + word.Width > RightAt(lineY)) { x = box.X; lineY += lineHeight; g = 0; }
                 x += g;
                 if (word.Text != null) L.Placed.Add(new Placed(x, lineY, word.Text, null, 0));
                 else if (word.Sym != null) L.Placed.Add(new Placed(x, lineY + (lineHeight - symSize) / 2, null, word.Sym, symSize));
@@ -1634,13 +1683,19 @@ public sealed class CardRenderer
         return L;
     }
 
-    private static void DrawLoyalty(DrawingContext dc, CardModel card, TemplateSpec spec)
+    /// <summary>Where the starting-loyalty shield sits: a touch more compact than the P/T box, anchored to
+    /// the same bottom-right corner so it still nests in the description panel. Shared with the ability
+    /// layout, which must wrap around it instead of running underneath.</summary>
+    private static Rect LoyaltyRect(TemplateSpec spec)
     {
-        // The starting-loyalty badge is a touch more compact than the P/T box, anchored to the same
-        // bottom-right corner so it still nests in the description panel.
         var full = PtRect(spec);
         double w = full.Width * 0.80, h = full.Height * 0.90;
-        var box = new Rect(full.Right - w, full.Bottom - h, w, h);
+        return new Rect(full.Right - w, full.Bottom - h, w, h);
+    }
+
+    private static void DrawLoyalty(DrawingContext dc, CardModel card, TemplateSpec spec)
+    {
+        var box = LoyaltyRect(spec);
 
         // Starting loyalty sits in a downward-pointing shield that matches the P/T box / ability shields
         // (frame-colored fill + panel-border edge), not a hardcoded grey/white.

@@ -349,6 +349,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnSymbolsUpdated()
     {
         if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+        _renderer.ClearSymbolCaches();   // re-derive pip-sampled colors from the real symbol art
         try { Dispatcher.BeginInvoke(new Action(RenderPreview)); } catch { /* shutting down */ }
     }
 
