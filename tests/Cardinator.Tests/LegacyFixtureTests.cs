@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using Cardinator.Models;
@@ -57,6 +57,8 @@ public class LegacyFixtureTests
         Assert.Equal("", aria.Defense);                         // 1.5.0 fields default cleanly...
         Assert.Equal("", aria.Orientation);
         Assert.False(aria.WantsLandscape);                      // ...so an old creature stays upright
+        Assert.Equal("", aria.HalfLayout);                      // 1.6.0: not a flip card
+        Assert.Null(aria.OtherHalf);
         Assert.NotNull(project.Profile);
         Assert.Equal(0, project.FormatVersion);                 // pre-versioning
         Assert.False(project.IsFromNewerVersion);

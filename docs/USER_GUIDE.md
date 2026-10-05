@@ -100,11 +100,12 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Double-faced** | Look up a real DFC, or **Make double-faced** | One card with a **front + back face** you can flip |
 | **Battle** | Type line contains "Battle" (e.g. *Battle — Siege*), set **Defense** | **Sideways** card + a defense shield bottom-right |
 | **Plane / Phenomenon** | Type line contains "Plane" or "Phenomenon" | **Sideways** card (Planechase) |
+| **Flip card** | Look up a real flip card, or **Make flip card** | Two halves on one face: the other half **upside down** below the art |
 
 **Double-faced cards (DFC).** A card can have a **back face** — a front/back card that flips. Looking up a real
 double-faced card imports it as **one card with both faces**, whether you use **Ctrl+L**, a deck/CSV import or
-the search inside **Edit details…**. (A **split** card like *Fire // Ice* is printed on one side, so it still
-comes in as two separate cards rather than a flip.) To build one yourself, click **Make double-faced**
+the search inside **Edit details…**. (A **split** card like *Fire // Ice* is printed on one side, so for now
+it still comes in as two separate cards.) To build one yourself, click **Make double-faced**
 (under the editor), then **Edit back face…** to fill the back's fields and art, and **Show back** to flip the
 preview. The style dropdown adds a corner indicator — **Flip arrow**, or **Sun / moon** (sun on the front,
 crescent moon on the back) — drawn by Cardinator (no third-party art). Exporting writes both sides
@@ -125,6 +126,21 @@ card slot — it's the same physical card size — and on a double-sided sheet i
 behind it. *Imported* frames (a frame image you brought in) are fixed pictures that can't be turned; CHECKS tells
 you when a sideways card is on one, and importing a frame image that is **wider than tall** makes a sideways
 template to match.
+
+**Flip cards.** A Kamigawa-style flip card (*Erayo, Soratami Ascendant*, *Bushi Tenderfoot*) is one card with
+two halves on the **same** side: the top half reads upright — name, rules, then the type line with power/toughness
+at its end — the art fills the middle, and the other half is printed **upside down** below it, for when the card
+flips. Looking up a real flip card brings both halves as **one card**. To make one yourself, click **Make flip
+card** (under the editor), then **Edit flipped half…** for the upside-down half's name, type, rules and P/T (it has
+no mana cost, like the real ones), and **Show flipped** to turn the preview over and read it. Both halves share the
+card's art, set and credits.
+
+<p><img src="images/flip-card.png" width="360" alt="A flip card: the top half upright, the flipped half upside down below the art"></p>
+
+Every drawn frame lays itself out as a flip card automatically. The three *Partial Cardboard Chemist* frames
+come with their own flip and sideways versions, so they work too. Any other *imported* frame image is a fixed
+picture: CHECKS warns that only the upright half can show, and the card prints as a normal card until you pick a
+frame that has a flip layout. A flip card prints on **one** side — no back, one slot on a print sheet.
 
 **Authoring them by hand:** open **Edit details…** and use the **Special layouts** section to set a
 **Subtitle** (a small plate under the title, on any card), the **Adventure** half (name/cost/type/text —

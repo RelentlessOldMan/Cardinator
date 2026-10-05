@@ -45,6 +45,8 @@ public sealed class CardModel : INotifyPropertyChanged
     private string _templateName = "";
     private string _dfcStyle = "";
     private CardModel? _backFace;
+    private string _halfLayout = "";
+    private CardModel? _otherHalf;
 
     /// <summary>Card title, e.g. "Edward Elric, The Fullmetal Alchemist".</summary>
     public string Name { get => _name; set => Set(ref _name, value); }
@@ -165,6 +167,48 @@ public sealed class CardModel : INotifyPropertyChanged
     [JsonIgnore]
     public bool IsDoubleFaced => _backFace != null;
 
+    // --- two-part cards (flip; split and aftermath to follow) ---------------------
+
+    /// <summary>How a two-part card arranges its halves on ONE side of the card: "flip" (Kamigawa: the other
+    /// half printed upside down below the art). Empty for a normal card. Only meaningful with an
+    /// <see cref="OtherHalf"/>.</summary>
+    public string HalfLayout { get => _halfLayout; set { Set(ref _halfLayout, value); RaiseTwoPart(); } }
+
+    /// <summary>The second half of a two-part card (flip), or null. Like <see cref="BackFace"/> it's a full
+    /// <see cref="CardModel"/> so the text renderer is reused, one level only (its own halves/back are null)
+    /// and flagged <see cref="IsOtherHalf"/>. Unlike a back face it is NOT a side of its own: it prints on the
+    /// same face as the front, so exports and print sheets never give it a slot or a back. Set-level fields
+    /// (set, rarity, collector number, credits) and — for a flip card — the art are the front's.</summary>
+    public CardModel? OtherHalf
+    {
+        get => _otherHalf;
+        set
+        {
+            if (value != null) { value._otherHalf = null; value._backFace = null; value.IsOtherHalf = true; }
+            Set(ref _otherHalf, value);
+            RaiseTwoPart();
+        }
+    }
+
+    /// <summary>Transient: true on the second half of a two-part card. Implied by being an
+    /// <see cref="OtherHalf"/>, so it is never persisted.</summary>
+    [JsonIgnore]
+    public bool IsOtherHalf { get; set; }
+
+    /// <summary>True when this card has a second half and a layout to arrange it with.</summary>
+    [JsonIgnore]
+    public bool IsTwoPart => _otherHalf != null && !string.IsNullOrWhiteSpace(_halfLayout);
+
+    /// <summary>A Kamigawa-style flip card: the other half is printed upside down below the shared art.</summary>
+    [JsonIgnore]
+    public bool IsFlip => _otherHalf != null && string.Equals(_halfLayout?.Trim(), "flip", StringComparison.OrdinalIgnoreCase);
+
+    private void RaiseTwoPart()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsTwoPart)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsFlip)));
+    }
+
     /// <summary>Replaces any null string field with "" — System.Text.Json happily writes null into a
     /// non-nullable string property, and a hand-edited or third-party file with <c>"typeLine": null</c>
     /// would then throw from the computed properties (IsPlaneswalker, IsSaga…) and fail to render. Part of
@@ -176,6 +220,7 @@ public sealed class CardModel : INotifyPropertyChanged
                 && p.GetIndexParameters().Length == 0 && p.GetValue(this) == null)
                 p.SetValue(this, "");
         _backFace?.CoalesceNullStrings();
+        _otherHalf?.CoalesceNullStrings();
     }
 
     /// <summary>This card and its back face (when double-faced), front first — one level only, matching the
@@ -186,6 +231,16 @@ public sealed class CardModel : INotifyPropertyChanged
     {
         yield return this;
         if (_backFace != null) yield return _backFace;
+    }
+
+    /// <summary>Every <see cref="CardModel"/> this card is made of: its <see cref="Faces"/> plus a two-part
+    /// card's <see cref="OtherHalf"/>. Use this for operations on stored data that must reach every part
+    /// (art paths travelling with a set, null-coalescing); use <see cref="Faces"/> for things that are per
+    /// printed SIDE (exports, print slots), which the other half never is.</summary>
+    public IEnumerable<CardModel> Parts()
+    {
+        foreach (var f in Faces()) yield return f;
+        if (_otherHalf != null) yield return _otherHalf;
     }
 
     /// <summary>
@@ -307,12 +362,15 @@ public sealed class CardModel : INotifyPropertyChanged
         foreach (var p in typeof(CardModel).GetProperties(BindingFlags.Public | BindingFlags.Instance))
             if (p.CanRead && p.CanWrite && p.GetIndexParameters().Length == 0
                 && p.Name != nameof(IsBackFace)      // transient role flag — a cloned snapshot has it cleared; never copy it
-                && p.Name != nameof(BackFace))       // copied as a deep clone below, never shared by reference
+                && p.Name != nameof(IsOtherHalf)     // same: a transient role flag
+                && p.Name != nameof(BackFace)        // copied as a deep clone below, never shared by reference
+                && p.Name != nameof(OtherHalf))      // likewise
                 p.SetValue(this, p.GetValue(other));
 
         // A straight reflection copy would alias the OTHER card's back face (and the setter would then
         // re-flag and re-sync that instance), leaving two cards silently sharing one mutable back.
         BackFace = other.BackFace?.Clone();
+        OtherHalf = other.OtherHalf?.Clone();
     }
 
     // --- INotifyPropertyChanged ---------------------------------------------

@@ -1,4 +1,4 @@
-using Cardinator.Models;
+﻿using Cardinator.Models;
 
 namespace Cardinator.Services;
 
@@ -37,6 +37,10 @@ public static class SetValidator
                     .Select(i => new ValidationIssue(i.Severity, i.Code, "Back face: " + i.Message));
                 issues.AddRange(backIssues);
             }
+
+            // A flip card's upside-down half is printed too — check its content the same way.
+            issues.AddRange(CardValidator.ValidateOtherHalf(card, resolveSpec(card))
+                .Where(i => i.Severity != IssueSeverity.Info));
 
             if (issues.Count > 0) result.Add(new CardIssues(card, issues));
         }

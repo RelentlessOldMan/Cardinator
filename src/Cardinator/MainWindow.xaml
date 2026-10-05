@@ -1,4 +1,4 @@
-<Window x:Class="Cardinator.MainWindow"
+﻿<Window x:Class="Cardinator.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -159,6 +159,18 @@
                             <ComboBox x:Name="DfcStyleBox" Margin="3,0,0,0" SelectionChanged="OnDfcStyleChanged"
                                       ToolTip="Corner indicator drawn on a double-faced card"/>
                         </UniformGrid>
+                    </StackPanel>
+
+                    <TextBlock Text="FLIP CARD" Style="{StaticResource SectionLabel}"/>
+                    <StackPanel Margin="0,0,0,16">
+                        <UniformGrid Rows="1" Columns="2" Margin="0,0,0,8">
+                            <Button x:Name="FlipToggleBtn" Content="Make flip card" Click="OnToggleFlip" Margin="0,0,3,0"
+                                    ToolTip="Add or remove a flipped half (a Kamigawa flip card: the other half is printed upside down below the art)"/>
+                            <Button x:Name="FlipEditBtn" Content="Edit flipped half…" Click="OnEditFlippedHalf" Margin="3,0,0,0"
+                                    ToolTip="Edit the upside-down half's name, type, rules and power/toughness"/>
+                        </UniformGrid>
+                        <Button x:Name="FlipShowBtn" Content="Show flipped" Click="OnShowFlipped"
+                                ToolTip="Turn the preview upside down to read the flipped half"/>
                     </StackPanel>
 
                     <TextBlock Text="CHECKS" Style="{StaticResource SectionLabel}"/>

@@ -659,9 +659,22 @@ public static class SelfTest
             (C("QA Full Art", "{W}{U}{B}{R}{G}", "Legendary Creature — Avatar", "This spell can't be countered.", art, "7", "7"), "Full Art", "Full-art legend"),
             (WithDefense(C("QA Siege", "{2}{R}", "Battle — Siege", "(As a Siege enters, choose an opponent to protect it. You and others can attack it. When it's defeated, exile it, then cast it transformed.)\nWhen this enters, it deals 3 damage to any target.", art), "5"), "Crimson Red", "Battle (landscape)"),
             (C("QA Plane", "", "Plane — Testing Grounds", "Creatures you control get +1/+1.\nWhenever chaos ensues, draw a card.", art), "Full Art", "Plane (landscape, full art)"),
+            (WithFlipHalf(C("QA Apprentice", "{1}{U}", "Creature — Human Wizard", "Whenever you cast your fourth spell each turn, flip this.", art, "1", "2")), "Ocean Blue", "Flip card"),
+            (WithFlipHalf(C("QA Initiate", "{W}", "Creature — Human Monk", "When this deals combat damage, flip it.", art, "1", "1")), "Showcase", "Flip card (borderless)"),
+            (WithFlipHalf(C("QA Steelhand", "{2}{W}", "Creature — Human Artificer", "Whenever an artifact enters, flip this.", art, "2", "2")), "Alchemist's Steel", "Flip card (picture frame's flip version)"),
         };
 
         static CardModel WithDefense(CardModel c, string defense) { c.Defense = defense; return c; }
+        static CardModel WithFlipHalf(CardModel c)
+        {
+            c.HalfLayout = "flip";
+            c.OtherHalf = new CardModel
+            {
+                Name = c.Name + ", Ascended", TypeLine = "Legendary " + c.TypeLine,
+                RulesText = "Flying\nWhenever an opponent casts a spell, draw a card.", Power = "3", Toughness = "4",
+            };
+            return c;
+        }
     }
 
     private static CardModel QaCreature(string art) => new()

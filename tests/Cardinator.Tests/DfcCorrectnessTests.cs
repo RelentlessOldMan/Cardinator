@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Cardinator.Models;
@@ -40,8 +40,7 @@ public class DfcCorrectnessTests
 
     [Theory]
     [InlineData("split")]
-    [InlineData("flip")]
-    [InlineData("aftermath")]
+    [InlineData("aftermath")]   // (a "flip" card becomes ONE card with its half since 1.6.0 — FlipCardTests)
     [InlineData("adventure")]
     [InlineData("")]
     public void SingleSidedMultiFaceLayouts_DoNotBecomeDoubleFaced(string layout)

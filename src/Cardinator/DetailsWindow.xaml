@@ -1,4 +1,4 @@
-<Window x:Class="Cardinator.DetailsWindow"
+﻿<Window x:Class="Cardinator.DetailsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Edit card details" Height="760" Width="560" MinHeight="520" MinWidth="460"
@@ -40,7 +40,7 @@
                 <TextBlock Text="Card text" Style="{StaticResource GroupHeader}"/>
 
                 <TextBlock Text="Mana cost" Style="{StaticResource SectionLabel}"/>
-                <TextBox Text="{Binding ManaCost, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14"
+                <TextBox x:Name="ManaCostBox" Text="{Binding ManaCost, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14"
                          ToolTip="e.g. {2}{R}{W} — or just type 2RW"/>
 
                 <TextBlock Text="Type line" Style="{StaticResource SectionLabel}"/>

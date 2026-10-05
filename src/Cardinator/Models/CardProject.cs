@@ -104,7 +104,7 @@ public sealed class CardProject
     /// card's back face is rewritten too, so its art travels with the set like the front's.</summary>
     public static void MakeArtRelative(CardModel card, string projectFolder)
     {
-        foreach (var face in card.Faces())
+        foreach (var face in card.Parts())
         {
             face.ArtPath = RelativeArtPath(face.ArtPath, projectFolder);
             face.SetSymbolPath = RelativeArtPath(face.SetSymbolPath, projectFolder);
@@ -115,7 +115,7 @@ public sealed class CardProject
     /// faces of a double-faced card.</summary>
     public static void ResolveArt(CardModel card, string projectFolder)
     {
-        foreach (var face in card.Faces())
+        foreach (var face in card.Parts())
         {
             face.ArtPath = ResolveArtPath(face.ArtPath, projectFolder);
             face.SetSymbolPath = ResolveArtPath(face.SetSymbolPath, projectFolder);

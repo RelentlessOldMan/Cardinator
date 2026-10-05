@@ -263,8 +263,11 @@ public static class FrameGenerator
         var title = ToRect(spec.TitleBar);
         var type = ToRect(spec.TypeBar);
         var text = ToRect(spec.EffectiveTextBox);
-        var lower = new Rect(Math.Min(type.X, text.X), type.Y,
-            Math.Max(type.Width, text.Width), text.Bottom - type.Y);
+        // One panel around the type line + rules box, whichever order they're in (a flip half has the rules
+        // ABOVE the type line); for a normal card this is exactly type-top to text-bottom.
+        double lowerTop = Math.Min(type.Y, text.Y), lowerBottom = Math.Max(type.Bottom, text.Bottom);
+        var lower = new Rect(Math.Min(type.X, text.X), lowerTop,
+            Math.Max(type.Width, text.Width), lowerBottom - lowerTop);
 
         foreach (var rect in new[] { title, lower })
         {

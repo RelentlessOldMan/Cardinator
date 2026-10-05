@@ -110,6 +110,7 @@ public static class TemplateImporter
         // Frame first, then spec — a failure never leaves a spec pointing at a missing frame.
         IoUtil.AtomicWriteBytes(Path.Combine(dir, "frame.png"), frameBytes);
         spec.Save(Path.Combine(dir, "template.json"));
+        ImportVariants(zip, dir);
         return spec.Name;
     }
 
@@ -136,18 +137,73 @@ public static class TemplateImporter
         {
             zip.CreateEntryFromFile(specPath, "template.json");
             zip.CreateEntryFromFile(framePath, "frame.png");
+            // Its hand-made flip / sideways layouts travel with it, so a shared frame keeps them.
+            foreach (var v in new[] { TemplateService.FlipVariant, TemplateService.LandscapeVariant })
+            {
+                var vs = Path.Combine(templateDir, v, "template.json");
+                var vf = Path.Combine(templateDir, v, "frame.png");
+                if (!File.Exists(vs) || !File.Exists(vf)) continue;
+                zip.CreateEntryFromFile(vs, v + "/template.json");
+                zip.CreateEntryFromFile(vf, v + "/frame.png");
+            }
         }
         if (File.Exists(destPath)) File.Delete(destPath);
         File.Move(tmp, destPath);
     }
 
-    private static ZipArchiveEntry? FindEntry(ZipArchive zip, string fileName)
+    /// <summary>Unpacks a bundle's optional flip/ and landscape/ layouts beside the imported frame. Best-effort:
+    /// a damaged variant is skipped (the frame itself is already in), never fails the import.</summary>
+    private static void ImportVariants(ZipArchive zip, string dir)
+    {
+        foreach (var v in new[] { TemplateService.FlipVariant, TemplateService.LandscapeVariant })
+        {
+            var spec = FindVariantEntry(zip, v, "template.json");
+            var frame = FindVariantEntry(zip, v, "frame.png");
+            if (spec == null || frame == null) continue;
+            try
+            {
+                var bytes = ReadEntryBytes(frame);
+                if (bytes.Length == 0) continue;
+                var vspec = TemplateSpec.LoadFromJson(ReadEntryText(spec));
+                var vdir = Path.Combine(dir, v);
+                Directory.CreateDirectory(vdir);
+                IoUtil.AtomicWriteBytes(Path.Combine(vdir, "frame.png"), bytes);
+                vspec.Save(Path.Combine(vdir, "template.json"));
+            }
+            catch { /* skip a bad variant */ }
+        }
+    }
+
+    private static ZipArchiveEntry? FindVariantEntry(ZipArchive zip, string variant, string fileName)
         => zip.Entries.FirstOrDefault(e =>
-            e.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase)
-            || e.FullName.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase)
-            // Zips written by some Windows tools use backslashes, so the entry has no Name and the
-            // forward-slash test misses it — the bundle then looks like it has no template.json at all.
-            || e.FullName.EndsWith("\\" + fileName, StringComparison.OrdinalIgnoreCase));
+        {
+            var parts = e.FullName.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length >= 2
+                && parts[^1].Equals(fileName, StringComparison.OrdinalIgnoreCase)
+                && parts[^2].Equals(variant, StringComparison.OrdinalIgnoreCase);
+        });
+
+    private static ZipArchiveEntry? FindEntry(ZipArchive zip, string fileName)
+        => zip.Entries
+            .Where(e =>
+                e.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase)
+                || e.FullName.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase)
+                // Zips written by some Windows tools use backslashes, so the entry has no Name and the
+                // forward-slash test misses it — the bundle then looks like it has no template.json at all.
+                || e.FullName.EndsWith("\\" + fileName, StringComparison.OrdinalIgnoreCase))
+            // The frame's own files, not a flip/ or landscape/ layout's (those are unpacked separately);
+            // the shallowest match wins when a tool zipped the folder itself.
+            .Where(e => !IsVariantEntry(e))
+            .OrderBy(e => e.FullName.Replace('\\', '/').Count(c => c == '/'))
+            .FirstOrDefault();
+
+    private static bool IsVariantEntry(ZipArchiveEntry e)
+    {
+        var parts = e.FullName.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            && (parts[^2].Equals(TemplateService.FlipVariant, StringComparison.OrdinalIgnoreCase)
+                || parts[^2].Equals(TemplateService.LandscapeVariant, StringComparison.OrdinalIgnoreCase));
+    }
 
     private static string ReadEntryText(ZipArchiveEntry e)
     {

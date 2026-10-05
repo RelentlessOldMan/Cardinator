@@ -137,6 +137,7 @@ output are all checked in.** Click a thumbnail for that example's guide.
 
 - **Card types:** creatures, spells, **planeswalkers** (loyalty box + ability badges), **sagas**
   (chapter markers), **classes** (level badges), **adventures** (spell sub-box), and
+  **flip cards** (Kamigawa-style: the other half printed upside down below the art, on any drawn frame),
   **double-faced cards** (one card with two faces: flip the preview, a drawn corner indicator, both sides
   exported), and **sideways cards** — **Battles** (with a defense shield), **Planes** and **Phenomena** turn
   landscape automatically on every drawn frame, and print sheets rotate them back into a normal slot. Split

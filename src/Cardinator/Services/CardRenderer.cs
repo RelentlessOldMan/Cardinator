@@ -100,39 +100,54 @@ public sealed class CardRenderer
         // (borderless/overlay bake their own panels/band into the frame.)
         if (spec.FullArt) DrawScrims(dc, spec);
 
-        DrawTitleAndMana(dc, card, spec);
-        DrawLegendaryCrown(dc, card, spec);
-        DrawSubtitle(dc, card, spec);
-        DrawTypeLine(dc, card, spec);
-
-        if (card.IsPlaneswalker)
-            DrawBadgedRows(dc, ParseAbilities(card.RulesText), spec, loyaltyShields: true,
-                avoid: string.IsNullOrWhiteSpace(card.Loyalty) ? null : LoyaltyRect(spec));
-        else if (card.IsSaga)
-            DrawBadgedRows(dc, ParseChapters(card.RulesText), spec);
-        else if (card.IsClass)
-            DrawBadgedRows(dc, ParseClassLevels(card.RulesText), spec);
-        else if (card.IsAdventure)
-            DrawAdventure(dc, card, spec);
-        else if (card.ShowBigLandSymbol)
-            DrawBigLandSymbol(dc, card, spec);
+        if (spec.IsFlipLayout && card.IsFlip)
+        {
+            // A flip card: this half reads upright on top; the other half is the SAME layout turned upside
+            // down, so it's drawn through a 180° rotation about the card's centre — exactly the axis the
+            // flip frame was mirrored on.
+            DrawFlipHalf(dc, card, spec);
+            dc.PushTransform(new RotateTransform(180, W / 2, H / 2));
+            if (spec.FullArt) DrawScrims(dc, spec);
+            DrawFlipHalf(dc, OtherHalfForRender(card), spec);
+            dc.Pop();
+        }
         else
         {
-            // Creatures nest a P/T box in the bottom-right — reserve that space so rules text wraps around
-            // it instead of being hidden underneath.
-            Rect? avoid = ArtText(spec) ? null
-                : card.HasDefense ? DefenseRect(spec)
-                : card.HasPowerToughness ? PtRect(spec)
-                : null;
-            DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, avoid);
-        }
+            DrawTitleAndMana(dc, card, spec);
+            DrawLegendaryCrown(dc, card, spec);
+            DrawSubtitle(dc, card, spec);
+            DrawTypeLine(dc, card, spec);
 
-        if (card.IsPlaneswalker && !string.IsNullOrWhiteSpace(card.Loyalty))
-            DrawLoyalty(dc, card, spec);
-        else if (card.HasDefense)
-            DrawDefense(dc, card, spec);   // a Battle's starting defense
-        else if (card.HasPowerToughness)
-            DrawPtBox(dc, card, spec);   // creatures only — the box is drawn here, not baked into the frame
+            if (card.IsPlaneswalker)
+                DrawBadgedRows(dc, ParseAbilities(card.RulesText), spec, loyaltyShields: true,
+                    avoid: string.IsNullOrWhiteSpace(card.Loyalty) ? null : LoyaltyRect(spec));
+            else if (card.IsSaga)
+                DrawBadgedRows(dc, ParseChapters(card.RulesText), spec);
+            else if (card.IsClass)
+                DrawBadgedRows(dc, ParseClassLevels(card.RulesText), spec);
+            else if (card.IsAdventure)
+                DrawAdventure(dc, card, spec);
+            else if (card.ShowBigLandSymbol)
+                DrawBigLandSymbol(dc, card, spec);
+            else
+            {
+                // Creatures nest a P/T box in the bottom-right — reserve that space so rules text wraps around
+                // it instead of being hidden underneath.
+                Rect? avoid = ArtText(spec) ? null
+                    : card.HasDefense ? DefenseRect(spec)
+                    : card.HasPowerToughness ? PtRect(spec)
+                    : null;
+                DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, avoid);
+            }
+
+            if (card.IsPlaneswalker && !string.IsNullOrWhiteSpace(card.Loyalty))
+                DrawLoyalty(dc, card, spec);
+            else if (card.HasDefense)
+                DrawDefense(dc, card, spec);   // a Battle's starting defense
+            else if (card.HasPowerToughness)
+                DrawPtBox(dc, card, spec);   // creatures only — the box is drawn here, not baked into the frame
+
+        }
 
         // Footer placement: "frame" draws it on the colored card (inside the clip, before the border);
         // "border" draws it on the black rim (after the border); "none" skips it.
@@ -150,6 +165,39 @@ public sealed class CardRenderer
             DrawFooter(dc, card, spec, onBorder: true);
 
         DrawDfcIndicator(dc, card, spec, W, H);
+    }
+
+    /// <summary>One half of a flip card in the flip layout: name + mana, the type line (shortened so the set
+    /// symbol sits clear of the P/T box at its end), the rules/flavor in the half's own box, and the P/T box.
+    /// No crown, subtitle or special layouts — real flip halves have none.</summary>
+    private void DrawFlipHalf(DrawingContext dc, CardModel half, TemplateSpec spec)
+    {
+        DrawTitleAndMana(dc, half, spec);
+        var typeSpec = spec;
+        if (half.HasPowerToughness)
+        {
+            typeSpec = spec.Clone();
+            typeSpec.TypeBar = new Region
+            {
+                X = spec.TypeBar.X, Y = spec.TypeBar.Y, H = spec.TypeBar.H,
+                W = Math.Max(40, spec.PtBox.X - 6 - spec.TypeBar.X),
+            };
+        }
+        DrawTypeLine(dc, half, typeSpec);
+        DrawTextBox(dc, half.RulesText, half.FlavorText, spec.TextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, null);
+        if (half.HasPowerToughness) DrawPtBox(dc, half, spec);
+    }
+
+    /// <summary>The other half as it should draw: the set-level identity (set, rarity, set symbol, collector
+    /// number) is the card's, like a real flip card, whatever the half itself holds.</summary>
+    internal static CardModel OtherHalfForRender(CardModel card)
+    {
+        var half = card.OtherHalf!.Clone();
+        half.SetCode = card.SetCode;
+        half.Rarity = card.Rarity;
+        half.SetSymbolPath = card.SetSymbolPath;
+        half.CollectorNumber = card.CollectorNumber;
+        return half;
     }
 
     /// <summary>The badge (center, radius) for the DFC indicator, or null when the card shows none. Always
@@ -1198,7 +1246,7 @@ public sealed class CardRenderer
         var rect = ToRect(spec.PtBox);
         // Art-forward cards and custom frames keep the template's exact placement (so the P/T box can be
         // positioned freely in the layout editor). Procedural framed cards auto-nest it bottom-right.
-        if (ArtText(spec) || spec.CustomFrame) return rect;
+        if (ArtText(spec) || spec.CustomFrame || spec.IsFlipLayout) return rect;   // flip: at the end of the type line
         const double margin = 8;
         var tb = ToRect(spec.EffectiveTextBox);
         double left = tb.Right - margin - rect.Width;

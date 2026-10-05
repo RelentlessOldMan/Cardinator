@@ -32,7 +32,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _defaultTemplate = ""; // the set's saved house frame, inherited by new/imported cards
     private SetProfile _setProfile = new();  // the set's shared metadata defaults (W1), inherited by new/imported cards
     private bool _viewingBack;                // DFC: preview is showing the back face (preview-only flip)
+    private bool _viewingFlipped;             // flip card: preview is turned upside down to read the other half
     private CardModel? _subscribedBack;       // the back face whose edits we're currently tracking
+    private CardModel? _subscribedHalf;       // a flip card's other half, tracked the same way
     private bool _isExporting;
     private bool _busy;                     // any long/mutating op in flight (gates re-entrancy + conflicts)
     private double _exportProgress;
@@ -85,6 +87,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         DfcStyleBox.ItemsSource = DfcStyleOptions;
         RefreshDfcControls();
+        RefreshFlipControls();
 
         // Download authentic Scryfall symbols in the background; re-render as they arrive.
         _symbols.Updated += OnSymbolsUpdated;
@@ -112,6 +115,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             bool dfc = _selectedCard?.IsDoubleFaced == true;
             DfcToggleBtn.Content = dfc ? "Remove back face" : "Make double-faced";
+            DfcToggleBtn.IsEnabled = dfc || _selectedCard?.OtherHalf == null;   // a flip card can't also have a back
             DfcEditBackBtn.IsEnabled = dfc;
             DfcFlipBtn.IsEnabled = dfc;
             DfcStyleBox.IsEnabled = dfc;   // the indicator only draws on a double-faced card
@@ -148,6 +152,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         MarkDirty();
         CommitHistory();
         RefreshDfcControls();
+        RefreshFlipControls();   // a double-faced card can't also be a flip card
         RenderPreview();
     }
 
@@ -181,6 +186,67 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    // --- flip cards (two-part, one side) ------------------------------------
+
+    /// <summary>Syncs the flip-card buttons to the selected card's state.</summary>
+    private void RefreshFlipControls()
+    {
+        bool flip = _selectedCard?.OtherHalf != null;
+        FlipToggleBtn.Content = flip ? "Remove flipped half" : "Make flip card";
+        FlipToggleBtn.IsEnabled = _selectedCard != null && (flip || !_selectedCard.IsDoubleFaced);   // not both
+        FlipEditBtn.IsEnabled = flip;
+        FlipShowBtn.IsEnabled = flip;
+        FlipShowBtn.Content = _viewingFlipped ? "Show upright" : "Show flipped";
+    }
+
+    private void OnToggleFlip(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCard == null) return;
+        if (_selectedCard.OtherHalf != null)
+        {
+            if (ConfirmDialog.Show(this, "Remove flipped half",
+                    $"Remove the flipped half “{_selectedCard.OtherHalf.Name}”? This can't be undone except with Undo.",
+                    affirmative: "Remove", cancel: "Cancel") != ConfirmResult.Affirmative)
+                return;
+            _selectedCard.OtherHalf = null;
+            _selectedCard.HalfLayout = "";
+            _viewingFlipped = false;
+            Status = "Removed the flipped half.";
+        }
+        else
+        {
+            if (_selectedCard.IsDoubleFaced) return;   // the button is disabled for these; belt and braces
+            _selectedCard.HalfLayout = "flip";
+            _selectedCard.OtherHalf = new CardModel { TemplateName = _selectedCard.TemplateName };
+            Status = "Made a flip card — use “Edit flipped half…” for the upside-down half.";
+        }
+        MarkDirty();
+        CommitHistory();
+        RefreshFlipControls();
+        RefreshDfcControls();
+        RenderPreview();
+    }
+
+    private void OnEditFlippedHalf(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCard?.OtherHalf == null) return;
+        new DetailsWindow(_selectedCard.OtherHalf, _scryfall) { Owner = this }.ShowDialog();
+        CommitHistory();   // recomputes Dirty from history, so a cancelled edit stays clean
+        RenderPreview();
+    }
+
+    private void OnShowFlipped(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCard?.OtherHalf == null) return;
+        _viewingFlipped = !_viewingFlipped;
+        RefreshFlipControls();
+        RenderPreview();
+    }
+
+    /// <summary>Pan direction on the preview: reversed while it's shown upside down, so the art still moves
+    /// the way the mouse does.</summary>
+    private double PanSign => _viewingFlipped && _selectedCard?.IsFlip == true ? -1 : 1;
+
     // --- bindable state -----------------------------------------------------
 
     public ObservableCollection<Template> Templates { get; }
@@ -194,6 +260,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             DetachCardEvents(_selectedCard);
             _selectedCard = value;
             _viewingBack = false;   // always start a newly-selected card on its front face
+            _viewingFlipped = false;
             if (_selectedCard != null)
             {
                 AttachCardEvents(_selectedCard);
@@ -204,6 +271,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OnPropertyChanged(nameof(HasSelection));
             OnPropertyChanged(nameof(CanEditSelected));
             RefreshDfcControls();
+            RefreshFlipControls();
             RenderPreview();
         }
     }
@@ -362,6 +430,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         // A back face added/removed/replaced means a different object to track from now on.
         if (e.PropertyName == nameof(CardModel.BackFace)) SyncBackFaceSubscription(_selectedCard);
+        if (e.PropertyName == nameof(CardModel.OtherHalf)) SyncOtherHalfSubscription(_selectedCard);
         MarkDirty();
         _renderTimer.Stop();
         _renderTimer.Start();   // debounce rapid edits (typing, slider drags)
@@ -376,12 +445,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (card == null) return;
         card.PropertyChanged += OnCardChanged;
         SyncBackFaceSubscription(card);
+        SyncOtherHalfSubscription(card);
     }
 
     private void DetachCardEvents(CardModel? card)
     {
         if (card != null) card.PropertyChanged -= OnCardChanged;
         SyncBackFaceSubscription(null);
+        SyncOtherHalfSubscription(null);
     }
 
     /// <summary>Points the back-face subscription at <paramref name="card"/>'s current back face (if any),
@@ -393,6 +464,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_subscribedBack != null) _subscribedBack.PropertyChanged -= OnCardChanged;
         _subscribedBack = back;
         if (_subscribedBack != null) _subscribedBack.PropertyChanged += OnCardChanged;
+    }
+
+    /// <summary>Same as <see cref="SyncBackFaceSubscription"/>, for a flip card's other half — edits made to
+    /// it (in its details dialog) must dirty the project and reach undo like any other.</summary>
+    private void SyncOtherHalfSubscription(CardModel? card)
+    {
+        var half = card?.OtherHalf;
+        if (ReferenceEquals(half, _subscribedHalf)) return;
+        if (_subscribedHalf != null) _subscribedHalf.PropertyChanged -= OnCardChanged;
+        _subscribedHalf = half;
+        if (_subscribedHalf != null) _subscribedHalf.PropertyChanged += OnCardChanged;
     }
 
     // --- undo / redo --------------------------------------------------------
@@ -691,6 +773,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         try
         {
             PreviewImage = _renderer.RenderToBitmap(card, template, supersample: 1, previewHints: true);
+            if (_viewingFlipped && card.IsFlip)
+            {
+                // Same card, turned upside down — the flipped half reads upright.
+                var turned = new TransformedBitmap(PreviewImage, new System.Windows.Media.RotateTransform(180));
+                turned.Freeze();
+                PreviewImage = turned;
+            }
             // A clean render (no placeholder hint) so the pixel inspector sees the true art window / border.
             if (inspect)
                 inspectBmp = _renderer.RenderToBitmap(card, template, supersample: 1, previewHints: false);
@@ -719,7 +808,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         IReadOnlyList<ValidationIssue> issues =
-            CardValidator.Validate(card, template.Spec, Cards, Templates.Select(t => t.Name).ToList());
+            CardValidator.Validate(card, template.Spec, Cards, Templates.Select(t => t.Name).ToList())
+                .Concat(CardValidator.ValidateOtherHalf(card, template.Spec)).ToList();
         if (inspectBmp != null)
         {
             // Pixel inspection is best-effort — never let it break the live panel.
@@ -1782,8 +1872,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var (w, h) = DisplayedCardSize();
         if (w <= 0 || h <= 0) return;
 
-        card.ArtOffsetX = Clamp(card.ArtOffsetX + (p.X - _panStart.X) / w, -0.5, 0.5);
-        card.ArtOffsetY = Clamp(card.ArtOffsetY + (p.Y - _panStart.Y) / h, -0.5, 0.5);
+        card.ArtOffsetX = Clamp(card.ArtOffsetX + PanSign * (p.X - _panStart.X) / w, -0.5, 0.5);
+        card.ArtOffsetY = Clamp(card.ArtOffsetY + PanSign * (p.Y - _panStart.Y) / h, -0.5, 0.5);
         _panStart = p;
         RenderPreviewLive();   // live feedback while dragging (the debounce timer alone never fires mid-drag)
     }
@@ -1813,8 +1903,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var card = ActiveFace;
         if (card == null) return;
-        card.ArtOffsetX = Clamp(card.ArtOffsetX + dx, -0.5, 0.5);
-        card.ArtOffsetY = Clamp(card.ArtOffsetY + dy, -0.5, 0.5);
+        card.ArtOffsetX = Clamp(card.ArtOffsetX + PanSign * dx, -0.5, 0.5);
+        card.ArtOffsetY = Clamp(card.ArtOffsetY + PanSign * dy, -0.5, 0.5);
         RenderPreview();
     }
 
