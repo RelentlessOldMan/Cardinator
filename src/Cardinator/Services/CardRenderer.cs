@@ -152,21 +152,29 @@ public sealed class CardRenderer
         DrawDfcIndicator(dc, card, spec, W, H);
     }
 
-    /// <summary>Draws the double-faced corner indicator (our own glyphs — no third-party assets): a generic
-    /// flip arrow on both faces ("arrow"), or a sun on the front and a crescent moon on the back ("sunmoon").
-    /// A small round badge in the top-left corner, over the border so it's visible on any style.</summary>
-    /// <summary>The top-left badge (center, radius) for the DFC indicator, or null when the card shows none.
-    /// Shared by the drawing and by the title layout, which indents past it so the name isn't covered.</summary>
-    private static (Point c, double r)? DfcBadge(CardModel card, TemplateSpec spec)
+    /// <summary>The badge (center, radius) for the DFC indicator, or null when the card shows none. Always
+    /// keyed to the title panel's top-left corner — never to the card corner — so it sits in the same spot on
+    /// the title bar whatever the frame's border or top decoration (it isn't user-positionable). Only if the
+    /// panel is so close to the edge that the badge would run off the card is it pushed inward. Shared by the
+    /// drawing and by the title layout, which starts the name just past it.</summary>
+    internal static (Point c, double r)? DfcBadge(CardModel card, TemplateSpec spec)
     {
         var style = (card.DfcStyle ?? "").Trim().ToLowerInvariant();
         bool isDfc = card.IsDoubleFaced || card.IsBackFace;
         if (!isDfc || style is "" or "none") return null;
         double side = Math.Min(spec.CanvasWidth, spec.CanvasHeight);   // same badge size on a landscape face
         double r = side * 0.034;
-        double t = Math.Max(0, spec.BorderThickness);
-        return (new Point(t + r + side * 0.012, t + r + side * 0.012), r);
+        var bar = spec.TitleBar;
+        // The icon's top-left = the title panel's top-left + a fixed offset (where it already sat on the stock
+        // frames: bar at 48,46 -> icon at 37,37), never closer than a minimum gap to the card's edge.
+        double minEdge = side * 0.016;
+        double left = Math.Max(bar.X - side * 0.0147, minEdge);
+        double top = Math.Max(bar.Y - side * 0.012, minEdge);
+        return (new Point(left + r, top + r), r);
     }
+
+    /// <summary>Draws the double-faced indicator (our own glyphs — no third-party assets): a generic flip
+    /// arrow on both faces ("arrow"), or a sun on the front and a crescent moon on the back ("sunmoon").</summary>
 
     private static void DrawDfcIndicator(DrawingContext dc, CardModel card, TemplateSpec spec, double W, double H)
     {
