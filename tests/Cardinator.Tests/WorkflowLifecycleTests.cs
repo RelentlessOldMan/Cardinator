@@ -22,6 +22,24 @@ public class WorkflowLifecycleTests
                         && p.GetCustomAttribute<JsonIgnoreAttribute>() == null)
             .ToArray();
 
+    /// <summary>Compares every persisted field of two cards, recursing into the back face (a CardModel,
+    /// so a plain Assert.Equal would compare references and always fail).</summary>
+    private static void AssertSamePersistedFields(CardModel expected, CardModel actual, string where = "card")
+    {
+        foreach (var p in PersistedProps())
+        {
+            var a = p.GetValue(expected);
+            var b = p.GetValue(actual);
+            if (p.PropertyType == typeof(CardModel))
+            {
+                Assert.Equal(a == null, b == null);
+                if (a != null) AssertSamePersistedFields((CardModel)a, (CardModel)b!, where + "." + p.Name);
+                continue;
+            }
+            Assert.Equal(a, b);
+        }
+    }
+
     /// <summary>Fills every persisted property with a distinctive value so an omission is detectable.</summary>
     private static CardModel FullyPopulated()
     {
@@ -31,6 +49,14 @@ public class WorkflowLifecycleTests
         {
             if (p.PropertyType == typeof(string)) p.SetValue(card, $"val-{p.Name}-{i}");
             else if (p.PropertyType == typeof(double)) p.SetValue(card, 0.125 * i + 0.5);
+            else if (p.PropertyType == typeof(bool)) p.SetValue(card, true);
+            else if (p.PropertyType == typeof(int)) p.SetValue(card, 1000 + i);
+            else if (p.PropertyType == typeof(CardModel))
+                p.SetValue(card, new CardModel { Name = $"back-{i}", TypeLine = "Creature — Back" });
+            else
+                throw new Xunit.Sdk.XunitException(
+                    $"{p.Name} is persisted as {p.PropertyType.Name}, which this test doesn't populate — "
+                    + "add a case so the save/reload round-trip actually covers it.");
             i++;
         }
         return card;
@@ -47,8 +73,7 @@ public class WorkflowLifecycleTests
                               Cards = { card } }.Save(path);
             var loaded = CardProject.Load(path).Cards.Single();
 
-            foreach (var p in PersistedProps())
-                Assert.Equal(p.GetValue(card), p.GetValue(loaded));   // field-by-field; catches any omission
+            AssertSamePersistedFields(card, loaded);   // field-by-field; catches any omission
         }
         finally { try { File.Delete(path); } catch { } }
     }
@@ -60,8 +85,7 @@ public class WorkflowLifecycleTests
         // is the same guarantee as save fidelity.
         var card = FullyPopulated();
         var clone = card.Clone();
-        foreach (var p in PersistedProps())
-            Assert.Equal(p.GetValue(card), p.GetValue(clone));
+        AssertSamePersistedFields(card, clone);
     }
 
     [Fact]

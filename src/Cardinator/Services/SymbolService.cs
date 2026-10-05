@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
@@ -66,8 +66,15 @@ public sealed class SymbolService
     /// primes the full Scryfall symbol set; otherwise only the given tokens. Safe to call in the
     /// background; silently no-ops when offline. Raises <see cref="Updated"/> if anything changed.
     /// </summary>
+    /// <summary>Set by tests (or CARDINATOR_NO_NETWORK=1) to keep <see cref="PrimeAsync"/> offline. Unit
+    /// tests construct real windows, whose constructors prime symbols — that would otherwise download the
+    /// whole Scryfall symbology on every test run and make rendering depend on run history.</summary>
+    public static bool SuppressPrime { get; set; } =
+        Environment.GetEnvironmentVariable("CARDINATOR_NO_NETWORK") == "1";
+
     public async Task PrimeAsync(IEnumerable<string>? tokens = null, CancellationToken ct = default)
     {
+        if (SuppressPrime) return;
         try
         {
             var map = await EnsureSymbologyMapAsync(ct);

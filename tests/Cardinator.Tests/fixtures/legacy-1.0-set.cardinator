@@ -1,0 +1,53 @@
+{
+  "name": "Legacy Demo Set",
+  "artBaseDir": "C:\\Users\\someone\\Pictures\\cards",
+  "defaultTemplate": "Gold Multicolor",
+  "cards": [
+    {
+      "name": "Aria Stormcaller",
+      "manaCost": "{2}{U}{R}",
+      "typeLine": "Legendary Creature \u2014 Human Wizard",
+      "rulesText": "Whenever you cast an instant spell, Aria deals 1 damage to any target.\n{T}: Draw a card, then discard a card.",
+      "flavorText": "The storm answers to no one.",
+      "power": "3",
+      "toughness": "2",
+      "loyalty": "",
+      "artPath": "art\\aria.png",
+      "artScale": 1.2,
+      "artOffsetX": -0.05,
+      "artOffsetY": 0.1,
+      "templateName": "Gold Multicolor",
+      "setCode": "DEMO",
+      "collectorNumber": "001/003",
+      "rarity": "mythic",
+      "artist": "A. Painter",
+      "copyright": "\u2122 & \u00a9 2024 Demo"
+    },
+    {
+      "name": "Stone Sentinel",
+      "manaCost": "{4}",
+      "typeLine": "Artifact Creature \u2014 Golem",
+      "rulesText": "Defender",
+      "power": "0",
+      "toughness": "6",
+      "artPath": "",
+      "artScale": 1.0,
+      "artOffsetX": 0.0,
+      "artOffsetY": 0.0,
+      "templateName": "Slate Artifact",
+      "setCode": "DEMO",
+      "collectorNumber": "002/003",
+      "rarity": "common"
+    },
+    {
+      "name": "Brief Respite",
+      "manaCost": "{W}",
+      "typeLine": "Instant",
+      "rulesText": "You gain 4 life.",
+      "templateName": "Gold Multicolor",
+      "setCode": "DEMO",
+      "collectorNumber": "003/003",
+      "rarity": "common"
+    }
+  ]
+}
