@@ -87,11 +87,16 @@ public class GoldenTests
                 Directory.CreateDirectory(GoldenDir());
                 var baseline = Path.Combine(GoldenDir(), key + ".png");
 
-                if (ShouldUpdate() || !File.Exists(baseline))
+                if (ShouldUpdate())
                 {
                     SavePng(bmp, baseline);
-                    return;   // bootstrap: baseline created, nothing to compare yet
+                    return;   // explicit re-baseline requested
                 }
+                // Never bootstrap silently: a renamed or mistyped key would create its own baseline and
+                // pass green having compared nothing at all.
+                Assert.True(File.Exists(baseline),
+                    $"No golden baseline for \"{key}\" ({baseline}). If this render is correct, "
+                    + "re-run with CARDINATOR_UPDATE_GOLDEN=1 to create it.");
 
                 var expected = ToBgra32(LoadPng(baseline));
                 Assert.Equal(expected.Length, actual.Length);

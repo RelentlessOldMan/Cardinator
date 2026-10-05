@@ -134,6 +134,42 @@ public class BatchSheetTests
             Assert.False(NearWhite(topRight));  // back art mirrored to the right
         });
 
+    [Fact]
+    public void Sheet_DoubleSided_PrintsADoubleFacedCardsRealBack_NotTheGenericOne()
+        => TestHelpers.RunSta(() =>
+        {
+            var templates = new TemplateService().LoadAll();
+            var symbols = new SymbolService();
+            // One double-faced card in front slot 0 → its REAL back face belongs in the mirrored slot,
+            // where a single-faced card would get the shared card back instead.
+            var dfc = new CardModel
+            {
+                Name = "Daybound", TypeLine = "Creature — Human", Power = "1", Toughness = "1",
+                TemplateName = templates[0].Name,
+                BackFace = new CardModel
+                {
+                    Name = "Nightbound", TypeLine = "Creature — Werewolf", Power = "4", Toughness = "4",
+                    TemplateName = templates[0].Name,
+                },
+            };
+            var plain = new CardModel { Name = "Plain", TypeLine = "Instant", TemplateName = templates[0].Name };
+            var back = BackRenderer.Render(supersample: 1);
+
+            var pages = SheetExporter.ComposeDoubleSided(new List<CardModel> { dfc, plain }, templates, symbols,
+                PageSpec.Letter, back).ToList();
+            var backPage = pages[1];
+
+            // 3 cols: front slot 0 (left) mirrors to the right-hand column, slot 1 (middle) stays middle.
+            var dfcBackSlot = PixelAt(backPage, 150 + 2 * 750 + 375, 75 + 525);
+            var genericSlot = PixelAt(backPage, 150 + 750 + 375, 75 + 525);
+
+            Assert.False(NearWhite(dfcBackSlot));
+            Assert.False(NearWhite(genericSlot));
+            // The real back face is a rendered CARD, so it cannot look like the generic card back.
+            Assert.False(dfcBackSlot.SequenceEqual(genericSlot),
+                "the double-faced card's slot shows the generic back instead of its own back face");
+        });
+
     private static byte[] PixelAt(BitmapSource bs, int x, int y)
     {
         var c = new CroppedBitmap(bs, new Int32Rect(x, y, 1, 1));

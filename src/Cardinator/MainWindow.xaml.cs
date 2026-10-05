@@ -979,28 +979,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var name = Path.GetFileNameWithoutExtension(path);
             var projFolder = Path.GetDirectoryName(Path.GetFullPath(path))!;
 
-            // Make the set self-contained: copy any external art + set-symbol images into <set>\art and repoint
-            // the cards at them, so the folder can be moved/zipped/shared and still render. Exports → <set>\out.
-            int stranded = SetFolder.LocalizeImages(Cards, projFolder);
-            try { Directory.CreateDirectory(Path.Combine(projFolder, "out")); } catch { /* best effort */ }
-
-            // Serialize with image paths made relative to the set folder (resolved back to absolute on load).
-            // The set-symbol in the profile travels with the folder like card art — store it relative.
-            var savedProfile = _setProfile.Clone();
-            savedProfile.SetSymbolPath = CardProject.RelativeArtPath(savedProfile.SetSymbolPath, projFolder);
-
-            var project = new CardProject
-            {
-                Name = name,
-                ArtBaseDir = _artBaseDir,
-                DefaultTemplate = DefaultTemplateName,
-                Profile = savedProfile,
-                Cards = Cards.Select(c => CloneWithRelativeArt(c, projFolder)).ToList(),
-            };
-            // Keep a rolling, timestamped copy of the previous good file before overwriting it, so a bad
-            // save / buggy build / upgrade can be rolled back (no-op on first save). Best-effort.
-            ProjectBackup.BackupExisting(path, DateTime.Now.ToString("yyyyMMdd-HHmmss"));
-            project.Save(path);
+            // Localize art → relative paths → back up the previous good file → atomic write. That exact
+            // order is the data-safety guarantee, so it lives in ProjectWriter where it can be tested.
+            int stranded = ProjectWriter.Write(path, Cards.ToList(), name, _artBaseDir, DefaultTemplateName, _setProfile);
             _projectPath = path;
             _projectFolder = projFolder;
             _projectName = name;
@@ -1017,16 +998,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = "Couldn't save project: " + ex.Message;
             return false;
         }
-    }
-
-    /// <summary>Copies each card's art that lives outside this set's <c>art</c> folder into it, and repoints
-    /// <summary>A clone of the card whose art + set-symbol paths are relative to the set folder (so the saved
-    /// file is portable). Paths outside the folder stay absolute.</summary>
-    private static CardModel CloneWithRelativeArt(CardModel card, string projFolder)
-    {
-        var clone = card.Clone();
-        CardProject.MakeArtRelative(clone, projFolder);   // art + set symbol → e.g. "art\foo.png"
-        return clone;
     }
 
     /// <summary>Where exports should default: the last place you exported, else the set's <c>out</c> folder,

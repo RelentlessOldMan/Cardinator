@@ -24,4 +24,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Real files saved by older Cardinator versions, kept verbatim as the backward-compatibility
+       guarantee's evidence: every new build must still open them. Never regenerate these. -->
+  <ItemGroup>
+    <None Include="fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

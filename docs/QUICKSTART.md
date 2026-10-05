@@ -57,9 +57,9 @@ app's data folder, so the original file can move or be deleted afterwards.
    Lightning Bolt, bolt.png, Crimson Red
    Counterspell,   counter.png, Ocean Blue
    ```
-2. Click **Import file…** (or drop the file on the window). Cardinator fills any blank fields
+2. Click **Import list / CSV…** (or drop the file on the window). Cardinator fills any blank fields
    from Scryfall and matches art files by name.
-3. Click **Fill blanks from Scryfall** if you left fields blank, and **Add art from folder…** to attach a folder
+3. Click **Look up missing** if you left fields blank, and **Match art folder…** to attach a folder
    of images by filename.
 4. Use **Set fields on all…** to apply one frame (and/or set code, artist, rarity, copyright) to
    every card at once — blank fields are left unchanged, so you can re-frame a whole set in one step.

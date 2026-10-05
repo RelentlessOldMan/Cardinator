@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Linq;
 using Cardinator.Models;
 using Cardinator.Services;
@@ -194,6 +195,70 @@ public class DataSafetyTests
             Assert.True(File.Exists(siblingBackup!), "pruning MySet deleted MySet.v2's backup");
         }
         finally { try { Directory.Delete(dir, true); } catch { } }
+    }
+
+    // --- the save pipeline's ORDER is the guarantee ----------------------------
+
+    [Fact]
+    public void Saving_BacksUpThePreviousVersionsBytes_NotTheNewOnes()
+    {
+        var root = TempDir();
+        try
+        {
+            var set = Path.Combine(root, "MySet");
+            Directory.CreateDirectory(set);
+            var path = Path.Combine(set, "MySet.cardinator");
+            var profile = new SetProfile();
+
+            var v1 = new List<CardModel> { new() { Name = "Version One" } };
+            ProjectWriter.Write(path, v1, "MySet", "", "", profile, timestamp: "20260104-120000");
+            Assert.Empty(ProjectBackup.ListBackups(path));   // nothing to back up on a first save
+
+            var v2 = new List<CardModel> { new() { Name = "Version Two" } };
+            ProjectWriter.Write(path, v2, "MySet", "", "", profile, timestamp: "20260104-120001");
+
+            // The live file is v2 and the backup holds v1. If the backup ran AFTER the write it would
+            // hold v2 as well — silently destroying the rollback the user is told they have.
+            Assert.Equal("Version Two", CardProject.Load(path).Cards[0].Name);
+            var backups = ProjectBackup.ListBackups(path);
+            Assert.Single(backups);
+            Assert.Equal("Version One", CardProject.Load(backups[0]).Cards[0].Name);
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [Fact]
+    public void Saving_MakesTheSetSelfContained_IncludingABackFacesArt()
+    {
+        var root = TempDir();
+        var outside = TempDir();
+        try
+        {
+            var set = Path.Combine(root, "MySet");
+            Directory.CreateDirectory(set);
+            var path = Path.Combine(set, "MySet.cardinator");
+
+            var card = new CardModel { Name = "F", ArtPath = WritePng(Path.Combine(outside, "front.png")) };
+            card.BackFace = new CardModel { Name = "B", ArtPath = WritePng(Path.Combine(outside, "back.png")) };
+
+            ProjectWriter.Write(path, new List<CardModel> { card }, "MySet", "", "", new SetProfile());
+
+            // Both faces' art was copied in and stored relative, so the folder can be zipped and shared.
+            var json = File.ReadAllText(path);
+            Assert.DoesNotContain(outside.Replace("\\", "\\\\"), json);
+            var reloaded = CardProject.Load(path);
+            foreach (var face in reloaded.Cards[0].Faces())
+                Assert.False(Path.IsPathRooted(face.ArtPath), $"{face.Name} art stayed absolute");
+
+            CardProject.ResolveArt(reloaded.Cards[0], set);
+            foreach (var face in reloaded.Cards[0].Faces())
+                Assert.True(File.Exists(face.ArtPath), $"{face.Name} art is missing from the set folder");
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { }
+            try { Directory.Delete(outside, true); } catch { }
+        }
     }
 
     // --- A3: a user's imported frame image is irreplaceable --------------------

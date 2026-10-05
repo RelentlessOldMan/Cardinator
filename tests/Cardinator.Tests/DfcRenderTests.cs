@@ -49,6 +49,12 @@ public class DfcRenderTests
         => TestHelpers.RunSta(() =>
         {
             var card = Dfc("arrow");
-            Assert.NotEqual(Pixels(card), Pixels(Dfc("none")));         // arrow present vs absent
+            Assert.NotEqual(Pixels(card), Pixels(Dfc("none")));                         // front: arrow vs none
+            // The BACK must carry it too — the name promised this but only the front was ever checked.
+            Assert.NotEqual(Pixels(card.BackFace!), Pixels(Dfc("none").BackFace!));
+
+            // ...and unlike sun/moon, the arrow is the SAME glyph on both faces.
+            var sunmoon = Dfc("sunmoon");
+            Assert.NotEqual(Pixels(sunmoon), Pixels(sunmoon.BackFace!));
         });
 }
