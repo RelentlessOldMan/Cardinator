@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Threading;
 using System.Windows;
 using System.Windows.Media;
@@ -598,12 +598,15 @@ public static class FrameGenerator
         if (strength <= 0) return;
         dc.PushClip(clip);
         var rnd = new Random(20260924);
+        // Spread the speckle over the whole clip (a hardcoded 760x1060 left a larger canvas untextured
+        // below/right of the default card size).
+        double tw = Math.Max(1, clip.Bounds.Right), th = Math.Max(1, clip.Bounds.Bottom);
 
         // 1) Soft marbling blotches (larger, low-alpha) for the veined/marbled look.
         int blotches = (int)(200 * strength);
         for (int i = 0; i < blotches; i++)
         {
-            double x = rnd.NextDouble() * 760, y = rnd.NextDouble() * 1060;
+            double x = rnd.NextDouble() * tw, y = rnd.NextDouble() * th;
             double s = 7 + rnd.NextDouble() * 18;
             byte a = (byte)rnd.Next(10, 24);
             var col = rnd.Next(2) == 0 ? Color.FromArgb(a, 255, 255, 255) : Color.FromArgb(a, 0, 0, 0);
@@ -614,7 +617,7 @@ public static class FrameGenerator
         int count = (int)(3400 * strength);
         for (int i = 0; i < count; i++)
         {
-            double x = rnd.NextDouble() * 760, y = rnd.NextDouble() * 1060;
+            double x = rnd.NextDouble() * tw, y = rnd.NextDouble() * th;
             double s = 0.6 + rnd.NextDouble() * 2.6;
             byte a = (byte)rnd.Next(20, 66);
             var col = rnd.Next(2) == 0 ? Color.FromArgb(a, 255, 255, 255) : Color.FromArgb(a, 0, 0, 0);

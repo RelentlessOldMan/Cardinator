@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows.Media.Imaging;
 using Cardinator.Models;
 
@@ -256,20 +256,9 @@ public sealed class TemplateService
         catch { /* leave the file in place — losing it is worse than a skipped template */ }
     }
 
-    private static BitmapImage LoadBitmap(string path)
-    {
-        // Decode from an in-memory copy: reading bytes first guarantees the file handle is
-        // closed, so a corrupt frame can still be deleted/regenerated (UriSource would keep
-        // the file locked when EndInit throws mid-decode).
-        var bytes = File.ReadAllBytes(path);
-        var bmp = new BitmapImage();
-        bmp.BeginInit();
-        bmp.CacheOption = BitmapCacheOption.OnLoad;   // decodes immediately; stream can be discarded
-        bmp.StreamSource = new MemoryStream(bytes);
-        bmp.EndInit();
-        bmp.Freeze();
-        return bmp;
-    }
+    // One shared loader (CustomFrameComposer.LoadBitmap) for every frame image, so the file-handle
+    // discipline that keeps a corrupt frame recoverable can't drift between two copies of this code.
+    private static BitmapImage LoadBitmap(string path) => CustomFrameComposer.LoadBitmap(path);
 
     private static string Slug(string name) => TextUtil.Slug(name);
 }

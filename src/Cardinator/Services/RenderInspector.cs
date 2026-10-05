@@ -52,8 +52,18 @@ public static class RenderInspector
         if (expected >= 4)
         {
             int cx = w / 2, cy = h / 2;
+
+            // The bottom border can't be measured down the middle when the footer RIDES on it: that light
+            // "001/99 — Artist" text sits inside the rim and stops the upward scan early, flagging a
+            // perfectly good card. Measure in the clean gap left of where the footer line starts instead
+            // (CardRenderer insets the footer band by border+12). Worst case this lands in the rounded
+            // corner and reads thicker than it is — under-reporting, never crying wolf.
+            int bx = cx;
+            if ((spec.FooterPlacement ?? "").Trim().Equals("border", System.StringComparison.OrdinalIgnoreCase))
+                bx = System.Math.Clamp((int)((spec.BorderThickness + 6) * scale), 1, w - 2);
+
             int top = 0; while (top < h && NearBlack(cx, top)) top++;
-            int bot = 0; while (bot < h && NearBlack(cx, h - 1 - bot)) bot++;
+            int bot = 0; while (bot < h && NearBlack(bx, h - 1 - bot)) bot++;
             int left = 0; while (left < w && NearBlack(left, cy)) left++;
             int right = 0; while (right < w && NearBlack(w - 1 - right, cy)) right++;
 

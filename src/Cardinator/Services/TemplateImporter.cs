@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
 using Cardinator.Models;
@@ -125,7 +125,10 @@ public static class TemplateImporter
     private static ZipArchiveEntry? FindEntry(ZipArchive zip, string fileName)
         => zip.Entries.FirstOrDefault(e =>
             e.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase)
-            || e.FullName.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase));
+            || e.FullName.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase)
+            // Zips written by some Windows tools use backslashes, so the entry has no Name and the
+            // forward-slash test misses it — the bundle then looks like it has no template.json at all.
+            || e.FullName.EndsWith("\\" + fileName, StringComparison.OrdinalIgnoreCase));
 
     private static string ReadEntryText(ZipArchiveEntry e)
     {

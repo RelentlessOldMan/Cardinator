@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -168,6 +168,7 @@ public partial class FrameDesignWindow : Window
     private void OnSymbolsUpdated()
     {
         if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+        _renderer.ClearSymbolCaches();   // re-derive pip-sampled colors from the real symbol art
         try { Dispatcher.BeginInvoke(new Action(RefreshPreview)); } catch { /* closing */ }
     }
 

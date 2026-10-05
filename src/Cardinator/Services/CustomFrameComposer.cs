@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -130,13 +130,19 @@ public static class CustomFrameComposer
             spec.TranslucentEnabled, spec.TranslucentKey, spec.TranslucentAmount, spec.TranslucentBacking);
     }
 
-    public static BitmapSource LoadBitmap(string path)
+    /// <summary>The one image loader for frame files. Decodes from an in-memory copy of the bytes, so the
+    /// file handle is always closed: a UriSource decode keeps the file LOCKED when EndInit throws part-way
+    /// through a corrupt image, which would leave the user unable to replace or repair it until restart.</summary>
+    public static BitmapImage LoadBitmap(string path)
     {
+        var bytes = File.ReadAllBytes(path);
         var bi = new BitmapImage();
         bi.BeginInit();
-        bi.CacheOption = BitmapCacheOption.OnLoad;
-        bi.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-        bi.UriSource = new Uri(Path.GetFullPath(path));
+        bi.CacheOption = BitmapCacheOption.OnLoad;            // decodes now; the stream can be discarded
+        // NOTE: do NOT set BitmapCreateOptions.IgnoreImageCache here. That option is keyed off UriSource,
+        // so with a StreamSource it throws ArgumentNullException("key"). It's also unnecessary — decoding a
+        // fresh MemoryStream never consults WPF's URI image cache, so a changed file is always re-read.
+        bi.StreamSource = new MemoryStream(bytes);
         bi.EndInit();
         bi.Freeze();
         return bi;

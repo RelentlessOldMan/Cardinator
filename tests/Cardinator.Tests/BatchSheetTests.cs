@@ -86,7 +86,7 @@ public class BatchSheetTests
                 TemplateName = templates[0].Name,
             }).ToList();
 
-            var pages = SheetExporter.Compose(cards, templates, symbols, PageSpec.Letter);
+            var pages = SheetExporter.Compose(cards, templates, symbols, PageSpec.Letter).ToList();
 
             Assert.Equal(2, pages.Count);                       // 9 per page -> 2 pages
             Assert.Equal(2550, pages[0].PixelWidth);
@@ -104,7 +104,7 @@ public class BatchSheetTests
             var cards = SampleSet(templates[0].Name);   // 3 cards -> 1 front page
             var back = BackRenderer.Render(supersample: 1);
 
-            var pages = SheetExporter.ComposeDoubleSided(cards, templates, symbols, PageSpec.Letter, back);
+            var pages = SheetExporter.ComposeDoubleSided(cards, templates, symbols, PageSpec.Letter, back).ToList();
 
             Assert.Equal(2, pages.Count);                       // 1 front + 1 back
             Assert.Equal(2550, pages[0].PixelWidth);
@@ -123,7 +123,7 @@ public class BatchSheetTests
             var cards = new List<CardModel> { new() { Name = "Solo", TypeLine = "Creature — Test", Power = "1", Toughness = "1", TemplateName = templates[0].Name } };
             var back = BackRenderer.Render(supersample: 1);
 
-            var pages = SheetExporter.ComposeDoubleSided(cards, templates, symbols, PageSpec.Letter, back);
+            var pages = SheetExporter.ComposeDoubleSided(cards, templates, symbols, PageSpec.Letter, back).ToList();
             var backPage = pages[1];
 
             // Cell centers: 3 cols, CardW=750, gridW=2250, marginX=150, marginY=75, CardH=1050.
@@ -151,7 +151,7 @@ public class BatchSheetTests
             var templates = new TemplateService().LoadAll();
             var pages = SheetExporter.Compose(
                 new List<CardModel> { SampleCards.Blank(templates[0].Name) },
-                templates, new SymbolService(), PageSpec.A4);
+                templates, new SymbolService(), PageSpec.A4).ToList();
 
             Assert.Single(pages);
             Assert.Equal(2480, pages[0].PixelWidth);
