@@ -67,6 +67,7 @@
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Saga"/> — type line says Saga → chapter markers (I, II, III).</TextBlock>
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Class"/> — type line says Class → level badges.</TextBlock>
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Adventure"/> — fill the Adventure fields → a spell sub-box on the creature.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Battle / Plane"/> — printed sideways, automatically, on any drawn frame. Set a Battle's <Run FontWeight="SemiBold" Text="Defense"/> in Edit details… (drawn in a shield). Force any card upright or sideways with <Run FontWeight="SemiBold" Text="Orientation"/> there too.</TextBlock>
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Double-faced"/> — one card with two faces. Looking up a real double-faced card brings both sides; or click <Run FontWeight="SemiBold" Text="Make double-faced"/>, then <Run FontWeight="SemiBold" Text="Edit back face…"/> to fill it in and <Run FontWeight="SemiBold" Text="Show back"/> to flip the preview. Pick a corner indicator (flip arrow or sun/moon). Export writes both sides, and a double-sided print sheet pairs the real back.</TextBlock>
 
                 <TextBlock Text="Keyboard shortcuts" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>

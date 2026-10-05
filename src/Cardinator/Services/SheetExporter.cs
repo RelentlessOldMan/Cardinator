@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -111,6 +111,19 @@ public static class SheetExporter
         }
     }
 
+    /// <summary>
+    /// Turns a landscape render (a Battle or Plane) upright so it fills a normal card slot instead of being
+    /// squashed into it — it is the same physical card, just printed sideways. Rotated 90° clockwise, so the
+    /// card's top edge lands on the slot's right; a portrait render is returned untouched.
+    /// </summary>
+    public static BitmapSource FitToSlot(BitmapSource bmp)
+    {
+        if (bmp.PixelWidth <= bmp.PixelHeight) return bmp;
+        var turned = new TransformedBitmap(bmp, new RotateTransform(90));
+        turned.Freeze();
+        return turned;
+    }
+
     private static void Validate(IReadOnlyList<Template> templates, PageSpec page)
     {
         if (templates.Count == 0) throw new InvalidOperationException("No templates available to compose a sheet.");
@@ -143,7 +156,7 @@ public static class SheetExporter
         public BitmapSource RenderCard(CardModel card)
         {
             var template = (card.TemplateName is { Length: > 0 } n && _byName.TryGetValue(n, out var t)) ? t : _fallback;
-            return _renderer.RenderToBitmap(card, template, supersample: 1);
+            return FitToSlot(_renderer.RenderToBitmap(card, template, supersample: 1));
         }
 
         /// <summary>Lays out one page from a per-slot image function, optionally mirroring columns (for backs,

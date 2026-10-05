@@ -137,6 +137,12 @@ draw the whole thing yourself? Supply your own `frame.png` — see
 Describes the layout in a fixed **750 × 1050** logical space (a 5:7 card). Cardinator renders the
 preview at this size and scales up ×2 on export (to 1500 × 2100).
 
+**Sideways (landscape) templates.** A template whose `canvasWidth` is larger than its `canvasHeight`
+(e.g. **1050 × 750**) is a sideways frame for Battles and Planes. You rarely need one: any *drawn* frame lays
+itself out sideways automatically when a card is a Battle/Plane (the regions are re-placed for the wider shape
+and the frame is regenerated and cached). An *imported* frame image is fixed, so if you want a sideways one,
+import a frame image that is **wider than tall** — Cardinator then creates a 1050 × 750 template for it.
+
 ### `frame.png`
 The frame overlay, drawn **on top of** the art. It must be **transparent where the art shows
 through** (the art window). If `frame.png` is missing, Cardinator **generates one** from the colors

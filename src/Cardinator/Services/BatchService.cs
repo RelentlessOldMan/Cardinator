@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Cardinator.Models;
 
 namespace Cardinator.Services;
@@ -245,6 +245,7 @@ public static class BatchService
         if (Blank(target.Power)) target.Power = src.Power;
         if (Blank(target.Toughness)) target.Toughness = src.Toughness;
         if (Blank(target.Loyalty)) target.Loyalty = src.Loyalty;
+        if (Blank(target.Defense)) target.Defense = src.Defense;
         if (Blank(target.SetCode)) target.SetCode = src.SetCode;
         if (Blank(target.CollectorNumber)) target.CollectorNumber = src.CollectorNumber;
         if (Blank(target.Rarity)) target.Rarity = src.Rarity;

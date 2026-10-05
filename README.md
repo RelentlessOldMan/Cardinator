@@ -138,7 +138,9 @@ output are all checked in.** Click a thumbnail for that example's guide.
 - **Card types:** creatures, spells, **planeswalkers** (loyalty box + ability badges), **sagas**
   (chapter markers), **classes** (level badges), **adventures** (spell sub-box), and
   **double-faced cards** (one card with two faces: flip the preview, a drawn corner indicator, both sides
-  exported). Split cards import as two cards.
+  exported), and **sideways cards** — **Battles** (with a defense shield), **Planes** and **Phenomena** turn
+  landscape automatically on every drawn frame, and print sheets rotate them back into a normal slot. Split
+  cards import as two cards.
 - **Mana:** `{2}{R}{W}`, `{X}`, `{T}`, `{C}`, hybrids `{R/W}`, Phyrexian `{U/P}` — inline in rules
   text too. Loose input like `2RW` is normalized automatically.
 - **Symbols:** authentic Scryfall SVG art, cached locally after first use; clean drawn pips as an

@@ -45,8 +45,10 @@ public partial class FrameDesignWindow : Window
 
     // Interactive region-layout overlay (drag boxes on the preview). Scale is derived from the spec's
     // canvas so it stays correct even if a template isn't the usual 750x1050.
-    private const double CanvasW = 450, CanvasH = 630;
-    private double _sx = CanvasW / 750.0, _sy = CanvasH / 1050.0;
+    // On-screen size of the design canvas. It follows the template's own aspect — 450x630 upright, 630x450
+    // for a landscape (Battle/Plane) template — so a sideways frame isn't squashed into a portrait box.
+    private double CanvasW = 450, CanvasH = 630;
+    private double _sx = 450 / 750.0, _sy = 630 / 1050.0;
     private readonly List<RegionUi> _regions = new();
     private RegionUi? _sel;
     private int _drag;                              // 0 none, 1 move, 2 resize
@@ -449,6 +451,9 @@ public partial class FrameDesignWindow : Window
     /// fields + the footer toggle. Each box edits the real spec region/font, so Apply persists it.</summary>
     private void BuildLayoutEditor()
     {
+        if (_spec.IsLandscape) { CanvasW = 630; CanvasH = 450; }
+        LayoutCanvas.Width = PreviewImage.Width = CanvasW;
+        LayoutCanvas.Height = PreviewImage.Height = CanvasH;
         _sx = CanvasW / Math.Max(1, _spec.CanvasWidth);
         _sy = CanvasH / Math.Max(1, _spec.CanvasHeight);
 

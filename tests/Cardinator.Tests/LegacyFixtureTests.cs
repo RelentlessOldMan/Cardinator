@@ -54,6 +54,9 @@ public class LegacyFixtureTests
         Assert.False(aria.IsDoubleFaced);
         Assert.Equal("", aria.DfcStyle);
         Assert.Equal("", aria.Subtitle);
+        Assert.Equal("", aria.Defense);                         // 1.5.0 fields default cleanly...
+        Assert.Equal("", aria.Orientation);
+        Assert.False(aria.WantsLandscape);                      // ...so an old creature stays upright
         Assert.NotNull(project.Profile);
         Assert.Equal(0, project.FormatVersion);                 // pre-versioning
         Assert.False(project.IsFromNewerVersion);

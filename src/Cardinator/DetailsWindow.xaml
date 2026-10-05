@@ -73,7 +73,25 @@
                     </StackPanel>
                     <StackPanel Grid.Column="2" Margin="7,0,0,0">
                         <TextBlock Text="Loyalty" Style="{StaticResource SectionLabel}"/>
-                        <TextBox Text="{Binding Loyalty, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBox Text="{Binding Loyalty, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Starting loyalty — planeswalkers only."/>
+                    </StackPanel>
+                </Grid>
+                <Grid Margin="0,-8,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="2*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,7,0">
+                        <TextBlock Text="Defense" Style="{StaticResource SectionLabel}"/>
+                        <TextBox Text="{Binding Defense, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Starting defense — Battles (e.g. Sieges) only. Shown in a shield, bottom-right."/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="7,0,0,0">
+                        <TextBlock Text="Orientation" Style="{StaticResource SectionLabel}"/>
+                        <ComboBox x:Name="OrientationBox" SelectedValuePath="Value" DisplayMemberPath="Label"
+                                  SelectedValue="{Binding Orientation, UpdateSourceTrigger=PropertyChanged}"
+                                  ToolTip="Automatic turns Battles, Planes and Phenomena sideways. Force it either way here."/>
                     </StackPanel>
                 </Grid>
 

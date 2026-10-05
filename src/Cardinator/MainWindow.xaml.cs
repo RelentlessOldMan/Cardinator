@@ -214,9 +214,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private CardModel? ActiveFace =>
         _viewingBack && _selectedCard?.BackFace != null ? _selectedCard.BackFace : _selectedCard;
 
-    /// <summary>The loaded template a given face renders with (its own frame, falling back to the current one).</summary>
-    private Template? TemplateFor(CardModel card) =>
-        Templates.FirstOrDefault(t => t.Name == card.TemplateName) ?? _selectedTemplate ?? Templates.FirstOrDefault();
+    /// <summary>The template a given face ACTUALLY renders with: its own frame (falling back to the current one),
+    /// turned to its landscape layout when the face is a Battle/Plane. Resolving here means the CHECKS panel
+    /// and the pixel inspector judge the same geometry the preview draws.</summary>
+    private Template? TemplateFor(CardModel card)
+    {
+        var t = Templates.FirstOrDefault(x => x.Name == card.TemplateName) ?? _selectedTemplate ?? Templates.FirstOrDefault();
+        return t == null ? null : TemplateService.ResolveFor(card, t);
+    }
 
     /// <summary>Short app version shown in the header (e.g. "v1.1.4"), so the running build is obvious.</summary>
     public string AppVersion => "v" + App.VersionNumber();
@@ -501,9 +506,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (Cards.Count == 0) { Status = "No cards to check."; return; }
 
         var names = Templates.Select(t => t.Name).ToList();
-        TemplateSpec ResolveSpec(CardModel c) =>
-            (Templates.FirstOrDefault(t => t.Name == c.TemplateName) ?? Templates.FirstOrDefault())?.Spec
-            ?? new TemplateSpec();
+        TemplateSpec ResolveSpec(CardModel c) => TemplateFor(c)?.Spec ?? new TemplateSpec();
 
         var problems = SetValidator.ValidateAll(Cards, ResolveSpec, names);
         if (problems.Count == 0)
@@ -674,7 +677,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(CanRedo));
     }
 
-    private void RenderPreview() => RenderPreview(inspect: true);
+    internal void RenderPreview() => RenderPreview(inspect: true);   // internal: tests force a render
 
     /// <param name="inspect">When true, also render a clean (no-hint) bitmap and run the pixel-level
     /// <see cref="RenderInspector"/> for the CHECKS panel (M5). Skipped during live drag to stay smooth.</param>
@@ -1833,13 +1836,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         RenderPreview(inspect: false);   // skip the extra pixel-inspection render while dragging, for smoothness
     }
 
-    /// <summary>Size of the letterboxed card inside the preview Image (5:7 aspect).</summary>
+    /// <summary>Size of the letterboxed card inside the preview Image — at the card's own aspect, which is
+    /// 7:5 for a landscape Battle/Plane, not the usual 5:7.</summary>
     private (double w, double h) DisplayedCardSize()
     {
         double ew = PreviewImageControl.ActualWidth, eh = PreviewImageControl.ActualHeight;
         if (ew <= 0 || eh <= 0) return (0, 0);
-        double h = Math.Min(eh, ew * 1050.0 / 750.0);
-        return (h * 750.0 / 1050.0, h);
+        double aspect = PreviewImage is { PixelWidth: > 0, PixelHeight: > 0 } img
+            ? (double)img.PixelHeight / img.PixelWidth
+            : 1050.0 / 750.0;
+        double h = Math.Min(eh, ew * aspect);
+        return (h / aspect, h);
     }
 
     private static double Clamp(double v, double lo, double hi) => Math.Max(lo, Math.Min(hi, v));
@@ -2037,7 +2044,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             && ActiveFace is { ArtPath: { Length: > 0 } })
         {
             bool shift = mods.HasFlag(System.Windows.Input.ModifierKeys.Shift);
-            double sx = (shift ? 10.0 : 1.0) / 750.0, sy = (shift ? 10.0 : 1.0) / 1050.0;   // 1px (or 10px) of the card
+            var canvas = TemplateFor(ActiveFace!)?.Spec;
+            double cw = canvas?.CanvasWidth ?? 750, ch = canvas?.CanvasHeight ?? 1050;
+            double sx = (shift ? 10.0 : 1.0) / cw, sy = (shift ? 10.0 : 1.0) / ch;   // 1px (or 10px) of the card
             double zstep = shift ? 0.10 : 0.02;
             switch (e.Key)
             {

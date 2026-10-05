@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Media;
@@ -240,6 +240,95 @@ public sealed class TemplateSpec
         var copy = JsonSerializer.Deserialize<TemplateSpec>(JsonSerializer.Serialize(this, JsonOpts), JsonOpts)!;
         copy.Normalize();
         return copy;
+    }
+
+    /// <summary>True for a template laid out sideways (wider than tall) — Battles, Planes, Phenomena.</summary>
+    [JsonIgnore]
+    public bool IsLandscape => CanvasWidth > CanvasHeight;
+
+    /// <summary>
+    /// The same template laid out LANDSCAPE: canvas width and height swap, and every region is re-placed so
+    /// the frame keeps its look (style, colors, fonts, margins) on a sideways card. That lets every portrait
+    /// frame render a Battle or Plane without shipping — and asking the user to pick between — a landscape
+    /// copy of each one.
+    /// <para>How: the card gets wider (regions spanning the width stretch, right-anchored ones like the P/T
+    /// box slide right) and shorter. The lost height comes out of the two flexible spans only — the art
+    /// (or, for full-art frames, the open art between the title and the lower panels) and the text box —
+    /// art first, but only until it would become a letterbox strip (wider than 3.2:1); the text box absorbs
+    /// the rest, never losing more than 60%. That is naturally generous to full-art frames (a tall open art
+    /// span to spare, so their short text box barely shrinks) and fair to classic ones. Fixed-height plates (title, type line, P/T, footer)
+    /// keep their size and their distance from the nearest edge, so nothing gets squashed.</para>
+    /// Returns this spec unchanged when it is already landscape.
+    /// </summary>
+    public TemplateSpec ToLandscape()
+    {
+        if (IsLandscape) return this;
+        var s = Clone();
+        double w0 = CanvasWidth, h0 = CanvasHeight;
+        double w1 = h0, h1 = w0;
+        double grow = w1 - w0, deficit = h0 - h1;
+        s.CanvasWidth = (int)w1;
+        s.CanvasHeight = (int)h1;
+
+        bool fullArt = ArtWindow.X <= 1 && ArtWindow.Y <= 1 && ArtWindow.Right >= w0 - 1 && ArtWindow.Bottom >= h0 - 1;
+
+        // The two spans that may shrink: the art (or the open art below the title on a full-art frame) and
+        // the text box.
+        double a0, a1;
+        if (fullArt)
+        {
+            a0 = TitleBar.Bottom;
+            a1 = new[] { TypeBar.Y, TextBox.Y }.Where(y => y > a0).DefaultIfEmpty(TextBox.Y).Min();
+        }
+        else { a0 = ArtWindow.Y; a1 = ArtWindow.Bottom; }
+        double t0 = TextBox.Y, t1 = TextBox.Bottom;
+        double aLen = System.Math.Max(1, a1 - a0), tLen = System.Math.Max(1, t1 - t0);
+
+        // Art shrinks first, down to a 3.2:1 strip at the landscape width; the text box takes what's left
+        // (at most 60% of it). If both limits bind, the art gives the remainder rather than the words.
+        const double maxArtAspect = 3.2;
+        double artWidth = fullArt ? w1 : (ArtWindow.X <= w0 * 0.2 && ArtWindow.Right >= w0 * 0.8 ? ArtWindow.W + grow : ArtWindow.W);
+        double aMax = System.Math.Max(0, aLen - artWidth / maxArtAspect);
+        double aCut = System.Math.Min(deficit, aMax);
+        double tCut = deficit - aCut;
+        if (tCut > tLen * 0.60) { tCut = tLen * 0.60; aCut = deficit - tCut; }
+
+        static double Seg(double y, double from, double to, double cut) =>
+            y <= from ? 0 : y >= to ? cut : cut * (y - from) / (to - from);
+        double MapY(double y) => y - Seg(y, a0, a1, aCut) - Seg(y, t0, t1, tCut);
+
+        Region MapX(Region r, Region into)
+        {
+            bool wide = r.X <= w0 * 0.2 && r.Right >= w0 * 0.8;
+            if (wide) { into.X = r.X; into.W = r.W + grow; }
+            else if (r.X >= w0 * 0.5) { into.X = r.X + grow; into.W = r.W; }
+            else { into.X = r.X; into.W = r.W; }
+            return into;
+        }
+
+        // Flexible spans: both edges follow the compressed axis, so they lose height.
+        Region Flex(Region r)
+        {
+            var top = MapY(r.Y);
+            return MapX(r, new Region { Y = top, H = System.Math.Max(1, MapY(r.Bottom) - top) });
+        }
+
+        // Fixed plates keep their height. One that reaches the bottom of the text box (the nested P/T box,
+        // the footer) stays anchored to the BOTTOM edge; everything else keeps its offset from the top.
+        Region Rigid(Region r)
+        {
+            double top = r.Bottom >= t1 ? MapY(r.Bottom) - r.H : MapY(r.Y);
+            return MapX(r, new Region { Y = top, H = r.H });
+        }
+
+        s.TitleBar = Rigid(TitleBar);
+        s.TypeBar = Rigid(TypeBar);
+        s.PtBox = Rigid(PtBox);
+        s.CreditBar = Rigid(CreditBar);
+        s.TextBox = Flex(TextBox);
+        s.ArtWindow = fullArt ? new Region { X = 0, Y = 0, W = w1, H = h1 } : Flex(ArtWindow);
+        if (SubtitleBar != null) s.SubtitleBar = Rigid(SubtitleBar);
+        return s;
     }
 
     /// <summary>Bump this when FrameGenerator's drawing changes in a way that should invalidate every
