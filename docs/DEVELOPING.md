@@ -23,6 +23,29 @@ dotnet publish src/Cardinator/Cardinator.csproj -c Release -r win-x64 `
 # -> publish/Cardinator.exe  (no install / runtime needed on the target PC)
 ```
 
+## Releasing
+
+**Every version that reaches `main` gets a GitHub release, automatically.**
+
+1. Bump `<Version>` in `src/Cardinator/Cardinator.csproj` (patch for a normal batch; minor only when
+   agreed; never the major).
+2. Commit and push to `main`.
+3. CI runs the tests; then its `release` job sees that `v<Version>` has no release yet, publishes the
+   self-contained `Cardinator.exe`, and creates the release with the commit message as its notes.
+   A push that doesn't change the version releases nothing.
+
+Check it: `gh run list --limit 1` (green) and `gh release view v<Version>`.
+
+**By hand** (only if the job failed), from the commit that set the version:
+
+```powershell
+dotnet publish src/Cardinator/Cardinator.csproj -c Release -r win-x64 `
+  --self-contained true -p:PublishSingleFile=true -o publish
+gh release create v1.2.3 publish/Cardinator.exe --target <commit> --title "Cardinator v1.2.3" --notes-file notes.md
+```
+
+Never move or reuse an existing tag; fix forward with the next patch version.
+
 ## Verifying without the GUI
 
 Rendering runs headlessly, which makes it easy to check changes on a remote/CI machine without
