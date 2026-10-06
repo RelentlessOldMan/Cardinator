@@ -36,6 +36,30 @@ adventure storybook pages, rarity pips, the P/T box and footer — is drawn by t
 
 ### **[→ See the full gallery: 13 cards across the classic frame styles](docs/GALLERY.md)**
 
+### Every kind of card
+
+Not just creatures and spells: the special layouts are drawn too, on every frame, including your own.
+
+<table>
+<tr>
+<td align="center"><img src="docs/images/split-card.png" width="180" alt="A split card with a frame for each half and a two-colour Fuse bar"><br><b>Split</b><br><sub>a frame per half, Fuse bar</sub></td>
+<td align="center"><img src="docs/images/aftermath-card.png" width="180" alt="An aftermath card"><br><b>Aftermath</b></td>
+<td align="center"><img src="docs/images/flip-card.png" width="180" alt="A flip card"><br><b>Flip</b></td>
+<td align="center"><img src="docs/images/adventure-card.png" width="180" alt="An adventure card with storybook pages"><br><b>Adventure</b></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/images/level-up-card.png" width="180" alt="A level up card"><br><b>Level up</b></td>
+<td align="center"><img src="docs/images/prototype-card.png" width="180" alt="A prototype card"><br><b>Prototype / Mutate</b></td>
+<td align="center" colspan="2"><img src="docs/images/meld-card.png" width="370" alt="A meld pair's backs making one big card"><br><b>Meld</b></td>
+</tr>
+<tr>
+<td align="center" colspan="2"><img src="docs/images/station-case.png" width="370" alt="A Station card and a Case card"><br><b>Station &amp; Case</b></td>
+<td align="center" colspan="2"><img src="docs/images/battle-landscape.png" width="330" alt="A Battle drawn sideways"><br><b>Battles &amp; Planes</b><br><sub>drawn sideways</sub></td>
+</tr>
+</table>
+
+Plus planeswalkers, sagas, classes and double-faced cards. **[How to make each one →](docs/USER_GUIDE.md#special-card-types)**
+
 **18 built-in frames:** 15 drawn styles (Gold, Crimson, Ocean, Forest, Slate, Midnight, Parchment,
 Sunset, Planeswalker, Full Art, Showcase, Cinematic, plus the **Tidecaller** wave, **Azure Modern**
 M15-style and **Ironwrought Showcase** composable), and 3 image-based **alchemy sample frames** (the
@@ -138,8 +162,8 @@ output are all checked in.** Click a thumbnail for that example's guide.
 - **Card types:** creatures, spells, **planeswalkers** (loyalty box + ability badges), **sagas**
   (chapter markers), **classes** (level badges), **adventures** (storybook: the spell on the left page, the creature on the right), and
   **flip cards** (Kamigawa-style: the other half printed upside down below the art, on any drawn frame),
-  **split cards** (*Wear // Tear*, Rooms: two small cards side by side with their own art, Fuse bar included,
-  on every frame), **aftermath cards** (*Destined // Lead*: one half upright on top, the other sideways below),
+  **split cards** (*Wear // Tear*, Rooms: two small cards side by side with their own art, and a frame of
+  their own if you like; the Fuse bar takes each half's colour, on every frame), **aftermath cards** (*Destined // Lead*: one half upright on top, the other sideways below),
   **level up** (*Student of Warfare*: level bands with LEVEL badges and a P/T box each),
   **Station** (*Uthros Research Craft*: threshold bands, the P/T box on the creature band) and **Case** cards
   (*Case of the Burning Masks*: To solve and Solved bands),

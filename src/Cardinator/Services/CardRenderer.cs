@@ -145,7 +145,8 @@ public sealed class CardRenderer
                     : card.HasDefense ? DefenseRect(spec)
                     : card.HasPowerToughness ? PtRect(spec)
                     : null;
-                DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, avoid);
+                DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, avoid,
+                    ArtText(spec) ? null : BottomOrnament(template, spec));
             }
 
             if (card.IsPlaneswalker && !string.IsNullOrWhiteSpace(card.Loyalty))
@@ -209,7 +210,7 @@ public sealed class CardRenderer
     /// other half below it is the normal card turned a quarter the other way (its top along the card's right
     /// edge). Either way the card's credits run upright along its bottom edge, <see cref="FooterStrip"/> deep.</summary>
     internal sealed record SplitLayout(SplitPart First, SplitPart Other, string SharedLine, Rect Bar, double FooterStrip,
-        bool Aftermath)
+        bool Aftermath, double BarDivide = 0)
     {
         /// <summary>Split reading coordinates → the upright card: the reading view's left edge is the card's bottom.</summary>
         public static Matrix ReadingToCard(double canvasHeight) => new(0, -1, 1, 0, 0, canvasHeight);
@@ -223,6 +224,8 @@ public sealed class CardRenderer
         double m = Math.Max(6, side * 0.016);                          // outer margin and the gutter
         double foot = Math.Max(spec.BorderThickness, side * 0.042);    // the card's bottom edge (credits)
         var (front, half) = SplitHalves(card);
+        var halfT = HalfTemplate(card, template);
+        double W2 = halfT.Spec.CanvasWidth, H2 = halfT.Spec.CanvasHeight;
 
         if (card.IsAftermath)
         {
@@ -238,10 +241,10 @@ public sealed class CardRenderer
             // The other half: the normal card turned a quarter counter-clockwise to read — its canvas x runs DOWN
             // the card and its y runs LEFT from the right edge.
             double regionY = m + th * s1 + m, regionH = H - foot - regionY;
-            double s2 = Math.Max(0.05, Math.Min(regionH / W, availW / H));
-            double readW = W * s2, readH = H * s2;
+            double s2 = Math.Max(0.05, Math.Min(regionH / W2, availW / H2));
+            double readW = W2 * s2, readH = H2 * s2;
             var bottom = new Matrix(0, s2, -s2, 0, (W + readH) / 2, regionY + (regionH - readW) / 2);
-            return new SplitLayout(new SplitPart(front, wide, top, s1), new SplitPart(half, template, bottom, s2),
+            return new SplitLayout(new SplitPart(front, wide, top, s1), new SplitPart(half, halfT, bottom, s2),
                 "", Rect.Empty, foot, Aftermath: true);
         }
 
@@ -250,20 +253,26 @@ public sealed class CardRenderer
         double barH = shared.Length > 0 ? side * 0.075 : 0;
         double slotW = (rw - foot - 2 * m) / 2;
         double slotH = rh - 2 * m - (barH > 0 ? barH + m : 0);
+        // Each half as big as its slot allows (a half with a frame of its own may be another shape), centred in it.
         double s = Math.Max(0.05, Math.Min(slotW / W, slotH / H));
-        double hw = W * s, hh = H * s, y = m + (slotH - hh) / 2;
-        var left = new Rect(foot + (slotW - hw) / 2, y, hw, hh);
-        var right = new Rect(foot + slotW + m + (slotW - hw) / 2, y, hw, hh);
+        double sh = Math.Max(0.05, Math.Min(slotW / W2, slotH / H2));
+        var left = new Rect(foot + (slotW - W * s) / 2, m + (slotH - H * s) / 2, W * s, H * s);
+        var right = new Rect(foot + slotW + m + (slotW - W2 * sh) / 2, m + (slotH - H2 * sh) / 2, W2 * sh, H2 * sh);
         var bar = barH > 0 ? new Rect(left.X, rh - m - barH, right.Right - left.X, barH) : Rect.Empty;
-        Matrix Place(Rect r)
+        Matrix Place(Rect r, double scale)
         {
-            var mx = new Matrix(s, 0, 0, s, r.X, r.Y);
+            var mx = new Matrix(scale, 0, 0, scale, r.X, r.Y);
             mx.Append(SplitLayout.ReadingToCard(H));
             return mx;
         }
-        return new SplitLayout(new SplitPart(front, template, Place(left), s), new SplitPart(half, template, Place(right), s),
-            shared, bar, foot, Aftermath: false);
+        return new SplitLayout(new SplitPart(front, template, Place(left, s), s), new SplitPart(half, halfT, Place(right, sh), sh),
+            shared, bar, foot, Aftermath: false, BarDivide: foot + slotW + m / 2);
     }
+
+    /// <summary>The frame a split or aftermath card's other half is drawn with: its own
+    /// (<see cref="CardModel.HalfTemplateName"/>) when that frame is installed, else the card's.</summary>
+    internal static Template HalfTemplate(CardModel card, Template template)
+        => TemplateService.Named(card.HalfTemplateName) ?? template;
 
     /// <summary>A reminder both halves of a split card end with — Fuse, or a Room's "(You may cast either half…)"
     /// — is printed ONCE across the card, so it comes off both halves' rules. Only a "Fuse…" line or a fully
@@ -351,12 +360,14 @@ public sealed class CardRenderer
         };
     }
 
-    /// <summary>The shared reminder bar across the bottom of a split card's reading view.</summary>
+    /// <summary>The shared reminder bar across the bottom of a split card's reading view: each end in its half's
+    /// colour (from its mana cost, like a real Fuse bar — red under <i>Wear</i>, white under <i>Tear</i>), kept
+    /// light so the dark text reads, blending where the halves meet.</summary>
     private static void DrawSplitBar(DrawingContext dc, SplitLayout g, TemplateSpec spec)
     {
         var bar = g.Bar;
         double r = bar.Height * 0.22;
-        var fill = new SolidColorBrush(Color.FromRgb(0xEE, 0xE7, 0xD8));
+        var fill = SplitBarFill(g);
         var pen = new Pen(new SolidColorBrush(Color.FromRgb(0x5A, 0x52, 0x46)), Math.Max(1, bar.Height * 0.04));
         dc.DrawRoundedRectangle(fill, pen, bar, r, r);
         var font = new FontSpec
@@ -368,6 +379,25 @@ public sealed class CardRenderer
         double pad = bar.Height * 0.35;
         var ft = FitText(g.SharedLine, font, Math.Min(font.Size, bar.Height * 0.48), 7, bar.Width - 2 * pad, brush);
         dc.DrawText(ft, new Point(bar.X + (bar.Width - ft.Width) / 2, bar.Y + (bar.Height - ft.Height) / 2));
+    }
+
+    /// <summary>The Fuse bar's fill: the first half's colour on the left end, the other half's on the right, a
+    /// short blend at <see cref="SplitLayout.BarDivide"/>. Both lightened towards paper for the dark text.</summary>
+    internal static Brush SplitBarFill(SplitLayout g)
+    {
+        var bar = g.Bar;
+        Color Tint(CardModel c) => LightenC(PrototypeTint(c.ManaCost ?? ""), 0.45);
+        Color a = Tint(g.First.Card), b = Tint(g.Other.Card);
+        if (a == b) { var solid = new SolidColorBrush(a); solid.Freeze(); return solid; }
+        double mid = bar.Width <= 0 ? 0.5 : Math.Clamp((g.BarDivide - bar.X) / bar.Width, 0.1, 0.9);
+        double blend = 0.06;
+        var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0) };
+        brush.GradientStops.Add(new GradientStop(a, 0));
+        brush.GradientStops.Add(new GradientStop(a, mid - blend));
+        brush.GradientStops.Add(new GradientStop(b, mid + blend));
+        brush.GradientStops.Add(new GradientStop(b, 1));
+        brush.Freeze();
+        return brush;
     }
 
     /// <summary>One half of a flip card in the flip layout: name + mana, the type line (shortened so the set
@@ -1663,14 +1693,18 @@ public sealed class CardRenderer
         public double Height { get; set; }
     }
 
+    /// <param name="ornament">A medallion set into the box's bottom edge (<see cref="BottomOrnament"/>): text that
+    /// would run onto it shrinks to end above it instead. Short text is laid out exactly as without one.</param>
     private void DrawTextBox(DrawingContext dc, string rules, string flavor, Region region,
-        FontSpec rulesFont, FontSpec flavorFont, double baseSymbolSize, Rect? avoid = null)
+        FontSpec rulesFont, FontSpec flavorFont, double baseSymbolSize, Rect? avoid = null, Rect? ornament = null)
     {
         if (string.IsNullOrWhiteSpace(rules) && string.IsNullOrWhiteSpace(flavor)) return;
 
         double pad = 18;
         var box = new Rect(region.X + pad, region.Y + pad,
             Math.Max(0, region.W - 2 * pad), Math.Max(0, region.H - 2 * pad));
+        if (ornament is { } orn && orn.Top - 4 < box.Bottom && orn.Left < box.Right && orn.Right > box.Left)
+            box.Height = Math.Max(Math.Min(box.Height, 20), orn.Top - 4 - box.Y);
 
         // Shrink from the preferred size down to a floor, but always run at least once so a template with
         // a small RulesFont.Size still renders its text instead of silently dropping it.
@@ -2292,7 +2326,8 @@ public sealed class CardRenderer
         dc.DrawText(range, new Point(r.X + 2 + (w - range.Width) / 2, y + top.Height * 0.85));
     }
 
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Template, System.Runtime.CompilerServices.StrongBox<Rect?>> _ornaments = new();
+    // Keyed by the frame image: a split half's enlarged-font copy of a template shares its frame, and its answer.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ImageSource, System.Runtime.CompilerServices.StrongBox<Rect?>> _ornaments = new();
 
     /// <summary>A frame ornament on the text box's bottom edge, in canvas coordinates — the medallion the Partial
     /// Cardboard Chemist frames (and many imported ones) set into the middle of the box's bottom border — or null.
@@ -2302,7 +2337,8 @@ public sealed class CardRenderer
     internal static Rect? BottomOrnament(Template template, TemplateSpec spec)
     {
         if (spec.FullArt) return null;
-        return _ornaments.GetValue(template, t => new System.Runtime.CompilerServices.StrongBox<Rect?>(FindBottomOrnament(t.FrameImage, spec))).Value;
+        if (template.FrameImage is not BitmapSource frame) return null;
+        return _ornaments.GetValue(frame, f => new System.Runtime.CompilerServices.StrongBox<Rect?>(FindBottomOrnament((BitmapSource)f, spec))).Value;
     }
 
     private static Rect? FindBottomOrnament(BitmapSource frame, TemplateSpec spec)

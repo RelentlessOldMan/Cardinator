@@ -333,6 +333,45 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         FlipEditBtn.Content = split ? "Edit other half…" : "Edit flipped half…";
         FlipShowBtn.Content = split ? (_readingSideways ? "Show upright" : "Read sideways")
                                     : (_viewingFlipped ? "Show upright" : "Show flipped");
+        RefreshHalfFrameBox();
+    }
+
+    /// <summary>The first entry of the other half's frame list: no frame of its own.</summary>
+    internal const string SameFrameAsCard = "Same as the card";
+    private bool _syncingHalfFrame;
+
+    /// <summary>Shows the other half's frame list on a split card, selecting its own frame (or "Same as the card").
+    /// A frame it names that isn't installed stays listed, so the choice isn't silently lost.</summary>
+    private void RefreshHalfFrameBox()
+    {
+        var card = _selectedCard;
+        bool split = card?.IsSplit == true;
+        HalfFramePanel.Visibility = split ? Visibility.Visible : Visibility.Collapsed;
+        if (!split) return;
+        _syncingHalfFrame = true;
+        try
+        {
+            var names = new List<string> { SameFrameAsCard };
+            names.AddRange(Templates.Select(t => t.Name));
+            var own = card!.HalfTemplateName;
+            if (own.Length > 0 && !names.Contains(own)) names.Add(own);
+            HalfFrameBox.ItemsSource = names;
+            HalfFrameBox.SelectedItem = own.Length > 0 ? own : SameFrameAsCard;
+        }
+        finally { _syncingHalfFrame = false; }
+    }
+
+    private void OnHalfFrameChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingHalfFrame || _selectedCard?.IsSplit != true || HalfFrameBox.SelectedItem is not string pick) return;
+        var name = pick == SameFrameAsCard ? "" : pick;
+        if (name == _selectedCard.HalfTemplateName) return;
+        _selectedCard.HalfTemplateName = name;
+        Status = name.Length == 0 ? $"“{_selectedCard.OtherHalf!.Name}” uses the card's frame again."
+                                  : $"“{_selectedCard.OtherHalf!.Name}” now has the {name} frame.";
+        MarkDirty();
+        QueueUndoCommit();
+        RenderPreview();
     }
 
     private void OnToggleFlip(object sender, RoutedEventArgs e)
@@ -374,6 +413,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             _selectedCard.OtherHalf = null;
             _selectedCard.HalfLayout = "";
+            _selectedCard.HalfTemplateName = "";
             _readingSideways = false;
             _activeHalf = false;
             Status = "Removed the other half.";
@@ -1138,7 +1178,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Cards.Clear();
         _projectName = "Untitled Project";
         _projectPath = "";
-        _projectFolder = null;   // ad-hoc until the first Save sets up a set folder
+        SetProjectFolder(null);   // ad-hoc until the first Save sets up a set folder
         _defaultTemplate = "";
         _setProfile = new SetProfile();
         _artBaseDir = "";
@@ -1190,7 +1230,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _projectName = string.IsNullOrWhiteSpace(project.Name)
                 ? Path.GetFileNameWithoutExtension(path) : project.Name;
             _projectPath = path;
-            _projectFolder = projFolder;
+            SetProjectFolder(projFolder);
             _artBaseDir = project.ArtBaseDir;
             // Restore the set's default frame so new/imported cards inherit the house style (M4).
             _defaultTemplate = !string.IsNullOrWhiteSpace(project.DefaultTemplate)
@@ -1324,7 +1364,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // order is the data-safety guarantee, so it lives in ProjectWriter where it can be tested.
             int stranded = ProjectWriter.Write(path, Cards.ToList(), name, _artBaseDir, DefaultTemplateName, _setProfile);
             _projectPath = path;
-            _projectFolder = projFolder;
+            SetProjectFolder(projFolder);
             _projectName = name;
             MarkSavedPoint();   // this history position now matches disk (undo past it re-marks dirty)
             OnPropertyChanged(nameof(ProjectSummary));
@@ -1339,6 +1379,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = "Couldn't save project: " + ex.Message;
             return false;
         }
+    }
+
+    /// <summary>Switches the set folder. A folder exported to while working on another set (or before the first
+    /// Save) is forgotten, so exports default to THIS set's <c>out/</c> rather than the last set's.</summary>
+    private void SetProjectFolder(string? folder)
+    {
+        static string? Norm(string? f) => string.IsNullOrEmpty(f) ? null : Path.GetFullPath(f).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!string.Equals(Norm(_projectFolder), Norm(folder), StringComparison.OrdinalIgnoreCase))
+            _lastExportDir = null;
+        _projectFolder = folder;
     }
 
     /// <summary>Where exports should default: the last place you exported, else the set's <c>out</c> folder,
@@ -1625,7 +1675,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (dlg.ShowDialog() != true) return;
         try
         {
-            var names = Cards.Select(c => c.TemplateName).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
+            var names = Cards.SelectMany(TemplateService.FramesUsed).Distinct().ToList();
             int frames = SetPackager.ExportSetWithFrames(_projectPath, names, AppPaths.TemplatesDir, dlg.FileName);
             _lastExportDir = Path.GetDirectoryName(dlg.FileName);
             Status = $"Shared set to {Path.GetFileName(dlg.FileName)} ({Cards.Count} cards, {frames} custom frame(s) included).";
@@ -1882,6 +1932,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Templates.Clear();
         foreach (var t in _templates.LoadAll()) Templates.Add(t);
         SelectedTemplate = Templates.FirstOrDefault(t => t.Name == wanted) ?? Templates.FirstOrDefault();
+        RefreshHalfFrameBox();
     }
 
     private void OnMatchArtFolder(object sender, RoutedEventArgs e)

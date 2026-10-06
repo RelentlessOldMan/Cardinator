@@ -467,6 +467,47 @@ public class WindowSmokeTests
         });
 
     [Fact]
+    public void MainWindow_NewArt_StartsCentred_AndUndoBringsBackTheOldPictureWhereItWas()   // B6, 1.6.9
+        => OnAppThread(() =>
+        {
+            var dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "cardinator-newart-" + Guid.NewGuid().ToString("N"))).FullName;
+            try
+            {
+                string Png(string name)
+                {
+                    var bmp = System.Windows.Media.Imaging.BitmapSource.Create(4, 4, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, new byte[64], 16);
+                    var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+                    var path = Path.Combine(dir, name);
+                    using (var fs = File.Create(path)) enc.Save(fs);
+                    return path;
+                }
+                var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+                var card = main.SelectedCard!;
+                var setArt = typeof(Cardinator.MainWindow).GetMethod("SetArt",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, new[] { typeof(CardModel), typeof(string) })!;
+                setArt.Invoke(main, new object[] { card, Png("old.png") });
+                Invoke(main, "NudgeArt", 0.05, -0.03);
+                Invoke(main, "ZoomArt", 0.4);
+                main.CommitHistory();
+                var oldArt = card.ArtPath;
+
+                setArt.Invoke(main, new object[] { card, Png("new.png") });   // a different picture: its own shape, so it starts fresh
+                Assert.Equal(1.0, card.ArtScale);
+                Assert.Equal(0, card.ArtOffsetX);
+                Assert.Equal(0, card.ArtOffsetY);
+                main.CommitHistory();
+
+                main.Undo();
+                var undone = main.SelectedCard!;
+                Assert.Equal(oldArt, undone.ArtPath);
+                Assert.Equal(1.4, undone.ArtScale, 6);
+                Assert.NotEqual(0, undone.ArtOffsetX);
+            }
+            finally { try { Directory.Delete(dir, true); } catch { } }
+        });
+
+    [Fact]
     public void MainWindow_MeldBack_ArtMovesTheWayTheMouseGoes()
         => OnAppThread(() =>
         {
@@ -478,6 +519,63 @@ public class WindowSmokeTests
             Invoke(main, "NudgeArt", 0.0, 0.01);         // down on the back = towards the melded card's left edge
             Assert.True(card.BackFace.ArtOffsetX < 0, "the melded card's art didn't move left");
             Assert.Equal(0, card.BackFace.ArtOffsetY, 6);
+        });
+
+    [Fact]
+    public void MainWindow_OtherHalfsFrame_ListShowsOnSplitCards_PicksAFrame_AndIsUndoable()   // 1.6.9
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            Assert.Equal(Visibility.Collapsed, main.HalfFramePanel.Visibility);   // not a split card yet
+            Invoke(main, "OnToggleSplit", null, null);
+            var card = main.SelectedCard!;
+            Assert.True(card.IsSplit);
+            Assert.Equal(Visibility.Visible, main.HalfFramePanel.Visibility);
+            Assert.Equal(Cardinator.MainWindow.SameFrameAsCard, main.HalfFrameBox.SelectedItem);
+
+            var other = main.Templates.First(t => t.Name != card.TemplateName).Name;
+            main.HalfFrameBox.SelectedItem = other;
+            Assert.Equal(other, card.HalfTemplateName);
+            main.CommitHistory();
+
+            main.Undo();
+            Assert.Equal("", main.SelectedCard!.HalfTemplateName);
+            Assert.Equal(Cardinator.MainWindow.SameFrameAsCard, main.HalfFrameBox.SelectedItem);
+        });
+
+    [Fact]
+    public void MainWindow_ExportAll_DefaultsToTheOpenSetsOutFolder_NotTheLastSetsOne()
+        => OnAppThread(() =>
+        {
+            var root = Path.Combine(Path.GetTempPath(), "cardinator-outdir-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                string MakeSet(string name)
+                {
+                    var path = Path.Combine(root, name, name + ".cardinator");
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                    ProjectWriter.Write(path, new[] { new CardModel { Name = name + " card" } }, name, "", "", new SetProfile());
+                    return path;
+                }
+                var a = MakeSet("SetA"); var b = MakeSet("SetB");
+                var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+                var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                string OutDir() => (string)typeof(Cardinator.MainWindow).GetMethod("DefaultOutputDir", flags)!.Invoke(main, null)!;
+                var lastExport = typeof(Cardinator.MainWindow).GetField("_lastExportDir", flags)!;
+
+                Invoke(main, "LoadProjectFile", a);
+                Assert.Equal(Path.Combine(root, "SetA", "out"), OutDir());
+
+                // Exporting somewhere else in this set is remembered...
+                var custom = Directory.CreateDirectory(Path.Combine(root, "SetA", "prints")).FullName;
+                lastExport.SetValue(main, custom);
+                Assert.Equal(custom, OutDir());
+
+                // ...but opening another set defaults to ITS out/ folder, not set A's.
+                Invoke(main, "LoadProjectFile", b);
+                Assert.Equal(Path.Combine(root, "SetB", "out"), OutDir());
+            }
+            finally { try { Directory.Delete(root, true); } catch { } }
         });
 
     private static void Invoke(object target, string method, params object?[] args)

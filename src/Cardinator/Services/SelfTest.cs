@@ -681,6 +681,8 @@ public static class SelfTest
             (WithSplitHalf(C("QA Wear", "{1}{R}", "Instant", "Destroy target artifact.\nFuse (You may cast one or both halves of this card from your hand.)", art)), "Ocean Blue", "Split card (Fuse)"),
             (WithSplitHalf(C("QA Pool", "{U}", "Enchantment — Room", "When you unlock this door, draw a card.\n(You may cast either half. That door unlocks on the battlefield.)", art)), "Showcase", "Split card (Room, borderless)"),
             (WithSplitHalf(C("QA Fire", "{1}{R}", "Instant", "Fire deals 2 damage divided as you choose among one or two targets.", art)), "Alchemist's Steel", "Split card (picture frame)"),
+            (HalfFrame(WithSplitHalf(C("QA Tear", "{1}{R}", "Instant", "Destroy target artifact.\nFuse (You may cast one or both halves of this card from your hand.)", art)), "Parchment"), "Crimson Red", "Split card (other half on its own frame, Fuse bar per half)"),
+            (HalfFrame(WithAftermath(C("QA Bound", "{1}{B}", "Instant", "Target creature gets +1/+0 until end of turn.", art)), "Arcane Parchment"), "Alchemist's Steel", "Aftermath (lower half on its own picture frame)"),
             (WithAftermath(C("QA Destined", "{1}{B}", "Instant", "Target creature gets +1/+0 and gains indestructible until end of turn.", art)), "Midnight", "Aftermath"),
             (WithAftermath(C("QA Fated", "{2}{G}", "Sorcery", "Search your library for a basic land card.", art)), "Sealed Gate", "Aftermath (picture frame's sideways version)"),
         };
@@ -700,6 +702,7 @@ public static class SelfTest
             return c;
         }
         static CardModel WithDefense(CardModel c, string defense) { c.Defense = defense; return c; }
+        static CardModel HalfFrame(CardModel c, string frame) { c.HalfTemplateName = frame; return c; }
         static CardModel WithSplitHalf(CardModel c)
         {
             var shared = c.RulesText.Contains('\n') ? "\n" + c.RulesText[(c.RulesText.LastIndexOf('\n') + 1)..] : "";

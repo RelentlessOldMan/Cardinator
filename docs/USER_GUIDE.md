@@ -163,10 +163,17 @@ half **Change art…**, paste, drag-to-move and scroll-to-zoom work on (or drop 
 **Read sideways** turns the preview so you can read it.
 
 A reminder both halves end with — **Fuse** (*"You may cast one or both halves…"*) or a Room's *"(You may cast either
-half…)"* — is printed **once**, in a bar across both halves. Every frame works, drawn or imported: each half is
-the frame's own card, just smaller. A split card prints on one side, like a flip card.
+half…)"* — is printed **once**, in a bar across both halves, each end in its half's colour (red under *Wear*, white
+under *Tear*). Every frame works, drawn or imported: each half is the frame's own card, just smaller. A split card
+prints on one side, like a flip card.
 
-<p><img src="images/split-card.png" width="360" alt="A split card: two small cards side by side, turned sideways, with a Fuse bar across both"></p>
+**A frame for each half.** The card's frame is the first half's. To give the other half a frame of its own (a red
+frame for *Wear* and a white one for *Tear*), pick it in **Other half's frame** under FLIP / SPLIT CARD; **Same as
+the card** puts it back. It works for aftermath cards too, and with any frame, including imported picture frames.
+**Share set + frames** takes the other half's frame along, and CHECKS says if it isn't installed (the half is then
+drawn with the card's frame).
+
+<p><img src="images/split-card.png" width="360" alt="A split card: two small cards side by side, turned sideways, the second half on a blue frame of its own, with a Fuse bar red at one end and blue at the other"></p>
 
 **Adventures.** An adventure card (*Bonecrusher Giant*) opens its text box like a book, the way cards have since
 *Wilds of Eldraine*: the adventure spell is on the **left page** — a name bar in the spell's colour with its cost,
@@ -264,8 +271,8 @@ by card, or import a whole batch.
   that don't already have art. Exact filename matches are used silently; any **best-guess** (fuzzy)
   matches are listed afterwards so you can review the ones it wasn't sure about.
 - **Fill blanks from Scryfall** — fills any card that still has only a name.
-- **Number cards** — assigns collector numbers in list order — `001/N`, `002/N`, … (zero-padded to
-  the total's width) — so a whole set is numbered in one click.
+- **Number cards** — assigns collector numbers in list order, zero-padded to the set's size: `1/9` … `9/9`
+  for a set of 9, `01/12` … `12/12` for 12, `001/120` … for 120 — so a whole set is numbered in one click.
 - **Set defaults…** — the set's **house defaults** (set code, rarity, copyright, artist, set-symbol image,
   and default frame). Every **new or imported** card inherits these for any field it doesn't already have, so
   you set them once instead of per card. Tick **Also apply to existing cards** to fill blanks on the cards
