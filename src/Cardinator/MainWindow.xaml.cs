@@ -1732,8 +1732,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 // A bundle carries its own tuned regions/fonts/colors; a bare image gets default regions.
                 if (TemplateImporter.IsBundlePath(path))
                 {
-                    name = TemplateImporter.ImportBundle(path);
-                    Status = $"Imported template \"{name}\".";
+                    var names = TemplateImporter.ImportBundles(path);
+                    name = names[0];
+                    Status = names.Count == 1
+                        ? $"Imported template \"{name}\"."
+                        : $"Imported {names.Count} templates: {string.Join(", ", names.Select(n => $"\"{n}\""))}.";
                 }
                 else
                 {

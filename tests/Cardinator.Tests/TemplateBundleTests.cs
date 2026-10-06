@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -59,6 +59,70 @@ public class TemplateBundleTests
             try { Directory.Delete(srcDir, true); } catch { }
             if (importedDir != null) try { Directory.Delete(importedDir, true); } catch { }
         }
+    }
+
+    [Fact]
+    public void ImportBundles_BringsInEveryFrameInAZip_EachWithItsOwnLayouts()   // 1.6.8
+    {
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        string SpecJson(string name)
+        {
+            var tmp = Path.Combine(Path.GetTempPath(), $"spec-{Guid.NewGuid():N}.json");
+            try { new TemplateSpec { Name = name }.Save(tmp); return File.ReadAllText(tmp); }
+            finally { File.Delete(tmp); }
+        }
+        void Add(ZipArchive z, string path, byte[] bytes) { using var s = z.CreateEntry(path).Open(); s.Write(bytes); }
+        void AddText(ZipArchive z, string path, string text) => Add(z, path, System.Text.Encoding.UTF8.GetBytes(text));
+
+        // An exported single bundle, to put inside the zip.
+        var innerPath = Path.Combine(Path.GetTempPath(), $"inner-{Guid.NewGuid():N}.cardframe");
+        using (var inner = ZipFile.Open(innerPath, ZipArchiveMode.Create))
+        {
+            AddText(inner, "template.json", SpecJson($"Multi C {tag}"));
+            Add(inner, "frame.png", SolidPngBytes(8, 8));
+        }
+        var zipPath = Path.Combine(Path.GetTempPath(), $"multi-{Guid.NewGuid():N}.zip");
+        using (var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+        {
+            AddText(zip, "frames/a/template.json", SpecJson($"Multi A {tag}"));
+            Add(zip, "frames/a/frame.png", SolidPngBytes(8, 8));
+            AddText(zip, "frames/a/flip/template.json", SpecJson($"Multi A {tag}"));
+            Add(zip, "frames/a/flip/frame.png", SolidPngBytes(8, 8));
+            AddText(zip, "frames/b/template.json", SpecJson($"Multi B {tag}"));
+            Add(zip, "frames/b/frame.png", SolidPngBytes(8, 8));
+            AddText(zip, "frames/broken/template.json", SpecJson("No frame here"));   // skipped: no frame.png
+            Add(zip, "inner.cardframe", File.ReadAllBytes(innerPath));
+        }
+
+        var names = new System.Collections.Generic.List<string>();
+        try
+        {
+            names = TemplateImporter.ImportBundles(zipPath);
+            Assert.Equal(new[] { $"Multi A {tag}", $"Multi B {tag}", $"Multi C {tag}" }, names);
+            string Dir(string n) => Path.Combine(AppPaths.TemplatesDir, TextUtil.Slug(n));
+            Assert.True(File.Exists(Path.Combine(Dir(names[0]), TemplateService.FlipVariant, "frame.png")));
+            Assert.False(Directory.Exists(Path.Combine(Dir(names[1]), TemplateService.FlipVariant)));   // A's layout stays A's
+            Assert.All(names, n => Assert.True(File.Exists(Path.Combine(Dir(n), "frame.png"))));
+        }
+        finally
+        {
+            File.Delete(innerPath);
+            File.Delete(zipPath);
+            foreach (var n in names) try { Directory.Delete(Path.Combine(AppPaths.TemplatesDir, TextUtil.Slug(n)), true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ImportBundles_ASingleBundle_ImportsLikeBefore_AndAnEmptyZipSaysWhy()
+    {
+        var zipPath = Path.Combine(Path.GetTempPath(), $"empty-{Guid.NewGuid():N}.zip");
+        try
+        {
+            using (var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create)) zip.CreateEntry("readme.txt");
+            var ex = Assert.Throws<InvalidOperationException>(() => TemplateImporter.ImportBundles(zipPath));
+            Assert.Contains("template.json", ex.Message);
+        }
+        finally { File.Delete(zipPath); }
     }
 
     [Fact]

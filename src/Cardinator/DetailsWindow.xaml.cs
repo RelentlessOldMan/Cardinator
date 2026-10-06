@@ -19,6 +19,7 @@ public partial class DetailsWindow : Window
     private readonly CardModel _card;
     private readonly CardModel _snapshot;   // state on open, so Cancel can discard this session's edits
     private readonly ScryfallClient _scryfall;
+    private static bool _useArt;            // "Also use its art", remembered while the app runs
 
     /// <param name="halfLayout">For a two-part card's other half: the parent card's layout ("flip" / "split").</param>
     public DetailsWindow(CardModel card, ScryfallClient? scryfall = null, string halfLayout = "")
@@ -29,6 +30,9 @@ public partial class DetailsWindow : Window
         _scryfall = scryfall ?? new ScryfallClient();
         DataContext = card;
         SearchBox.Text = card.Name;   // a convenient default; edit it to search for something else
+        UseArtBox.IsChecked = _useArt;
+        UseArtBox.Checked += (_, _) => _useArt = true;
+        UseArtBox.Unchecked += (_, _) => _useArt = false;
         LandStyleBox.ItemsSource = new[] { "row", "splitv", "splith", "pie", "yinyang" };
         OrientationBox.ItemsSource = OrientationOptions;
         if (string.IsNullOrWhiteSpace(card.Orientation)) OrientationBox.SelectedIndex = 0;   // "" shows as Automatic
@@ -115,7 +119,14 @@ public partial class DetailsWindow : Window
                 extra = $" Added the flipped half “{_card.OtherHalf.Name}” — use “Show flipped” to preview it.";
             else if (faces.Count > 1)
                 extra = $" (“{f.Name}” has another half: look it up from the main window to add it.)";
-            SearchStatus.Text = $"Filled details from “{f.Name}”. Name, art and frame unchanged.{extra}";
+            // "Also use its art": the looked-up card's art replaces this card's (and fills a new back/half's).
+            string kept = "Name, art and frame unchanged.";
+            if (UseArtBox.IsChecked == true)
+            {
+                SearchStatus.Text = $"Filled details from “{f.Name}” — downloading its art…";
+                kept = await UseScryfallArtAsync(f) ? "Used its art; name and frame unchanged." : "Its art couldn't be downloaded — name, art and frame unchanged.";
+            }
+            SearchStatus.Text = $"Filled details from “{f.Name}”. {kept}{extra}";
         }
         catch (ScryfallException ex)
         {
@@ -130,4 +141,33 @@ public partial class DetailsWindow : Window
             SearchBtn.IsEnabled = true;
         }
     }
+
+    /// <summary>Puts the looked-up card's art on this card, framing reset, and on a back face or other half the lookup
+    /// just added (when it has none). False when the card's own art couldn't be downloaded.</summary>
+    private async Task<bool> UseScryfallArtAsync(CardModel face)
+    {
+        bool ok = false;
+        if (!string.IsNullOrWhiteSpace(face.ArtUrl))
+        {
+            try
+            {
+                _card.ArtPath = await ArtDownloader(face.ArtUrl);
+                _card.ArtScale = 1.0;
+                _card.ArtOffsetX = 0;
+                _card.ArtOffsetY = 0;
+                ok = true;
+            }
+            catch { /* keep the card's own art */ }
+        }
+        foreach (var part in new[] { _card.BackFace, _card.OtherHalf })
+        {
+            if (part == null || !string.IsNullOrWhiteSpace(part.ArtPath) || string.IsNullOrWhiteSpace(part.ArtUrl)) continue;
+            try { part.ArtPath = await ArtDownloader(part.ArtUrl); } catch { }
+        }
+        if (_card.IsSplit) CardDetailsFill.SplitSharedArt(_card);
+        return ok;
+    }
+
+    /// <summary>Downloads an image into the art cache; swappable so tests stay offline.</summary>
+    internal Func<string, Task<string>> ArtDownloader { get; set; } = url => ImageIntake.DownloadAsync(url);
 }

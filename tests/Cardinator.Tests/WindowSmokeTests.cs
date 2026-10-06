@@ -417,6 +417,31 @@ public class WindowSmokeTests
         });
 
     [Fact]
+    public void DetailsWindow_AlsoUseItsArt_PutsTheLookedUpArtOnTheCard_AndOnANewBack()   // 1.6.8
+        => OnAppThread(() =>
+        {
+            var card = new CardModel { Name = "Boogie Woogie", ArtPath = "mine.png", ArtScale = 1.5, ArtOffsetX = 0.2 };
+            card.BackFace = new CardModel { Name = "Back", ArtUrl = "https://cards.scryfall.io/back.jpg" };
+            var w = new Cardinator.DetailsWindow(card) { ArtDownloader = url => System.Threading.Tasks.Task.FromResult("cache/" + url.Split('/')[^1]) };
+            var face = new CardModel { Name = "Delver of Secrets", ArtUrl = "https://cards.scryfall.io/front.jpg" };
+
+            var m = typeof(Cardinator.DetailsWindow).GetMethod("UseScryfallArtAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            var ok = ((System.Threading.Tasks.Task<bool>)m.Invoke(w, new object[] { face })!).GetAwaiter().GetResult();
+
+            Assert.True(ok);
+            Assert.Equal("cache/front.jpg", card.ArtPath);
+            Assert.Equal(1.0, card.ArtScale);
+            Assert.Equal(0, card.ArtOffsetX);
+            Assert.Equal("Boogie Woogie", card.Name);          // the name is still the card's own
+            Assert.Equal("cache/back.jpg", card.BackFace.ArtPath);
+
+            // Cancel puts the card's own art back.
+            Invoke(w, "OnCancel", null, null);
+            Assert.Equal("mine.png", card.ArtPath);
+            Assert.Equal(1.5, card.ArtScale);
+        });
+
+    [Fact]
     public void MainWindow_ResetArt_PutsPannedZoomedArtBack_AndIsUndoable()   // 1.6.7
         => OnAppThread(() =>
         {

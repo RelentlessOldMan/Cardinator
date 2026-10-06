@@ -128,8 +128,8 @@ public sealed class CardRenderer
                 DrawBadgedRows(dc, ParseChapters(card.RulesText), spec);
             else if (card.IsClass)
                 DrawBadgedRows(dc, ParseClassLevels(card.RulesText), spec);
-            else if (card.IsLevelUp)
-                DrawLevelUp(dc, card, spec);   // bands with their own P/T boxes — no corner P/T box
+            else if (card.HasBands)
+                DrawLevelUp(dc, card, spec, BottomOrnament(template, spec));   // leveler / Station / Case bands — any P/T box is in a band
             else if (ParseTopBand(card) is { } topBand)
                 DrawTopBandCard(dc, card, spec, topBand,   // the rules below always wrap around the P/T box
                     card.HasDefense ? DefenseRect(spec) : card.HasPowerToughness ? PtRect(spec) : null);
@@ -152,7 +152,7 @@ public sealed class CardRenderer
                 DrawLoyalty(dc, card, spec);
             else if (card.HasDefense)
                 DrawDefense(dc, card, spec);   // a Battle's starting defense
-            else if (card.HasPowerToughness && !card.IsLevelUp)
+            else if (card.HasPowerToughness && !card.HasBands)
                 DrawPtBox(dc, card, spec);   // creatures only — the box is drawn here, not baked into the frame
 
         }
@@ -2026,8 +2026,72 @@ public sealed class CardRenderer
     // --- level up -------------------------------------------------------------
 
     /// <summary>One band of a leveler's text box: the level range it applies from (null for the base band, e.g.
-    /// "2-6" or "7+"), the power/toughness it has there (may be empty) and its rules.</summary>
-    internal sealed record LevelBand(string? Level, string Pt, string Text);
+    /// "2-6" or "7+"), the power/toughness it has there (may be empty) and its rules. <paramref name="Kind"/> is
+    /// what its badge shows: "level" (LEVEL over the range), "station" (the threshold, "12+"), "solve" (a magnifying
+    /// glass — a Case's To solve part) or "solved" (a check mark).</summary>
+    internal sealed record LevelBand(string? Level, string Pt, string Text, string Kind = "level");
+
+    private static readonly Regex StationLine = new(@"^(\d+)\+\s*\|\s*(.*)$", RegexOptions.Compiled);
+    private static readonly Regex StationCreatureAt = new(@"creature at (\d+)\+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Splits a Station card's rules into bands, reading Scryfall's wording: the lines before the first
+    /// "7+ | …" threshold (an ETB, the Station reminder) are the base band; each threshold line starts a band, and
+    /// every line after it belongs to it until the next threshold (<i>Uthros Research Craft</i>'s 12+ band is
+    /// "Flying" AND "This Spacecraft gets +1/+0…"). The P/T box goes on the band where it becomes a creature
+    /// ("It's an artifact creature at 12+"), else the last band — never the base band.</summary>
+    internal static List<LevelBand> ParseStation(CardModel card)
+    {
+        var bands = new List<(string? level, List<string> text)> { (null, new List<string>()) };
+        foreach (var raw in (card.RulesText ?? "").Replace("\r", "").Split('\n'))
+        {
+            var t = raw.Trim();
+            if (t.Length == 0) continue;
+            var m = StationLine.Match(t);
+            if (m.Success)
+            {
+                bands.Add((m.Groups[1].Value + "+", new List<string>()));
+                if (m.Groups[2].Value.Trim().Length > 0) bands[^1].text.Add(m.Groups[2].Value.Trim());
+            }
+            else bands[^1].text.Add(t);
+        }
+        if (bands[0].text.Count == 0) bands.RemoveAt(0);
+
+        int ptAt = -1;
+        if (card.HasPowerToughness)
+        {
+            var at = StationCreatureAt.Match(card.RulesText ?? "");
+            ptAt = at.Success ? bands.FindIndex(b => b.level == at.Groups[1].Value + "+") : -1;
+            if (ptAt < 0) ptAt = bands.FindLastIndex(b => b.level != null);
+        }
+        return bands.Select((b, i) => new LevelBand(b.level, i == ptAt ? $"{card.Power}/{card.Toughness}" : "",
+            string.Join("\n", b.text), "station")).ToList();
+    }
+
+    private static readonly Regex CaseLine = new(@"^(To solve|Solved)\s*[—–-]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Splits a Case's rules into bands: the opening ability (base band), the "To solve — …" condition with
+    /// its reminder, and the "Solved — …" ability, each keeping its own wording. A creature Case's P/T box goes on
+    /// the Solved band.</summary>
+    internal static List<LevelBand> ParseCase(CardModel card)
+    {
+        var bands = new List<(string kind, List<string> text)> { ("", new List<string>()) };
+        foreach (var raw in (card.RulesText ?? "").Replace("\r", "").Split('\n'))
+        {
+            var t = raw.Trim();
+            if (t.Length == 0) continue;
+            var m = CaseLine.Match(t);
+            if (m.Success) bands.Add((m.Groups[1].Value.StartsWith("To", StringComparison.OrdinalIgnoreCase) ? "solve" : "solved", new List<string>()));
+            bands[^1].text.Add(t);
+        }
+        if (bands[0].text.Count == 0) bands.RemoveAt(0);
+        int ptAt = card.HasPowerToughness ? bands.Count - 1 : -1;
+        return bands.Select((b, i) => new LevelBand(b.kind.Length == 0 ? null : b.kind,
+            i == ptAt ? $"{card.Power}/{card.Toughness}" : "", string.Join("\n", b.text), b.kind.Length == 0 ? "level" : b.kind)).ToList();
+    }
+
+    /// <summary>A banded card's bands: leveler, Station or Case.</summary>
+    internal static List<LevelBand> ParseBands(CardModel card)
+        => card.IsLevelUp ? ParseLevelUp(card) : card.IsStation ? ParseStation(card) : card.IsCase ? ParseCase(card) : ParseLevelUp(card);
 
     private static readonly Regex LevelLine = new(@"^LEVEL\s+(\d+(?:\s*-\s*\d+|\+))$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex PtLine = new(@"^[0-9X*+\-]+\s*/\s*[0-9X*+\-]+$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -2068,10 +2132,12 @@ public sealed class CardRenderer
     /// bands stacked top to bottom, each tall enough for its text, its level badge and its P/T box, with the
     /// spare height shared out evenly. One size for every band (shrunk until they all fit) so they read alike.</summary>
     internal (List<(LevelBand band, Rect rect, Rect text, Rect? badge, Rect? pt)> Bands, double Size) LevelUpLayout(
-        CardModel card, TemplateSpec spec)
+        CardModel card, TemplateSpec spec, Rect? ornament = null)
     {
-        var bands = ParseLevelUp(card);
+        var bands = ParseBands(card);
         var tb = ToRect(spec.EffectiveTextBox);
+        // A frame ornament on the text box's bottom edge (a medallion): the bottom band's text stays above it.
+        double lost = ornament is { } o ? Math.Max(0, tb.Bottom - o.Top) : 0;
         double inset = 3;
         var box = new Rect(tb.X + inset, tb.Y + inset, Math.Max(0, tb.Width - 2 * inset), Math.Max(0, tb.Height - 2 * inset));
         // The bands' P/T boxes are a little smaller than the corner box — and never taller than a band's fair
@@ -2099,7 +2165,7 @@ public sealed class CardRenderer
                         spec.RulesSymbolSize * scale, null).Height;
                 need[i] = Math.Max(textH, Math.Max(b.Pt.Length > 0 ? ptH : 0, b.Level != null ? BadgeHeight(size) : 0)) + 2 * pad * 0.6;
             }
-            if (need.Sum() <= box.Height) break;
+            if (need.Sum() + lost <= box.Height) break;
         }
 
         double spare = Math.Max(0, box.Height - need.Sum()) / Math.Max(1, bands.Count);
@@ -2114,7 +2180,10 @@ public sealed class CardRenderer
             Rect? badge = b.Level == null ? null
                 : new Rect(box.X + pad * 0.6, y + (h - BadgeHeight(size)) / 2, BadgeWidth(size), BadgeHeight(size));
             Rect? pt = b.Pt.Length == 0 ? null : new Rect(box.Right - pad * 0.6 - ptW, y + (h - ptH) / 2, ptW, ptH);
-            result.Add((b, rect, new Rect(col.X, y, col.Width, h), badge, pt));
+            var textRect = new Rect(col.X, y, col.Width, h);
+            if (ornament is { } orn && orn.Top < y + h && orn.Left < col.Right && orn.Right > col.Left)
+                textRect = new Rect(col.X, y, col.Width, Math.Max(1, orn.Top - 4 - y));
+            result.Add((b, rect, textRect, badge, pt));
             y += h;
         }
         return (result, size);
@@ -2126,9 +2195,9 @@ public sealed class CardRenderer
     /// <summary>A leveler's text box (<i>Student of Warfare</i>): bands stacked top to bottom, each a shade darker
     /// than the one above, the level bands with an arrow-shaped LEVEL badge on the left, and every band with
     /// its own P/T box on the right (the base band shows the card's P/T, so there's no corner box).</summary>
-    private void DrawLevelUp(DrawingContext dc, CardModel card, TemplateSpec spec)
+    private void DrawLevelUp(DrawingContext dc, CardModel card, TemplateSpec spec, Rect? ornament = null)
     {
-        var (bands, size) = LevelUpLayout(card, spec);
+        var (bands, size) = LevelUpLayout(card, spec, ornament);
         if (bands.Count == 0) return;
         double scale = size / spec.RulesFont.Size;
         var divider = new Pen(new SolidColorBrush(Color.FromArgb(90, 40, 30, 10)), 1.2);
@@ -2157,7 +2226,7 @@ public sealed class CardRenderer
                 }
             }
 
-            if (badge is { } b) DrawLevelBadge(dc, b, band.Level!, spec);
+            if (badge is { } b) DrawLevelBadge(dc, b, band, spec);
             if (pt is { } r)
             {
                 var inner = DrawPtStylePlate(dc, r, spec);
@@ -2174,8 +2243,9 @@ public sealed class CardRenderer
 
     /// <summary>The arrow-shaped LEVEL badge: a plate in the frame's colours pointing right, "LEVEL" small over
     /// the range ("2-6", "7+").</summary>
-    private static void DrawLevelBadge(DrawingContext dc, Rect r, string level, TemplateSpec spec)
+    private static void DrawLevelBadge(DrawingContext dc, Rect r, LevelBand band, TemplateSpec spec)
     {
+        string level = band.Level ?? "";
         double tip = r.Height * 0.32;
         var fig = new PathFigure { StartPoint = r.TopLeft, IsClosed = true };
         fig.Segments.Add(new LineSegment(new Point(r.Right - tip, r.Top), true));
@@ -2202,12 +2272,127 @@ public sealed class CardRenderer
         var big = new FontSpec { Family = spec.PtFont.Family, Bold = true, Size = r.Height * 0.46, Color = small.Color };
         var brush = new SolidColorBrush(ink);
         double w = r.Width - tip - 4;
+        if (band.Kind is "solve" or "solved")
+        {
+            DrawCaseIcon(dc, new Rect(r.X + 2, r.Y, w, r.Height), band.Kind == "solved", brush);
+            return;
+        }
+        if (band.Kind == "station")
+        {
+            // Just the threshold, big: "12+".
+            var num = FitText(level, NumeralFont(big), r.Height * 0.52, 8, w, brush);
+            dc.DrawText(num, new Point(r.X + 2 + (w - num.Width) / 2, r.Y + (r.Height - num.Height) / 2));
+            return;
+        }
         var top = FitText("LEVEL", small, small.Size, 6, w, brush);
         var range = FitText(level, NumeralFont(big), big.Size, 8, w, brush);
         double total = top.Height * 0.85 + range.Height * 0.9;
         double y = r.Y + (r.Height - total) / 2;
         dc.DrawText(top, new Point(r.X + 2 + (w - top.Width) / 2, y));
         dc.DrawText(range, new Point(r.X + 2 + (w - range.Width) / 2, y + top.Height * 0.85));
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Template, System.Runtime.CompilerServices.StrongBox<Rect?>> _ornaments = new();
+
+    /// <summary>A frame ornament on the text box's bottom edge, in canvas coordinates — the medallion the Partial
+    /// Cardboard Chemist frames (and many imported ones) set into the middle of the box's bottom border — or null.
+    /// Found in the frame image: rows up from the box's bottom, across its middle half, where a narrow run of pixels
+    /// differs from the box's own colour. Full-width rows (the border line) don't count, nor does anything under
+    /// 12px tall or over 40% of the box (texture, not an ornament). Worked out once per frame.</summary>
+    internal static Rect? BottomOrnament(Template template, TemplateSpec spec)
+    {
+        if (spec.FullArt) return null;
+        return _ornaments.GetValue(template, t => new System.Runtime.CompilerServices.StrongBox<Rect?>(FindBottomOrnament(t.FrameImage, spec))).Value;
+    }
+
+    private static Rect? FindBottomOrnament(BitmapSource frame, TemplateSpec spec)
+    {
+        try
+        {
+            var tb = ToRect(spec.EffectiveTextBox);
+            if (tb.Width < 40 || tb.Height < 40 || spec.CanvasWidth <= 0 || spec.CanvasHeight <= 0) return null;
+            var src = frame.Format == PixelFormats.Bgra32 ? frame : new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+            int fw = src.PixelWidth, fh = src.PixelHeight;
+            double sx = (double)fw / spec.CanvasWidth, sy = (double)fh / spec.CanvasHeight;
+            var px = new byte[fw * fh * 4];
+            src.CopyPixels(px, fw * 4, 0);
+            int x0 = (int)((tb.X + tb.Width * 0.25) * sx), x1 = (int)((tb.Right - tb.Width * 0.25) * sx);
+            x0 = Math.Clamp(x0, 0, fw - 1); x1 = Math.Clamp(x1, x0 + 1, fw);
+
+            (int b, int g, int r, int a) At(int x, int y)
+            {
+                int i = (Math.Clamp(y, 0, fh - 1) * fw + Math.Clamp(x, 0, fw - 1)) * 4;
+                return (px[i], px[i + 1], px[i + 2], px[i + 3]);
+            }
+            // The box's own colour: the median of its middle, where frames draw no ornament.
+            var sample = new List<(int b, int g, int r, int a)>();
+            for (int y = (int)((tb.Y + tb.Height * 0.35) * sy); y < (tb.Y + tb.Height * 0.5) * sy; y += 3)
+                for (int x = x0; x < x1; x += 3) sample.Add(At(x, y));
+            if (sample.Count == 0) return null;
+            int Med(Func<(int b, int g, int r, int a), int> f) { var v = sample.Select(f).OrderBy(n => n).ToList(); return v[v.Count / 2]; }
+            var refc = (b: Med(c => c.b), g: Med(c => c.g), r: Med(c => c.r), a: Med(c => c.a));
+
+            // Per canvas row (bottom up): the share of the middle half that differs, and where.
+            int bottom = (int)Math.Floor(tb.Bottom) - 1, limit = (int)(tb.Bottom - tb.Height * 0.4);
+            int top = -1, gap = 0, minX = int.MaxValue, maxX = int.MinValue;
+            bool started = false;
+            for (int cy = bottom; cy >= limit; cy--)
+            {
+                int y = (int)(cy * sy), hits = 0, n = 0, rowMin = int.MaxValue, rowMax = int.MinValue;
+                for (int x = x0; x < x1; x += 2)
+                {
+                    var c = At(x, y);
+                    n++;
+                    int d = Math.Abs(c.b - refc.b) + Math.Abs(c.g - refc.g) + Math.Abs(c.r - refc.r) + Math.Abs(c.a - refc.a);
+                    if (d > 90) { hits++; rowMin = Math.Min(rowMin, x); rowMax = Math.Max(rowMax, x); }
+                }
+                double frac = n == 0 ? 0 : (double)hits / n;
+                bool ornamentRow = frac > 0.06 && frac <= 0.8;
+                if (!started)
+                {
+                    if (ornamentRow) { started = true; top = cy; minX = rowMin; maxX = rowMax; }
+                    else if (bottom - cy > 20) return null;   // nothing set into the bottom edge
+                    continue;
+                }
+                if (ornamentRow) { top = cy; gap = 0; minX = Math.Min(minX, rowMin); maxX = Math.Max(maxX, rowMax); }
+                else if (++gap > 4) break;
+            }
+            if (!started) return null;
+            double height = tb.Bottom - top;
+            if (height < 12 || height > tb.Height * 0.38) return null;
+            double left = minX / sx - 6, right = maxX / sx + 6;
+            return new Rect(left, top, Math.Max(1, right - left), height);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>A Case badge's icon: a magnifying glass for To solve, a check mark for Solved.</summary>
+    private static void DrawCaseIcon(DrawingContext dc, Rect r, bool solved, Brush ink)
+    {
+        double s = Math.Min(r.Width, r.Height) * 0.62;
+        var c = new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
+        var pen = new Pen(ink, Math.Max(2, s * 0.13)) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        pen.Freeze();
+        if (solved)
+        {
+            var g = new StreamGeometry();
+            using (var ctx = g.Open())
+            {
+                ctx.BeginFigure(new Point(c.X - s * 0.42, c.Y + s * 0.02), false, false);
+                ctx.LineTo(new Point(c.X - s * 0.12, c.Y + s * 0.32), true, true);
+                ctx.LineTo(new Point(c.X + s * 0.44, c.Y - s * 0.34), true, true);
+            }
+            g.Freeze();
+            dc.DrawGeometry(null, pen, g);
+        }
+        else
+        {
+            double rad = s * 0.28;
+            var lens = new Point(c.X - s * 0.1, c.Y - s * 0.1);
+            dc.DrawEllipse(null, pen, lens, rad, rad);
+            double k = rad / Math.Sqrt(2);
+            dc.DrawLine(pen, new Point(lens.X + k, lens.Y + k), new Point(c.X + s * 0.4, c.Y + s * 0.4));
+        }
     }
 
     /// <summary>Parses saga rules into (chapter marker, text) rows, e.g. "I, II — ...".</summary>

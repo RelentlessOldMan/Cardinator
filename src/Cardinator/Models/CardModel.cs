@@ -330,6 +330,23 @@ public sealed class CardModel : INotifyPropertyChanged
         @"^[ \t]*LEVEL[ \t]+\d+(?:[ \t]*-[ \t]*\d+|\+)[ \t]*\r?$",
         System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
+    /// <summary>A Station card (Edge of Eternities Spacecraft and Planets): its rules have at least one "7+ | Flying"
+    /// threshold line, the way Scryfall writes them. Drawn as bands like a leveler (see
+    /// <see cref="Cardinator.Services.CardRenderer.ParseStation"/>).</summary>
+    [JsonIgnore]
+    public bool IsStation => System.Text.RegularExpressions.Regex.IsMatch(RulesText ?? "",
+        @"^[ \t]*\d+\+[ \t]*\|", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+    /// <summary>A Case (<i>Case of the Burning Masks</i>): its rules have a "Solved —" line (and usually a "To solve —"
+    /// line). Drawn with the To solve and Solved parts as badged bands below the opening ability.</summary>
+    [JsonIgnore]
+    public bool IsCase => System.Text.RegularExpressions.Regex.IsMatch(RulesText ?? "",
+        @"^[ \t]*Solved[ \t]*[—–-]", System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>Rules drawn as stacked bands with badges (leveler, Station or Case) rather than one text box.</summary>
+    [JsonIgnore]
+    public bool HasBands => IsLevelUp || IsStation || IsCase;
+
     [JsonIgnore]
     public bool IsLand => TypeLine.Contains("Land", StringComparison.OrdinalIgnoreCase);
 

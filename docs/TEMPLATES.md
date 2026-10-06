@@ -334,6 +334,11 @@ installs it:
 
 (A `.cardframe` is just a zip of `frame.png` + `template.json`; `.zip` files with those two work too.)
 
+**Several frames in one zip:** a `.zip` can hold any number of frames, each in its own folder with its own
+`frame.png` + `template.json` (and its `flip/` / `landscape/` versions), or a few `.cardframe` files zipped together.
+**Import…** brings them all in at once and the status line names them. That includes the zip **Share set + frames**
+makes: importing it as a frame installs every frame in its `frames/` folder.
+
 Prefer files on disk? A template is also self-contained in its folder — zip up
 `CardinatorData/templates/<name>/` and share it; the recipient drops it into their own
 `CardinatorData/templates/` and restarts the app.

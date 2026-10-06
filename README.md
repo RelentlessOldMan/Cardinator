@@ -141,6 +141,8 @@ output are all checked in.** Click a thumbnail for that example's guide.
   **split cards** (*Wear // Tear*, Rooms: two small cards side by side with their own art, Fuse bar included,
   on every frame), **aftermath cards** (*Destined // Lead*: one half upright on top, the other sideways below),
   **level up** (*Student of Warfare*: level bands with LEVEL badges and a P/T box each),
+  **Station** (*Uthros Research Craft*: threshold bands, the P/T box on the creature band) and **Case** cards
+  (*Case of the Burning Masks*: To solve and Solved bands),
   **meld** (*Bruna* + *Gisela*: two cards whose backs, side by side, make one big melded card),
   **prototype** and **mutate** (the band across the top of the text box, a prototype's in its own colour),
   **double-faced cards** (one card with two faces: flip the preview, a drawn corner indicator, both sides
