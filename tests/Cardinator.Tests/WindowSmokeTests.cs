@@ -417,6 +417,31 @@ public class WindowSmokeTests
         });
 
     [Fact]
+    public void MainWindow_ResetArt_PutsPannedZoomedArtBack_AndIsUndoable()   // 1.6.7
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            card.ArtPath = "art.png";
+            Invoke(main, "NudgeArt", 0.05, -0.03);
+            Invoke(main, "ZoomArt", 0.4);
+            Assert.NotEqual(0, card.ArtOffsetX);
+            main.CommitHistory();
+
+            Invoke(main, "OnResetArt", null, null);
+            Assert.Equal(1.0, card.ArtScale);
+            Assert.Equal(0, card.ArtOffsetX);
+            Assert.Equal(0, card.ArtOffsetY);
+            Assert.Equal("art.png", card.ArtPath);   // the art itself stays
+            main.CommitHistory();
+
+            main.Undo();
+            var undone = main.SelectedCard!;
+            Assert.Equal(1.4, undone.ArtScale, 6);
+            Assert.NotEqual(0, undone.ArtOffsetX);
+        });
+
+    [Fact]
     public void MainWindow_MeldBack_ArtMovesTheWayTheMouseGoes()
         => OnAppThread(() =>
         {

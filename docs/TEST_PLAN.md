@@ -122,7 +122,8 @@ folder, "duplicate set") would round out the lifecycle.
 - **B1 Load / B2 Paste image·file·URL / B3 Paste from browser / B4 Drag-drop.** ✅ B3 (browser→black) now
   fixed; all converge on copy-into-cache/set.
 - **B5 Position: drag-pan, scroll-zoom, Ctrl=fine, click→arrows nudge, +/- zoom.** ⚠️ arrows/± need a
-  preview **click (focus)** first; tooltip-only discoverability. ⚠️ No **reset-position** control.
+  preview **click (focus)** first — ✅ (1.6.7) a hint under the preview says so and changes while the keys are on.
+  ✅ (1.6.7) **Reset** button (and **0** on the preview) puts the art back centred at its original size, undoable.
 - **B6 Replace existing art.** ✅ SetArt resets pan/zoom — confirm that's desired vs. keeping framing.
 
 ### C. Frames
@@ -161,9 +162,9 @@ folder, "duplicate set") would round out the lifecycle.
 1. **Two lookup paths (A2/G6):** Ctrl+L (own name, +art, +DFC back) vs details Fill-from-Scryfall
    (details only). Clarify the story; maybe retire Ctrl+L or let details-search optionally fetch art/back.
 2. **Export-all output dir (D8):** verify it honors the set `out/`.
-3. **Keyboard art control discoverability (B5):** arrows/± need a preview click; only a tooltip hints it.
+3. ✅ **Keyboard art control discoverability (B5) (done, 1.6.7):** a hint line under the preview lists the keys, and switches to "Keys on…" while the preview has focus.
 4. **Multi-template zip import (C5):** one-per-file; note or support multi.
-5. **No reset-art-position control (B5/B6).**
+5. ✅ **Reset-art-position control (B5/B6) (done, 1.6.7):** **Reset** next to Clear, and **0** on the focused preview (`MainWindow.ResetArt`); undoable; window test.
 6. **Replace-art resets framing (B6):** confirm intended.
 
 *(The higher-impact, set-level gaps are ranked separately at the end of Part 1.)*
