@@ -38,6 +38,32 @@ public sealed class TemplateService
     private static readonly Dictionary<string, Template> LandscapeVariants = new();
     private static readonly Dictionary<string, Template> FlipVariants = new();
 
+    // Frames by name, for the few places that pick a frame by name mid-render (a split card's other half with a
+    // frame of its own): the installed ones, replaced by each LoadAll so a deleted frame drops out, and frames
+    // loaded from any other folder (a batch's templates=<dir>), which are only ever added. A folder's frame wins
+    // over an installed one of the same name, as it does for the card itself in --rendercards.
+    private static volatile Dictionary<string, Template> _installed = new(StringComparer.Ordinal);
+    private static volatile Dictionary<string, Template> _extra = new(StringComparer.Ordinal);
+
+    /// <summary>The frame called <paramref name="name"/>: one loaded from another folder with <see cref="LoadFrom"/>,
+    /// else an installed one (as of the last <see cref="LoadAll"/>); null if there's none.</summary>
+    public static Template? Named(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        return _extra.TryGetValue(name, out var x) ? x : _installed.TryGetValue(name, out var t) ? t : null;
+    }
+
+    private static void Catalog(IEnumerable<Template> templates, bool installed)
+    {
+        lock (VariantLock)
+        {
+            var next = installed ? new Dictionary<string, Template>(StringComparer.Ordinal)
+                                 : new Dictionary<string, Template>(_extra, StringComparer.Ordinal);
+            foreach (var t in templates) next[t.Name] = t;
+            if (installed) _installed = next; else _extra = next;
+        }
+    }
+
     /// <summary>Subfolder / <see cref="Template.Variants"/> key for a frame's flip-card layout.</summary>
     public const string FlipVariant = "flip";
     /// <summary>Subfolder / <see cref="Template.Variants"/> key for a frame's sideways (landscape) layout.</summary>
@@ -210,9 +236,17 @@ public sealed class TemplateService
     }
 
     /// <summary>Counts how many of <paramref name="cards"/> use the frame named <paramref name="templateName"/>
-    /// (case-insensitive). Used to warn before deleting a frame other cards still reference (L10).</summary>
+    /// (case-insensitive) — for the card or a split card's other half. Used to warn before deleting a frame other
+    /// cards still reference (L10).</summary>
     public static int CountReferencing(IEnumerable<CardModel> cards, string templateName)
-        => cards?.Count(c => string.Equals(c.TemplateName, templateName, StringComparison.OrdinalIgnoreCase)) ?? 0;
+        => cards?.Count(c => FramesUsed(c).Contains(templateName, StringComparer.OrdinalIgnoreCase)) ?? 0;
+
+    /// <summary>Every frame a card is drawn with: its own and, on a split card, its other half's own.</summary>
+    public static IEnumerable<string> FramesUsed(CardModel card)
+    {
+        if (!string.IsNullOrWhiteSpace(card.TemplateName)) yield return card.TemplateName;
+        if (card.IsSplit && !string.IsNullOrWhiteSpace(card.HalfTemplateName)) yield return card.HalfTemplateName;
+    }
 
     private static HashSet<string> BuildBuiltInSlugSet()
     {
@@ -226,12 +260,13 @@ public sealed class TemplateService
     {
         try { EnsureDefaults(); } catch { /* best-effort; enumeration below still tries */ }
 
-        var result = new List<Template>(LoadFrom(AppPaths.TemplatesDir));
+        var result = new List<Template>(LoadFolder(AppPaths.TemplatesDir));
 
         // Guarantee the app always has at least the built-in frames to render with.
         if (result.Count == 0)
             result.AddRange(BuildBuiltInsInMemory());
 
+        Catalog(result, installed: true);
         return result;
     }
 
@@ -240,6 +275,13 @@ public sealed class TemplateService
     /// (e.g. a batch of generated frames) without installing them first. Returns an empty list if the folder
     /// is missing or has none.</summary>
     public IReadOnlyList<Template> LoadFrom(string root)
+    {
+        var result = LoadFolder(root);
+        Catalog(result, installed: false);
+        return result;
+    }
+
+    private static List<Template> LoadFolder(string root)
     {
         var result = new List<Template>();
         foreach (var dir in SafeEnumerateDirs(root))

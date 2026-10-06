@@ -51,7 +51,7 @@ public static class ImportService
         ["splitname"] = "splitname", ["splitcost"] = "splitcost", ["splitmana"] = "splitcost",
         ["splitmanacost"] = "splitcost", ["splittype"] = "splittype", ["splittypeline"] = "splittype",
         ["splitrules"] = "splitrules", ["splittext"] = "splitrules", ["splitflavor"] = "splitflavor",
-        ["splitart"] = "splitart",
+        ["splitart"] = "splitart", ["splitframe"] = "splitframe", ["splittemplate"] = "splitframe",
         // A meld card: the melded card it's half of (any of these columns makes the row a meld card). Rows naming
         // the same melded card are partners; the melded card's text can be written on either row.
         ["meld"] = "meldname", ["meldname"] = "meldname", ["meldedname"] = "meldname", ["meldedcard"] = "meldname",
@@ -303,6 +303,7 @@ public static class ImportService
             {
                 card.HalfLayout = "split";
                 card.OtherHalf = split;
+                card.HalfTemplateName = Get("splitframe");   // blank = the card's frame
             }
 
             // Meld columns: the back face is the melded card, of which this card prints one half.

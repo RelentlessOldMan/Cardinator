@@ -44,6 +44,8 @@ public static class CardValidator
             "out-of-bounds", "footer-overlap" };
         if (!card.IsSplit) skip.UnionWith(new[] { "no-art", "art-missing", "art-badpath" });
         string label = card.IsSplit ? "Other half: " : "Flipped half: ";
+        // A split half with a frame of its own is checked against that frame (the one it's drawn with).
+        if (card.IsSplit && TemplateService.Named(card.HalfTemplateName) is { } own) templateSpec = own.Spec;
         return Validate(half, templateSpec)
             .Where(i => !skip.Contains(i.Code))
             .Select(i => new ValidationIssue(i.Severity, i.Code, label + i.Message, i.Field))
@@ -85,6 +87,9 @@ public static class CardValidator
         if (installedTemplates != null && !string.IsNullOrWhiteSpace(card.TemplateName)
             && !installedTemplates.Contains(card.TemplateName))
             issues.Add(new(IssueSeverity.Error, "frame-missing", $"Frame \"{card.TemplateName}\" isn't installed — the card will render with a substitute frame.", nameof(card.TemplateName)));
+        if (installedTemplates != null && card.IsSplit && !string.IsNullOrWhiteSpace(card.HalfTemplateName)
+            && !installedTemplates.Contains(card.HalfTemplateName))
+            issues.Add(new(IssueSeverity.Warning, "half-frame-missing", $"The other half's frame \"{card.HalfTemplateName}\" isn't installed — it's drawn with the card's frame.", nameof(card.HalfTemplateName)));
 
         // Unknown mana symbols in the cost or rules text.
         foreach (var (val, field) in SymbolTokens(card))

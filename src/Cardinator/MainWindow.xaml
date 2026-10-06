@@ -194,6 +194,16 @@
                             <Button x:Name="FlipShowBtn" Content="Show flipped" Click="OnShowFlipped" Margin="3,0,0,0"
                                     ToolTip="Turn the preview to read the other half"/>
                         </UniformGrid>
+                        <Grid x:Name="HalfFramePanel" Margin="0,8,0,0" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Other half's frame" VerticalAlignment="Center" Foreground="{StaticResource Subtle}"
+                                       FontSize="12" Margin="2,0,8,0"/>
+                            <ComboBox x:Name="HalfFrameBox" Grid.Column="1" SelectionChanged="OnHalfFrameChanged"
+                                      ToolTip="Give the other half a frame of its own (a red half and a white half), or keep the card's frame"/>
+                        </Grid>
                     </StackPanel>
 
                     <TextBlock Text="CHECKS" Style="{StaticResource SectionLabel}"/>

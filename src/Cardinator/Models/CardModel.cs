@@ -46,6 +46,7 @@ public sealed class CardModel : INotifyPropertyChanged
     private string _dfcStyle = "";
     private CardModel? _backFace;
     private string _halfLayout = "";
+    private string _halfTemplateName = "";
     private CardModel? _otherHalf;
     private string _meldHalf = "";
     private string _meldWith = "";
@@ -215,6 +216,12 @@ public sealed class CardModel : INotifyPropertyChanged
     /// half printed upside down below the art) or "split" (two small cards side by side, read with the card
     /// turned sideways). Empty for a normal card. Only meaningful with an <see cref="OtherHalf"/>.</summary>
     public string HalfLayout { get => _halfLayout; set { Set(ref _halfLayout, value); RaiseTwoPart(); } }
+
+    /// <summary>A split or aftermath card's other half drawn with a frame of its own (a red half and a white half),
+    /// by frame name; blank = the card's frame (the first half's). Kept on the card rather than read from the
+    /// half's own <see cref="TemplateName"/>, which only ever recorded the frame the half was made with — older
+    /// sets keep drawing both halves with the card's frame.</summary>
+    public string HalfTemplateName { get => _halfTemplateName; set => Set(ref _halfTemplateName, value ?? ""); }
 
     /// <summary>The second half of a two-part card (flip or split), or null. Like <see cref="BackFace"/> it's a full
     /// <see cref="CardModel"/> so the text renderer is reused, one level only (its own halves/back are null)
