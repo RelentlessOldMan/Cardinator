@@ -36,7 +36,7 @@ public static class BatchService
         // Art downloads to run after the lookups. Each hits Scryfall's image CDN (which — unlike the API —
         // isn't rate-limited), so they parallelize; keyed by URL so identical art downloads once.
         var artJobs = new List<(CardModel card, string url)>();
-        var meldJobs = new List<(CardModel card, CardModel part)>();   // meld parts whose melded card is fetched after
+        var meldJobs = new List<(CardModel card, CardModel part, bool halfGiven)>();   // meld parts whose melded card is fetched after
 
         // Diagnostic log written to CardinatorData so import failures can be inspected exactly.
         var log = new List<string> { $"=== Import {DateTime.Now:yyyy-MM-dd HH:mm:ss} — {groups.Count} unique card(s) ===" };
@@ -58,7 +58,7 @@ public static class BatchService
                 // instead — batch import fills from the primary face and logs the rest (they're separate
                 // cards, which a per-line batch fill has no slot for).
                 var unused = CardDetailsFill.AttachFaces(member.Card, faces);
-                if (!Blank(faces[0].MeldResultUrl)) meldJobs.Add((member.Card, faces[0]));
+                if (!Blank(faces[0].MeldResultUrl)) meldJobs.Add((member.Card, faces[0], member.MeldHalfGiven));
                 else if (!Blank(faces[0].MeldWith)) member.Card.MeldWith = faces[0].MeldWith;
                 if (member.Card.BackFace is { } back && downloadArt && !Blank(back.ArtUrl))
                     artJobs.Add((back, back.ArtUrl));
@@ -145,8 +145,19 @@ public static class BatchService
             CardModel? melded = null;
             try { melded = (await client.LookupUriAsync(byResult.Key, ct)).FirstOrDefault(); }
             catch (ScryfallException ex) { log.Add($"meld result FAILED {byResult.Key}: {ex.Message}"); }
-            foreach (var (card, part) in byResult)
+            foreach (var (card, part, halfGiven) in byResult)
             {
+                if (card.IsMeld && card.BackFace is { } own)
+                {
+                    // A CSV meld row: what the list wrote for the melded card stays; Scryfall fills the rest.
+                    if (!Blank(part.MeldWith) && Blank(card.MeldWith)) card.MeldWith = part.MeldWith;
+                    if (melded == null) continue;
+                    FillBlanks(own, melded, canonicalName: Blank(own.Name));
+                    if (!halfGiven) card.MeldHalf = CardDetailsFill.MeldHalfFor(part, melded);
+                    log.Add($"meld  \"{card.Name}\" -> back is the {card.MeldHalf} half of \"{own.Name}\" (filled from Scryfall)");
+                    if (downloadArt && Blank(own.ArtPath) && !Blank(melded.ArtUrl)) artJobs.Add((own, melded.ArtUrl));
+                    continue;
+                }
                 if (!CardDetailsFill.AttachMeld(card, part, melded)) continue;
                 log.Add($"meld  \"{card.Name}\" -> back is the {card.MeldHalf} half of \"{melded!.Name}\"");
                 if (card.BackFace is { } mb && downloadArt && !Blank(mb.ArtUrl)) artJobs.Add((mb, mb.ArtUrl));

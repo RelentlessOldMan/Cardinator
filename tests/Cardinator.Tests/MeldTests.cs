@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -158,6 +158,65 @@ public class MeldTests
         Assert.True(Differs("bottom", c => c.Power = "12"));
         Assert.False(Differs("top", c => c.Power = "12"));
     });
+
+    [Fact]
+    public void Csv_RowsNamingOneMeldedCard_ArePartners_SharingItsTextAndPrintingOppositeHalves()   // 1.6.6
+    {
+        const string csv = """
+            name,mana,type,rules,pt,meld_name,meld_type,meld_rules,meld_pt
+            Gisela the Blade,{2}{R}{W}{W},Legendary Creature — Angel,"Flying, first strike",4/3,Brisela the Nightmare,Legendary Creature — Eldrazi Angel,"Flying, first strike, vigilance, lifelink",9/10
+            Bruna the Light,{5}{W}{W},Legendary Creature — Angel,"Flying, vigilance",5/7,brisela the nightmare,,,
+            """;
+        var cards = ImportService.Parse(csv, null, "Gold Multicolor").Select(i => i.Card).ToList();
+        var (gisela, bruna) = (cards[0], cards[1]);
+
+        Assert.True(gisela.IsMeld && bruna.IsMeld);
+        Assert.Equal("top", gisela.MeldHalf);
+        Assert.Equal("bottom", bruna.MeldHalf);
+        Assert.Equal("Bruna the Light", gisela.MeldWith);
+        Assert.Equal("Gisela the Blade", bruna.MeldWith);
+        Assert.Equal("meld", bruna.DfcStyle);
+        // The melded card's text was only on Gisela's row; Bruna's back has it too.
+        Assert.Equal("Brisela the Nightmare", bruna.BackFace!.Name);
+        Assert.Equal("Flying, first strike, vigilance, lifelink", bruna.BackFace.RulesText);
+        Assert.Equal("9", bruna.BackFace.Power);
+        Assert.Equal("10", bruna.BackFace.Toughness);
+        Assert.True(bruna.BackFace.IsMeldBack && bruna.BackFace.IsMeldBottom);
+        Assert.NotSame(gisela.BackFace, bruna.BackFace);   // two cards, two backs
+    }
+
+    [Fact]
+    public void Csv_AGivenHalfWins_AndThePartnerGetsTheOther()
+    {
+        const string csv = """
+            name,type,meld_with,meld_half
+            Gisela,Creature,Bruna,
+            Bruna,Creature,Gisela,top
+            """;
+        var parsed = ImportService.Parse(csv, null, "Gold Multicolor");
+        Assert.Equal("bottom", parsed[0].Card.MeldHalf);
+        Assert.Equal("top", parsed[1].Card.MeldHalf);
+        Assert.All(parsed, i => Assert.True(i.MeldHalfGiven));
+    }
+
+    [Fact]
+    public void Csv_LookedUpRowsWithNoHalf_LetScryfallPickIt_AndOldColumnsMakeNoMeld()
+    {
+        var parsed = ImportService.Parse("""
+            name,meld_name
+            Bruna the Fading Light,Brisela
+            Gisela the Broken Blade,Brisela
+            """, null, "Gold Multicolor");
+        Assert.All(parsed, i => Assert.True(i.NeedsLookup && i.Card.IsMeld && !i.MeldHalfGiven));
+
+        var plain = ImportService.Parse("name,type\nGrizzly Bears,Creature", null, "Gold Multicolor").Single();
+        Assert.False(plain.Card.IsDoubleFaced);
+        Assert.False(plain.Card.IsMeld);
+
+        // A flip row stays a flip card: meld columns never also give it a back.
+        var flip = ImportService.Parse("name,flip_name,meld_name\nBushi,Budoka,Brisela", null, "Gold Multicolor").Single();
+        Assert.True(flip.Card.OtherHalf != null && !flip.Card.IsDoubleFaced);
+    }
 
     [Fact]
     public void EveryInstalledFrame_DrawsBothMeldHalves_AndTheMeldedCardPassesInspection() => TestHelpers.RunSta(() =>

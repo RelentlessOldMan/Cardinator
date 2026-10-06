@@ -5,7 +5,9 @@ using Cardinator.Models;
 namespace Cardinator.Services;
 
 /// <summary>A parsed card plus whether its blank fields should be filled from Scryfall.</summary>
-public sealed record ImportedCard(CardModel Card, bool NeedsLookup);
+/// <remarks><paramref name="MeldHalfGiven"/> is false only for a CSV meld card whose half the list didn't say (nor its
+/// partner's): the lookup then picks it from Scryfall's collector numbers.</remarks>
+public sealed record ImportedCard(CardModel Card, bool NeedsLookup, bool MeldHalfGiven = true);
 
 /// <summary>The outcome of parsing a list: the cards, plus how many non-blank/non-comment lines
 /// were dropped because they couldn't be turned into a card (so the UI can tell the user instead
@@ -50,6 +52,17 @@ public static class ImportService
         ["splitmanacost"] = "splitcost", ["splittype"] = "splittype", ["splittypeline"] = "splittype",
         ["splitrules"] = "splitrules", ["splittext"] = "splitrules", ["splitflavor"] = "splitflavor",
         ["splitart"] = "splitart",
+        // A meld card: the melded card it's half of (any of these columns makes the row a meld card). Rows naming
+        // the same melded card are partners; the melded card's text can be written on either row.
+        ["meld"] = "meldname", ["meldname"] = "meldname", ["meldedname"] = "meldname", ["meldedcard"] = "meldname",
+        ["meldresult"] = "meldname", ["meldinto"] = "meldname",
+        ["meldhalf"] = "meldhalf", ["meldside"] = "meldhalf",
+        ["meldwith"] = "meldwith", ["meldpartner"] = "meldwith",
+        ["meldcost"] = "meldcost", ["meldmana"] = "meldcost", ["meldmanacost"] = "meldcost",
+        ["meldtype"] = "meldtype", ["meldtypeline"] = "meldtype",
+        ["meldrules"] = "meldrules", ["meldtext"] = "meldrules", ["meldflavor"] = "meldflavor",
+        ["meldpower"] = "meldpower", ["meldtoughness"] = "meldtoughness", ["meldpt"] = "meldpt",
+        ["meldart"] = "meldart",
         ["template"] = "template", ["frame"] = "template", ["border"] = "template",
         ["color"] = "template", ["colour"] = "template",
         ["artist"] = "artist", ["illustrator"] = "artist", ["illus"] = "artist",
@@ -215,6 +228,7 @@ public static class ImportService
                 col[key] = i;
 
         var result = new List<ImportedCard>();
+        var melds = new List<(int index, bool halfGiven)>();
         int skipped = 0;
         for (int r = 1; r < lines.Count; r++)
         {
@@ -291,11 +305,105 @@ public static class ImportService
                 card.OtherHalf = split;
             }
 
+            // Meld columns: the back face is the melded card, of which this card prints one half.
+            var melded = new CardModel
+            {
+                Name = Get("meldname"), ManaCost = ManaText.NormalizeCost(Get("meldcost")), TypeLine = Get("meldtype"),
+                RulesText = Unescape(Get("meldrules")), FlavorText = Unescape(Get("meldflavor")),
+                Power = Get("meldpower"), Toughness = Get("meldtoughness"),
+                ArtPath = ResolveArt(Get("meldart"), artBaseDir), TemplateName = card.TemplateName,
+            };
+            var mpt = Get("meldpt");
+            if (mpt.Contains('/') && melded.Power.Length == 0 && melded.Toughness.Length == 0)
+            {
+                var bits = mpt.Split('/', 2);
+                melded.Power = bits[0].Trim();
+                melded.Toughness = bits[1].Trim();
+            }
+            var meldHalf = ParseMeldHalf(Get("meldhalf"));
+            var meldWith = Get("meldwith");
+            if (card.OtherHalf == null
+                && (MeldFields(melded).Any(v => v.Length > 0) || meldHalf.Length > 0 || meldWith.Length > 0))
+            {
+                card.BackFace = melded;
+                card.MeldHalf = meldHalf.Length > 0 ? meldHalf : "top";
+                card.MeldWith = meldWith;
+                card.DfcStyle = "meld";
+                melds.Add((result.Count, meldHalf.Length > 0));
+            }
+
             bool blank = card.ManaCost.Length == 0 && card.TypeLine.Length == 0 && card.RulesText.Length == 0;
             bool needsLookup = ParseLookupFlag(Get("lookup")) ?? blank;
             result.Add(new ImportedCard(card, needsLookup));
         }
+        PairMeldRows(result, melds);
         return new ImportResult(result, skipped);
+    }
+
+    /// <summary>"top"/"bottom" from a meld-half cell ("top", "upper", "1", "bottom", "lower", "2", …), or "".</summary>
+    private static string ParseMeldHalf(string v) => v.Trim().ToLowerInvariant() switch
+    {
+        "top" or "t" or "upper" or "up" or "1" or "first" => "top",
+        "bottom" or "b" or "lower" or "down" or "2" or "second" => "bottom",
+        _ => "",
+    };
+
+    private static string[] MeldFields(CardModel m)
+        => new[] { m.Name, m.ManaCost, m.TypeLine, m.RulesText, m.FlavorText, m.Power, m.Toughness, m.ArtPath };
+
+    /// <summary>Partners the meld rows: rows naming the same melded card (or naming each other in meld_with) share one
+    /// melded card — its text can be on either row — print opposite halves, and name each other as partners.</summary>
+    private static void PairMeldRows(List<ImportedCard> result, List<(int index, bool halfGiven)> melds)
+    {
+        static string Key(string s) => s.Trim().ToLowerInvariant();
+        var groups = new List<List<(int index, bool halfGiven)>>();
+        foreach (var m in melds)
+        {
+            var card = result[m.index].Card;
+            var group = groups.FirstOrDefault(g => g.Count < 2 && g.Any(o =>
+            {
+                var other = result[o.index].Card;
+                return card.BackFace!.Name.Length > 0 && Key(card.BackFace.Name) == Key(other.BackFace!.Name)
+                       || card.MeldWith.Length > 0 && Key(card.MeldWith) == Key(other.Name)
+                       || other.MeldWith.Length > 0 && Key(other.MeldWith) == Key(card.Name);
+            }));
+            if (group != null) group.Add(m); else groups.Add(new() { m });
+        }
+
+        foreach (var g in groups)
+        {
+            var cards = g.Select(m => result[m.index].Card).ToList();
+            bool given = g.Any(m => m.halfGiven);
+            if (cards.Count == 2)
+            {
+                // One melded card: each field from whichever row wrote it.
+                var backs = cards.Select(c => c.BackFace!).ToList();
+                string First(Func<CardModel, string> f) => backs.Select(f).FirstOrDefault(v => v.Length > 0) ?? "";
+                var merged = new CardModel
+                {
+                    Name = First(b => b.Name), ManaCost = First(b => b.ManaCost), TypeLine = First(b => b.TypeLine),
+                    RulesText = First(b => b.RulesText), FlavorText = First(b => b.FlavorText),
+                    Power = First(b => b.Power), Toughness = First(b => b.Toughness), ArtPath = First(b => b.ArtPath),
+                };
+                foreach (var b in backs)
+                {
+                    b.Name = merged.Name; b.ManaCost = merged.ManaCost; b.TypeLine = merged.TypeLine;
+                    b.RulesText = merged.RulesText; b.FlavorText = merged.FlavorText;
+                    b.Power = merged.Power; b.Toughness = merged.Toughness; b.ArtPath = merged.ArtPath;
+                }
+
+                // Opposite halves: a half the list gave wins; with none given, the first row is the top.
+                if (g[1].halfGiven && !g[0].halfGiven) cards[0].MeldHalf = cards[1].IsMeldBottom ? "top" : "bottom";
+                else if (!g[1].halfGiven) cards[1].MeldHalf = cards[0].IsMeldBottom ? "top" : "bottom";
+
+                if (cards[0].MeldWith.Length == 0) cards[0].MeldWith = cards[1].Name;
+                if (cards[1].MeldWith.Length == 0) cards[1].MeldWith = cards[0].Name;
+            }
+            // With no half given, a lookup may pick it from the collector numbers — only if every row of the pair is
+            // looked up, so the two can't end up on the same half.
+            if (!given && g.All(m => result[m.index].NeedsLookup))
+                foreach (var m in g) result[m.index] = result[m.index] with { MeldHalfGiven = false };
+        }
     }
 
     private static bool? ParseLookupFlag(string v) => v.ToLowerInvariant() switch
