@@ -41,7 +41,9 @@ the live preview that updates as you type.*
    - **Drag an image file straight onto the window.**
 4. **Position the art.** Drag on the preview to **pan**, scroll to **zoom** (hold **Ctrl** for fine
    zoom). Click the preview, then nudge with the **arrow keys** (hold **Shift** for 10px steps) and
-   zoom with **+ / -**. (The Art zoom / Pan sliders in **Edit details…** work too.)
+   zoom with **+ / -**; the hint under the preview says when the keys are on. **Reset** (next to
+   **Clear**), or **0** on the preview, puts the art back centred at its original size — undoable with
+   **Ctrl+Z**. (The Art zoom / Pan sliders in **Edit details…** work too.)
 5. **Tweak anything** by hand in **Edit details…** — every field is editable, so you can change
    the rules text, add flavor text, set rarity, artist, etc. — or make a completely original card
    with no Scryfall lookup at all.

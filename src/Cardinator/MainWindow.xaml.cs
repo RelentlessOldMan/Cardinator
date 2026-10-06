@@ -2060,6 +2060,32 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                  + (card.IsBackFace ? " (back face)" : card.IsOtherHalf ? $" (for “{card.Name}”)" : "");
     }
 
+    private void OnResetArt(object sender, RoutedEventArgs e) => ResetArt();
+
+    /// <summary>Puts the art back where it started — centred, at its original size — undoing any pan and zoom
+    /// (the Reset button, or 0 on the focused preview). Undoable like any other edit.</summary>
+    private void ResetArt()
+    {
+        var card = ActiveFace;
+        if (card == null) return;
+        if (card.ArtScale == 1.0 && card.ArtOffsetX == 0 && card.ArtOffsetY == 0)
+        {
+            Status = "The art is already centred at its original size.";
+            return;
+        }
+        card.ArtScale = 1.0;
+        card.ArtOffsetX = 0;
+        card.ArtOffsetY = 0;
+        RenderPreview();
+        Status = "Art reset: centred at its original size" + (card.IsBackFace ? " (back face)." : ".");
+    }
+
+    /// <summary>While the preview has keyboard focus, the hint under it says so — the keys only work then.</summary>
+    private void OnPreviewFocusChanged(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+        => PreviewHint.Text = PreviewImageControl.IsKeyboardFocusWithin
+            ? "Keys on: arrows nudge the art (Shift = 10×) · + / − zoom · 0 resets · click elsewhere to stop"
+            : "Drag to pan · scroll to zoom · click the card for keys: arrows nudge, + / − zoom, 0 resets";
+
     private void OnClearArt(object sender, RoutedEventArgs e)
     {
         var card = ActiveFace;
@@ -2419,6 +2445,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 case System.Windows.Input.Key.Add:   ZoomArt(+zstep); e.Handled = true; return;
                 case System.Windows.Input.Key.OemMinus:
                 case System.Windows.Input.Key.Subtract: ZoomArt(-zstep); e.Handled = true; return;
+                case System.Windows.Input.Key.D0 or System.Windows.Input.Key.NumPad0
+                    when mods == System.Windows.Input.ModifierKeys.None:
+                    ResetArt(); e.Handled = true; return;
             }
         }
 

@@ -49,7 +49,7 @@
                 <TextBlock Text="Make a card" Style="{StaticResource GroupHeader}"/>
                 <TextBlock Style="{StaticResource Body}"><Run Text="1."/>  Type a card name and press <Run FontWeight="SemiBold" Text="Ctrl+L"/> to auto-fill from Scryfall — or just type the fields yourself for an original card.</TextBlock>
                 <TextBlock Style="{StaticResource Body}"><Run Text="2."/>  Pick a <Run FontWeight="SemiBold" Text="Frame"/> from the dropdown.</TextBlock>
-                <TextBlock Style="{StaticResource Body}"><Run Text="3."/>  Add your <Run FontWeight="SemiBold" Text="artwork"/> (see below), then drag the preview to pan and scroll to zoom.</TextBlock>
+                <TextBlock Style="{StaticResource Body}"><Run Text="3."/>  Add your <Run FontWeight="SemiBold" Text="artwork"/> (see below), then drag the preview to pan and scroll to zoom. Click the preview to use the keys: arrows nudge, + / − zoom, 0 resets. <Run FontWeight="SemiBold" Text="Reset"/> puts the art back centred at its original size.</TextBlock>
                 <TextBlock Style="{StaticResource Body}"><Run Text="4."/>  Open <Run FontWeight="SemiBold" Text="Edit details…"/> to change any field (rules, flavor, rarity, artist, stats).</TextBlock>
                 <TextBlock Style="{StaticResource Body}"><Run Text="5."/>  <Run FontWeight="SemiBold" Text="Export PNG…"/> (1500×2100) or <Run FontWeight="SemiBold" Text="Copy image"/> to the clipboard.</TextBlock>
 

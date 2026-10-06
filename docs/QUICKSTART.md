@@ -15,7 +15,8 @@ Cardinator makes custom Magic-style cards from your own art — one at a time, o
 3. **Add your art.** Click **Change art…**, **Paste** a copied image or URL, or just drag an image
    onto the window. Paste even handles images copied from a web browser. Drag the preview to pan,
    scroll to zoom (hold **Ctrl** for fine zoom); click the preview then use the **arrow keys** to
-   nudge the art a pixel at a time and **+ / -** to zoom.
+   nudge the art a pixel at a time, **+ / -** to zoom and **0** to reset. **Reset** (next to Clear)
+   puts the art back centred at its original size.
 4. **Edit the details.** Click **Edit details…** for mana cost, type line, rules/flavor text,
    power/toughness, loyalty, set, collector number, artist and more. Type mana as `{2}{U}{U}` —
    it renders as symbols, in the title and inside rules text.
@@ -74,7 +75,7 @@ no setup: the folder is only created when you first save.
 
 ## Keyboard shortcuts
 `Ctrl+S` save · `Ctrl+O` open · `Ctrl+N` new · `Ctrl+L` look up · `Ctrl+E` export · `Ctrl+D` duplicate · `F1` help
-· click the preview, then **arrows** nudge art (Shift = 10px) and **+/-** zoom
+· click the preview, then **arrows** nudge art (Shift = 10px) , **+/-** zoom and **0** resets
 
 ---
 *Cardinator is for personal/fan use. Card frames and symbols are original; it isn't affiliated with

@@ -134,11 +134,14 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Content="Change art…" Click="OnLoadArt"/>
                         <Button Grid.Column="1" Content="Paste" Click="OnPasteArt" Margin="6,0,0,0"
                                 ToolTip="Paste an image, a copied image file, or an image URL from the clipboard"/>
-                        <Button Grid.Column="2" Content="Clear" Style="{StaticResource Ghost}" Click="OnClearArt" Margin="6,0,0,0"/>
+                        <Button Grid.Column="2" Content="Reset" Style="{StaticResource Ghost}" Click="OnResetArt" Margin="6,0,0,0"
+                                ToolTip="Put the art back where it started: centred, at its original size (or press 0 on the preview)"/>
+                        <Button Grid.Column="3" Content="Clear" Style="{StaticResource Ghost}" Click="OnClearArt" Margin="6,0,0,0"/>
                     </Grid>
                     <TextBlock Text="Drop an image anywhere · drag the preview to pan · scroll to zoom" Foreground="{StaticResource Subtle}"
                                FontSize="11" Margin="2,0,0,18"/>
@@ -214,11 +217,19 @@
             <!-- ===== Preview ===== -->
             <Border Grid.Column="2" Background="{StaticResource PreviewBg}" CornerRadius="10" Padding="18">
                 <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock x:Name="PreviewHint" Grid.Row="1" HorizontalAlignment="Center" Margin="0,10,0,0" FontSize="11"
+                               Foreground="{StaticResource Subtle}" TextWrapping="Wrap" TextAlignment="Center"
+                               Text="Drag to pan · scroll to zoom · click the card for keys: arrows nudge, + / − zoom, 0 resets"/>
                     <Image x:Name="PreviewImageControl" Source="{Binding PreviewImage}" Stretch="Uniform"
                            Focusable="True" RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True" Cursor="SizeAll"
                            MouseLeftButtonDown="OnPreviewMouseDown" MouseMove="OnPreviewMouseMove"
                            MouseLeftButtonUp="OnPreviewMouseUp" MouseWheel="OnPreviewWheel"
-                           ToolTip="Drag to pan · scroll to zoom (Ctrl = fine) · click then arrow keys to nudge, +/- to zoom"/>
+                           GotKeyboardFocus="OnPreviewFocusChanged" LostKeyboardFocus="OnPreviewFocusChanged"
+                           ToolTip="Drag to pan · scroll to zoom (Ctrl = fine) · click then arrow keys to nudge, +/- to zoom, 0 to reset"/>
                 </Grid>
             </Border>
         </Grid>
