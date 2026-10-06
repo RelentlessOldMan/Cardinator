@@ -32,7 +32,12 @@ Optional extra columns: `defense` and `orientation` (Battles / sideways cards), 
 upside-down half's `flip_name`, `flip_type`, `flip_rules` and `flip_pt` (any of them makes the row a flip card;
 the half shares the row's art and set details), and for a **split card** the second half's `split_name`,
 `split_cost`, `split_type`, `split_rules`, `split_flavor` and `split_art` (it has its own cost and art; set
-details are the row's).
+details are the row's), and for a **meld card** `meld_name` (the melded card it's half of), `meld_half` (`top` or
+`bottom`), `meld_with` (its partner) and the melded card's `meld_cost`, `meld_type`, `meld_rules`, `meld_flavor`,
+`meld_pt` and `meld_art`. Any of them makes the row a meld card. Two rows with the same `meld_name` are partners:
+they print opposite halves (the first row the top, unless `meld_half` says otherwise) and share one melded card,
+whose text can be written on either row. Rows looked up on Scryfall get the melded card's missing text and art,
+and the right halves, from Scryfall.
 
 ## In the app
 

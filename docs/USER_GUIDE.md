@@ -210,7 +210,9 @@ half this card's back prints; the partner gets the other), and **Show melded car
 or this card's half as printed). Edits to the melded card through either part — its text, art, pan and zoom — reach
 both. Looking up a meld card brings its melded card along and picks the right half; the status line names the
 partner to add. The fronts show a meld icon. Exports and print sheets give each part its own back, so printing
-double-sided just works: the top-half card goes on the left.
+double-sided just works: the top-half card goes on the left. A CSV import can make meld cards too, with the
+`meld_name`, `meld_half`, `meld_with` and `meld_type`/`meld_rules`/`meld_pt`/`meld_art` columns (see the
+[column reference](../examples/02-custom-set/README.md)); two rows with the same `meld_name` are partners.
 
 <p><img src="images/meld-card.png" width="520" alt="A meld pair's backs side by side: one big card, turned sideways, split across the two"></p>
 

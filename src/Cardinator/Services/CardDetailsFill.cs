@@ -85,12 +85,16 @@ public static class CardDetailsFill
         back.ArtUrl = url;
         back.TemplateName = card.TemplateName;
         back.Layout = "";
-        card.MeldHalf = NumberRoot(melded.CollectorNumber) is { Length: > 0 } root
-                        && root == NumberRoot(part.CollectorNumber) ? "bottom" : "top";
+        card.MeldHalf = MeldHalfFor(part, melded);
         card.BackFace = back;
         if (string.IsNullOrWhiteSpace(card.DfcStyle) || card.DfcStyle == "none") card.DfcStyle = "meld";
         return true;
     }
+
+    /// <summary>Which half of <paramref name="melded"/> the meld part <paramref name="part"/> prints: the bottom when the
+    /// melded card's number is the part's plus a letter (<i>Brisela</i> 14b on <i>Bruna</i>'s 14), else the top.</summary>
+    internal static string MeldHalfFor(CardModel part, CardModel melded)
+        => NumberRoot(melded.CollectorNumber) is { Length: > 0 } root && root == NumberRoot(part.CollectorNumber) ? "bottom" : "top";
 
     /// <summary>The digits a collector number starts with ("14b" → "14").</summary>
     private static string NumberRoot(string? n)
