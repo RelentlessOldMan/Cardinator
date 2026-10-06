@@ -95,14 +95,70 @@ public static class TemplateImporter
             ?? throw new InvalidOperationException("That bundle has no template.json — it isn't a Cardinator template.");
         var frameEntry = FindEntry(zip, "frame.png")
             ?? throw new InvalidOperationException("That bundle has no frame.png — it isn't a Cardinator template.");
+        return ImportOne(zip, specEntry, frameEntry, EntryFolder(specEntry), Path.GetFileNameWithoutExtension(bundlePath));
+    }
 
+    /// <summary>Imports EVERY template in a zip: each folder holding a template.json + frame.png (with its own flip/
+    /// and landscape/ layouts) becomes a template — so a zip of several frames, or a "Share set + frames" zip
+    /// (frames/&lt;slug&gt;/…), brings them all in. Template bundles zipped inside it (.cardframe/.zip) are imported
+    /// too. A single-template bundle imports exactly as <see cref="ImportBundle"/> does. Returns the template names;
+    /// throws like <see cref="ImportBundle"/> when the zip holds no template at all.</summary>
+    public static List<string> ImportBundles(string bundlePath)
+    {
+        var names = new List<string>();
+        using (var zip = ZipFile.OpenRead(bundlePath))
+        {
+            var specs = zip.Entries
+                .Where(e => LeafName(e).Equals("template.json", StringComparison.OrdinalIgnoreCase) && !IsVariantEntry(e))
+                .OrderBy(e => Normalized(e).Count(c => c == '/')).ThenBy(e => Normalized(e), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            foreach (var spec in specs)
+            {
+                var folder = EntryFolder(spec);
+                var frame = zip.Entries.FirstOrDefault(e =>
+                    Normalized(e).Equals(folder + "frame.png", StringComparison.OrdinalIgnoreCase));
+                // One template whose frame sits elsewhere in the zip: find it the way a single bundle does.
+                if (frame == null && specs.Count == 1) frame = FindEntry(zip, "frame.png");
+                if (frame == null) continue;
+                var fallback = folder.Length > 0
+                    ? folder.TrimEnd('/').Split('/')[^1]
+                    : Path.GetFileNameWithoutExtension(bundlePath);
+                names.Add(ImportOne(zip, spec, frame, folder, fallback));
+            }
+
+            // Bundles zipped inside the zip (e.g. a few exported .cardframe files zipped together).
+            foreach (var inner in zip.Entries.Where(e => IsBundlePath(LeafName(e))).ToList())
+            {
+                var tmp = Path.Combine(Path.GetTempPath(), $"cardinator-{Guid.NewGuid():N}{Path.GetExtension(LeafName(inner))}");
+                try
+                {
+                    File.WriteAllBytes(tmp, ReadEntryBytes(inner));
+                    names.AddRange(ImportBundles(tmp));
+                }
+                catch { /* skip a bundle inside that isn't one */ }
+                finally { try { File.Delete(tmp); } catch { } }
+            }
+
+            if (names.Count == 0)
+            {
+                if (specs.Count == 0)
+                    throw new InvalidOperationException("That bundle has no template.json — it isn't a Cardinator template.");
+                throw new InvalidOperationException("That bundle has no frame.png — it isn't a Cardinator template.");
+            }
+        }
+        return names;
+    }
+
+    /// <summary>Imports one template from a zip: its frame, its spec and the flip/landscape layouts in its folder.</summary>
+    private static string ImportOne(ZipArchive zip, ZipArchiveEntry specEntry, ZipArchiveEntry frameEntry, string folder, string fallbackName)
+    {
         var specJson = ReadEntryText(specEntry);
         var frameBytes = ReadEntryBytes(frameEntry);
         if (frameBytes.Length == 0) throw new InvalidOperationException("The bundle's frame.png was empty.");
 
         // Parse to validate + get the display name; force CustomFrame so the frame is kept verbatim.
         var spec = TemplateSpec.LoadFromJson(specJson);
-        if (string.IsNullOrWhiteSpace(spec.Name)) spec.Name = Path.GetFileNameWithoutExtension(bundlePath);
+        if (string.IsNullOrWhiteSpace(spec.Name)) spec.Name = fallbackName;
         spec.CustomFrame = true;
 
         var dir = UniqueTemplateDir(TextUtil.Slug(spec.Name));
@@ -110,8 +166,20 @@ public static class TemplateImporter
         // Frame first, then spec — a failure never leaves a spec pointing at a missing frame.
         IoUtil.AtomicWriteBytes(Path.Combine(dir, "frame.png"), frameBytes);
         spec.Save(Path.Combine(dir, "template.json"));
-        ImportVariants(zip, dir);
+        ImportVariants(zip, dir, folder);
         return spec.Name;
+    }
+
+    private static string Normalized(ZipArchiveEntry e) => e.FullName.Replace('\\', '/').TrimStart('/');
+
+    private static string LeafName(ZipArchiveEntry e) => Normalized(e).Split('/')[^1];
+
+    /// <summary>The folder an entry is in, as "a/b/" ("" at the zip's root).</summary>
+    private static string EntryFolder(ZipArchiveEntry e)
+    {
+        var n = Normalized(e);
+        int slash = n.LastIndexOf('/');
+        return slash < 0 ? "" : n[..(slash + 1)];
     }
 
     /// <summary>True if the path looks like a template bundle we can import (by extension).</summary>
@@ -153,12 +221,12 @@ public static class TemplateImporter
 
     /// <summary>Unpacks a bundle's optional flip/ and landscape/ layouts beside the imported frame. Best-effort:
     /// a damaged variant is skipped (the frame itself is already in), never fails the import.</summary>
-    private static void ImportVariants(ZipArchive zip, string dir)
+    private static void ImportVariants(ZipArchive zip, string dir, string folder)
     {
         foreach (var v in new[] { TemplateService.FlipVariant, TemplateService.LandscapeVariant })
         {
-            var spec = FindVariantEntry(zip, v, "template.json");
-            var frame = FindVariantEntry(zip, v, "frame.png");
+            var spec = FindVariantEntry(zip, folder, v, "template.json");
+            var frame = FindVariantEntry(zip, folder, v, "frame.png");
             if (spec == null || frame == null) continue;
             try
             {
@@ -174,14 +242,17 @@ public static class TemplateImporter
         }
     }
 
-    private static ZipArchiveEntry? FindVariantEntry(ZipArchive zip, string variant, string fileName)
-        => zip.Entries.FirstOrDefault(e =>
-        {
-            var parts = e.FullName.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length >= 2
-                && parts[^1].Equals(fileName, StringComparison.OrdinalIgnoreCase)
-                && parts[^2].Equals(variant, StringComparison.OrdinalIgnoreCase);
-        });
+    /// <summary>The template's own flip/ or landscape/ layout file: in its folder, else (a bundle whose frame and
+    /// layouts were zipped at different depths) anywhere in the zip.</summary>
+    private static ZipArchiveEntry? FindVariantEntry(ZipArchive zip, string folder, string variant, string fileName)
+        => zip.Entries.FirstOrDefault(e => Normalized(e).Equals($"{folder}{variant}/{fileName}", StringComparison.OrdinalIgnoreCase))
+           ?? (folder.Length > 0 ? null : zip.Entries.FirstOrDefault(e =>
+           {
+               var parts = Normalized(e).Split('/', StringSplitOptions.RemoveEmptyEntries);
+               return parts.Length >= 2
+                   && parts[^1].Equals(fileName, StringComparison.OrdinalIgnoreCase)
+                   && parts[^2].Equals(variant, StringComparison.OrdinalIgnoreCase);
+           }));
 
     private static ZipArchiveEntry? FindEntry(ZipArchive zip, string fileName)
         => zip.Entries

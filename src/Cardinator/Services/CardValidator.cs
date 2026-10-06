@@ -134,6 +134,10 @@ public static class CardValidator
             else if (card.IsClass && !CardRenderer.ParseClassLevels(card.RulesText).Any(r => r.cost != null))
                 issues.Add(new(IssueSeverity.Info, "class-no-levels",
                     "Class level-ups use \"{cost}: Level N\" lines — none were found, so every ability shows at the base level.", nameof(card.RulesText)));
+            else if (!card.IsStation && System.Text.RegularExpressions.Regex.IsMatch(card.RulesText,
+                         @"^\s*Station\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                issues.Add(new(IssueSeverity.Info, "station-no-thresholds",
+                    "Station cards list their thresholds on lines like \"7+ | Flying\" — none were found, so it shows as a normal card.", nameof(card.RulesText)));
             else if (!card.IsLevelUp && System.Text.RegularExpressions.Regex.IsMatch(card.RulesText,
                          @"^\s*Level up\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
                 issues.Add(new(IssueSeverity.Info, "levelup-no-levels",

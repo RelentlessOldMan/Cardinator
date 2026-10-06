@@ -53,8 +53,9 @@ the live preview that updates as you type.*
    **Borrow a real card's stats:** inside **Edit details…**, use **Fill from Scryfall** — type any
    real card name and it fills the mana cost, type, rules text, power/toughness and printing info,
    while leaving your card's **name, art and frame untouched**. (So "Boogie Woogie" can have Lightning
-   Bolt's stats.) *(No internet? Just type the fields yourself.)* **Ctrl+L** still does a quick
-   look-up of the selected card by its own name.
+   Bolt's stats.) Tick **Also use its art** to take the looked-up card's Scryfall art as well (Cancel
+   puts yours back). *(No internet? Just type the fields yourself.)* **Ctrl+L** still does a quick
+   look-up of the selected card by its own name, and takes its name and art.
 6. **Export PNG…** saves a print-quality **1500×2100** image — pick **PNG or JPEG** in the save
    dialog. Exports default to your set's `out` folder (or wherever you last saved one), and **Open
    output folder** opens that same place. Or click **Copy image** to drop the finished card straight
@@ -105,6 +106,8 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Flip card** | Look up a real flip card, or **Make flip card** | Two halves on one face: the other half **upside down** below the art |
 | **Split card** | Look up a real split card or Room, or **Make split card** | Two small cards **side by side**, read with the card turned sideways |
 | **Level up** | Rules with lines like `LEVEL 2-6`, then `3/3`, then that level's rules | Text box split into **level bands**, each with a LEVEL badge and its own P/T box |
+| **Station** | Rules with lines like `3+ \| Flying` (Spacecraft, Planets) | Text box split into **threshold bands** with a `3+` badge; the P/T box sits on the band where it becomes a creature |
+| **Case** | Rules with `To solve — …` and `Solved — …` lines | The opening ability, then a **To solve** band (magnifying glass) and a **Solved** band (check mark) |
 | **Prototype** | First rules line like `Prototype {2}{R} — 3/2 (…)` | A band across the top of the text box in the prototype's colour, with its own cost and P/T |
 | **Mutate** | First rules line like `Mutate {1}{G}{G} (…)` | The mutate line in a shaded band across the top of the text box |
 | **Meld** | **Make meld card** (MELD section), or look up a meld card | Two double-faced cards whose backs, side by side, make one big melded card |
@@ -180,6 +183,17 @@ level gets an arrow-shaped LEVEL badge on the left and its own P/T box on the ri
 corner). Looked-up levelers come in ready; CHECKS points out a "Level up" card whose levels aren't written that way.
 
 <p><img src="images/level-up-card.png" width="360" alt="A level up card: three bands, each with its own P/T box, the level bands with LEVEL badges"></p>
+
+**Station and Case.** A Station card (*Uthros Research Craft*, Edge of Eternities Spacecraft and Planets) lists its
+thresholds the way Scryfall writes them: `3+ | Whenever you cast…`, `12+ | Flying`. Each threshold gets a band with
+its number in a badge, and everything after a threshold line belongs to that band. The P/T box sits on the band where
+it becomes a creature (the reminder text's "artifact creature at 12+"), not in the corner. A Case (*Case of the
+Burning Masks*) keeps its opening ability at the top, then a **To solve** band with a magnifying glass and a
+**Solved** band with a check mark. Both work on every frame, and on frames with a medallion set into the bottom of
+the text box (the *Partial Cardboard Chemist* ones) the bottom band's text stays above it. Looked-up cards come in
+ready; CHECKS points out a Station card whose thresholds aren't written that way.
+
+<p><img src="images/station-case.png" width="520" alt="A Station card with 4+ and 9+ bands and a P/T box on the 9+ band, and a Case with To solve and Solved bands"></p>
 
 **Prototype and Mutate.** A prototype (*Blitz Automaton*) or mutate card (*Gemrazer*) is written the way Scryfall
 writes it: its rules' **first line** is `Prototype {2}{R} — 3/2 (reminder…)` or `Mutate {1}{G}{G} (reminder…)`.
