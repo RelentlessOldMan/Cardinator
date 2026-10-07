@@ -38,10 +38,21 @@ public static class CardDetailsFill
     /// (aftermath — not drawn yet) is printed on a single side, so its extra faces are NOT a back face —
     /// they're returned for the caller to add as separate cards.
     /// </summary>
+    /// <para>A back face or other half the card already has is the user's own work (or a list's): it is never
+    /// replaced. If it's the same card as the looked-up face, only its blank fields are filled; either way nothing
+    /// else is attached, and a back face or other half never takes one of its own.</para>
+    /// </summary>
     /// <returns>The faces that were not absorbed as a back face (empty for a single- or double-faced card).</returns>
     public static IReadOnlyList<CardModel> AttachFaces(CardModel card, IReadOnlyList<CardModel> faces)
     {
         if (faces.Count <= 1) return Array.Empty<CardModel>();
+        if (card.IsBackFace || card.IsOtherHalf) return Array.Empty<CardModel>();
+        if ((card.BackFace ?? card.OtherHalf) is { } own)
+        {
+            if (string.Equals(own.Name.Trim(), faces[1].Name.Trim(), StringComparison.OrdinalIgnoreCase))
+                FillBlanksFrom(own, faces[1], withCost: !string.Equals(faces[0].Layout, "flip", StringComparison.OrdinalIgnoreCase));
+            return Array.Empty<CardModel>();
+        }
         if (string.Equals(faces[0].Layout, "flip", StringComparison.OrdinalIgnoreCase))
         {
             var half = faces[1].Clone();
@@ -69,6 +80,30 @@ public static class CardDetailsFill
         card.BackFace = back;
         if (string.IsNullOrWhiteSpace(card.DfcStyle)) card.DfcStyle = "sunmoon";
         return Array.Empty<CardModel>();
+    }
+
+    /// <summary>Gives a newly added card its frame — and its back face / other half the same one when they have
+    /// none (a search result's faces are built before any frame is known, and a blank frame would draw the back
+    /// on whatever frame happens to be first).</summary>
+    public static void TakeFrame(CardModel card, string frame)
+    {
+        if (string.IsNullOrEmpty(card.TemplateName)) card.TemplateName = frame;
+        foreach (var part in new[] { card.BackFace, card.OtherHalf })
+            if (part != null && string.IsNullOrEmpty(part.TemplateName)) part.TemplateName = card.TemplateName;
+    }
+
+    /// <summary>Fills only the empty printed fields of an existing back face / other half from its looked-up face.</summary>
+    private static void FillBlanksFrom(CardModel target, CardModel face, bool withCost)
+    {
+        static bool B(string? s) => string.IsNullOrWhiteSpace(s);
+        if (withCost && B(target.ManaCost)) target.ManaCost = face.ManaCost;   // a flipped half prints no cost
+        if (B(target.TypeLine)) target.TypeLine = face.TypeLine;
+        if (B(target.RulesText)) target.RulesText = face.RulesText;
+        if (B(target.FlavorText)) target.FlavorText = face.FlavorText;
+        if (B(target.Power)) target.Power = face.Power;
+        if (B(target.Toughness)) target.Toughness = face.Toughness;
+        if (B(target.Loyalty)) target.Loyalty = face.Loyalty;
+        if (B(target.Defense)) target.Defense = face.Defense;
     }
 
     /// <summary>Makes a looked-up meld part (<i>Bruna</i>, from <paramref name="part"/>) a meld card: its back face
@@ -112,6 +147,7 @@ public static class CardDetailsFill
         IReadOnlyList<CardModel> faces;
         try { faces = await client.LookupUriAsync(part.MeldResultUrl, ct); }
         catch (Exception ex) when (ex is not OperationCanceledException) { return false; }
+        ct.ThrowIfCancellationRequested();   // the dialog closed while this was in flight: don't touch the card
         return AttachMeld(card, part, faces.FirstOrDefault());
     }
 

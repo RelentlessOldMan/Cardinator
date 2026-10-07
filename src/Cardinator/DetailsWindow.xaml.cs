@@ -173,7 +173,7 @@ public partial class DetailsWindow : Window
                 _card.ArtOffsetY = 0;
                 ok = true;
             }
-            catch (Exception ex) when (ex is not OperationCanceledException) { /* keep the card's own art */ }
+            catch (Exception) when (!_closing.IsCancellationRequested) { /* keep the card's own art */ }
         }
         foreach (var part in new[] { _card.BackFace, _card.OtherHalf })
         {

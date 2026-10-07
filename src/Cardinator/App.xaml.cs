@@ -170,8 +170,12 @@ public partial class App : Application
         // Safety net for the interactive app: a stray exception on the UI thread (e.g. from an event
         // handler after an await) shows a message and keeps the app alive instead of hard-crashing and
         // losing the user's unsaved work. Headless CLI paths above return before this is wired.
+        // Windows logging off / shutting down / restarting for an update never raises Window.Closing, so the
+        // save prompt can't run: keep a recovery copy of any unsaved work instead (offered on the next launch).
+        SessionEnding += (_, _) => (MainWindow as MainWindow)?.WriteRecovery();
         DispatcherUnhandledException += (_, ex) =>
         {
+            try { (MainWindow as MainWindow)?.WriteRecovery(); } catch { /* keep going */ }
             MessageBox.Show("Something went wrong:\n\n" + ex.Exception.Message,
                 "Cardinator", MessageBoxButton.OK, MessageBoxImage.Warning);
             ex.Handled = true;
@@ -219,6 +223,7 @@ public partial class App : Application
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
+        window.OfferRecovery();
     }
 
     /// <summary>Loads a single on-disk template folder (template.json + frame.png) for --editframe.</summary>

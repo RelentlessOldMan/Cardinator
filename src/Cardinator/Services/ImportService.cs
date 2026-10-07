@@ -133,7 +133,8 @@ public static class ImportService
         if (delimiter != '\0')
         {
             // A CSV record can span lines: a quoted field may hold line breaks (multi-line rules from Excel).
-            var records = SplitRecords(content).Where(Meaningful).ToList();
+            var records = SplitRecords(content, delimiter).Where(Meaningful).ToList();
+            if (records.Count == 0) return new(new(), 0);
             return ParseDelimited(records, delimiter, artBaseDir, defaultTemplate);
         }
 
@@ -155,18 +156,39 @@ public static class ImportService
         return best;
     }
 
-    /// <summary>Splits text into CSV records: at line breaks, except inside a double-quoted field.</summary>
-    private static List<string> SplitRecords(string content)
+    /// <summary>Splits text into CSV records: at line breaks, except inside a double-quoted field. Only a quote
+    /// that STARTS a field opens one (as in <see cref="SplitLine"/>), so a stray quote in plain text — 'Stands
+    /// 40" tall', or one in a # comment line — can't swallow the rows after it. A quoted field that never closes
+    /// means the quotes weren't CSV quoting after all: the file is then split at every line break.</summary>
+    private static List<string> SplitRecords(string content, char delimiter)
     {
         var records = new List<string>();
         var cur = new System.Text.StringBuilder();
-        bool inQuotes = false;
-        foreach (char ch in content)
+        bool inQuotes = false, fieldStart = true, comment = false;
+        for (int i = 0; i < content.Length; i++)
         {
-            if (ch == '"') inQuotes = !inQuotes;   // a "" escape inside a field toggles twice: no net change
-            if (ch == '\n' && !inQuotes) { records.Add(cur.ToString()); cur.Clear(); }
-            else cur.Append(ch);
+            char ch = content[i];
+            if (inQuotes)
+            {
+                if (ch == '"')
+                {
+                    if (i + 1 < content.Length && content[i + 1] == '"') { cur.Append("\"\""); i++; continue; }
+                    inQuotes = false;
+                }
+                cur.Append(ch);
+                continue;
+            }
+            if (ch == '\n') { records.Add(cur.ToString()); cur.Clear(); fieldStart = true; comment = false; continue; }
+            if (cur.Length == 0 && (ch == '#' || (ch == '/' && i + 1 < content.Length && content[i + 1] == '/'))) comment = true;
+            if (!comment)
+            {
+                if (ch == '"' && fieldStart) { inQuotes = true; fieldStart = false; }
+                else if (ch == delimiter) fieldStart = true;
+                else if (ch != ' ') fieldStart = false;
+            }
+            cur.Append(ch);
         }
+        if (inQuotes) return content.Split('\n').ToList();   // unbalanced: not quoting, so no record spans lines
         records.Add(cur.ToString());
         return records;
     }
@@ -239,7 +261,9 @@ public static class ImportService
             // Trailing printing hint: "Lightning Bolt (M10) 146".
             string setCode = "", collector = "";
             var h = SetHint.Match(line);
-            if (h.Success)
+            // A lowercase code counts only with a collector number after it ("(cmr) 472"): on its own it's more
+            // likely part of a custom card's name — "Goblin King (alt)", "Fire (v2)".
+            if (h.Success && (h.Groups[2].Success || !h.Groups[1].Value.Any(char.IsLower)))
             {
                 setCode = h.Groups[1].Value.ToUpperInvariant();
                 collector = h.Groups[2].Success ? h.Groups[2].Value : "";
@@ -481,7 +505,8 @@ public static class ImportService
                 }
                 else cur.Append(ch);
             }
-            else if (ch == '"') inQuotes = true;
+            // Only a quote that starts a field opens a quoted field; one inside text ('40" tall') is just a quote.
+            else if (ch == '"' && cur.ToString().Trim().Length == 0) { cur.Clear(); inQuotes = true; }
             else if (ch == delimiter) { fields.Add(cur.ToString()); cur.Clear(); }
             else cur.Append(ch);
         }

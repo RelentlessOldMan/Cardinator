@@ -60,16 +60,16 @@ public static class ProjectBackup
     public static string ArtRootFor(string projectFilePath)
     {
         var dir = Path.GetDirectoryName(Path.GetFullPath(projectFilePath)) ?? "";
-        var leaf = Path.GetFileName(dir);
-        if (string.Equals(leaf, "backups", System.StringComparison.OrdinalIgnoreCase))
+        if (ProjectFileForBackup(projectFilePath) != null)
             return Path.GetDirectoryName(dir) ?? dir;
         return dir;
     }
 
     /// <summary>For a file inside a set's <c>backups/</c> folder: the set file it is a backup of
     /// ("MySet.20261001-120000.cardinator" → "&lt;set&gt;\MySet.cardinator"), or "" when it is in a backups folder
-    /// but not named like one of ours. Null for any other file. Saving an opened backup must go to the set
-    /// file — saving it where it lies would make backups\ the set folder and break every art link.</summary>
+    /// but not named like one of ours. Null for any other file — including a set someone simply keeps in a folder
+    /// called "Backups" (no timestamp in its name, and no set file in the folder above). Saving an opened backup
+    /// must go to the set file — saving it where it lies would make backups\ the set folder and break every art link.</summary>
     public static string? ProjectFileForBackup(string filePath)
     {
         var full = Path.GetFullPath(filePath);
@@ -77,7 +77,9 @@ public static class ProjectBackup
         if (!string.Equals(Path.GetFileName(dir), "backups", System.StringComparison.OrdinalIgnoreCase)) return null;
         var m = System.Text.RegularExpressions.Regex.Match(Path.GetFileNameWithoutExtension(full),
             @"^(.+)\.\d{8}-\d{6}(?:-\d+)?$");
-        if (!m.Success) return "";
+        var setDir = Path.GetDirectoryName(dir) ?? dir;
+        if (!m.Success)
+            return Directory.Exists(setDir) && Directory.EnumerateFiles(setDir, "*.cardinator").Any() ? "" : null;
         return Path.Combine(Path.GetDirectoryName(dir) ?? dir, m.Groups[1].Value + Path.GetExtension(full));
     }
 

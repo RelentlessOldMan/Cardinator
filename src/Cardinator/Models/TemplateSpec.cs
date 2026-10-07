@@ -434,7 +434,7 @@ public sealed class TemplateSpec
 
     /// <summary>Bump this when FrameGenerator's drawing changes in a way that should invalidate every
     /// cached frame.png (so old baked frames are regenerated even if the spec text is unchanged).</summary>
-    public const int RenderFormatVersion = 1;
+    public const int RenderFormatVersion = 2;   // 2: the modern frame bakes EffectiveTextBox (1.6.13)
 
     /// <summary>A stable content hash of this spec (plus the render-format version). The template loader
     /// stores it beside frame.png and regenerates the frame whenever it no longer matches — so a cached

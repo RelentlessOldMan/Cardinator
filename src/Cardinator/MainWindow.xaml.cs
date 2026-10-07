@@ -53,6 +53,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private int _savedHistIdx;             // history index that matches what's on disk (for accurate dirty state)
     private bool _metaDirty;               // set-level edits the card history can't see (Set defaults, art folder)
     private DispatcherTimer _undoTimer = null!;
+    private DispatcherTimer _recoveryTimer = null!;
+    private string? _recoveryWritten;      // the recovery copy THIS session wrote (see RecoveryStore)
     private bool _restoring;
     private bool _syncingTemplates;   // RefreshTemplates re-selecting in the picker: never re-frames the card
     private static readonly System.Text.Json.JsonSerializerOptions SnapOpts =
@@ -69,6 +71,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _undoTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(650) };
         _undoTimer.Tick += (_, _) => { _undoTimer.Stop(); CommitHistory(); };
+
+        _recoveryTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _recoveryTimer.Tick += (_, _) => WriteRecovery();
+        _recoveryTimer.Start();
 
         Templates = new(_templates.LoadAll());
         _selectedTemplate = Templates.FirstOrDefault();
@@ -772,6 +778,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _savedHistIdx = 0;   // a freshly seeded project matches its on-disk (or blank) baseline
         _metaDirty = false;
         UpdateUndoRedo();
+        ClearRecovery();     // a different set now: the last one was saved or let go
     }
 
     /// <summary>Marks the current history position as the saved baseline (called after Save/Open).</summary>
@@ -780,6 +787,65 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _savedHistIdx = _histIdx;
         _metaDirty = false;
         Dirty = false;
+        ClearRecovery();
+    }
+
+    // --- recovery copies (unsaved work that never reaches a Save) --------------
+
+    /// <summary>Writes a recovery copy of the set while it has unsaved changes: every minute, when Windows ends the
+    /// session (no Closing event, so no save prompt), and when the app hits an error. Never throws.</summary>
+    internal void WriteRecovery()
+    {
+        if (SuppressClosePrompt || !_dirty || _loading || _restoring) return;
+        try
+        {
+            var file = RecoveryStore.FileFor(_projectPath);
+            if (_recoveryWritten != null && _recoveryWritten != file) RecoveryStore.Delete(_recoveryWritten);
+            RecoveryStore.Write(file, _projectPath, _projectName, Cards, _artBaseDir, _defaultTemplate, _setProfile);
+            _recoveryWritten = file;
+        }
+        catch { /* a recovery copy must never get in the way */ }
+    }
+
+    /// <summary>Removes this session's recovery copy (the set was saved, or the user chose not to keep the changes).</summary>
+    internal void ClearRecovery()
+    {
+        if (_recoveryWritten == null) return;
+        RecoveryStore.Delete(_recoveryWritten);
+        _recoveryWritten = null;
+    }
+
+    /// <summary>At startup: offers the newest recovery copy a previous session left behind.</summary>
+    internal void OfferRecovery()
+    {
+        var pending = RecoveryStore.Pending();
+        if (pending.Count == 0) return;
+        var entry = pending[0];
+        var which = string.IsNullOrWhiteSpace(entry.Meta.SetPath)
+            ? $"a set that was never saved (“{entry.Meta.Name}”)" : $"“{Path.GetFileName(entry.Meta.SetPath)}”";
+        var choice = ConfirmDialog.Show(this, "Recover unsaved changes",
+            $"Cardinator closed at {entry.Meta.SavedAt:g} with unsaved changes to {which}.\n\n"
+            + "Open the recovered copy? Save it to keep it."
+            + (pending.Count > 1 ? $"\n\n({pending.Count - 1} more will be offered next time.)" : ""),
+            affirmative: "Open it", negative: "Discard", cancel: "Later");
+        if (choice == ConfirmResult.Affirmative) OpenRecovered(entry);
+        else if (choice == ConfirmResult.Negative) RecoveryStore.Decline(entry.File);
+    }
+
+    /// <summary>Loads a recovery copy as the set it belongs to: unsaved, and Save goes to that set's file.</summary>
+    internal bool OpenRecovered(RecoveryStore.Entry entry)
+    {
+        if (!LoadProjectFile(entry.File)) return false;
+        var setPath = entry.Meta.SetPath ?? "";
+        _projectPath = setPath;   // "" (never saved) → Save asks where
+        if (!string.IsNullOrWhiteSpace(entry.Meta.Name)) _projectName = entry.Meta.Name;
+        SetProjectFolder(setPath.Length > 0 ? Path.GetDirectoryName(Path.GetFullPath(setPath)) : null);
+        MarkUnsavedAgainstDisk();
+        _recoveryWritten = entry.File;   // removed once it's saved
+        OnPropertyChanged(nameof(ProjectSummary));
+        OnPropertyChanged(nameof(WindowTitle));
+        Status = $"Recovered unsaved changes ({Cards.Count} card(s)). Save to keep them.";
+        return true;
     }
 
     /// <summary>Unsaved = the cards differ from what's on disk (history position) OR a set-level setting
@@ -818,7 +884,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
         if (_histIdx < _history.Count - 1)
+        {
             _history.RemoveRange(_histIdx + 1, _history.Count - _histIdx - 1);   // drop the redo tail
+            // The saved state was in that tail (saved, then undone): no position matches disk any more, or the
+            // new edit would land on the saved index and pass for saved.
+            if (_savedHistIdx > _histIdx) _savedHistIdx = -1;
+        }
         _history.Add((json, sel));
         _histIdx = _history.Count - 1;
         const int cap = 60;
@@ -1414,6 +1485,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // Localize art → relative paths → back up the previous good file → atomic write. That exact
             // order is the data-safety guarantee, so it lives in ProjectWriter where it can be tested.
             int stranded = ProjectWriter.Write(path, Cards.ToList(), name, _artBaseDir, _defaultTemplate, _setProfile);
+            // Writing copied outside art into the set and re-pointed the cards at the copies. That's what's on disk
+            // now, so it's what this history position holds — not a new edit that brings the ● straight back.
+            _undoTimer.Stop();
+            if (_histIdx >= 0) _history[_histIdx] = (SnapshotJson(), SelectedIndex());
             _projectPath = path;
             SetProjectFolder(projFolder);
             _projectName = name;
@@ -1466,9 +1541,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return choice switch
         {
             ConfirmResult.Affirmative => SaveProject(forceDialog: false),
-            ConfirmResult.Negative => true,
+            ConfirmResult.Negative => DiscardChanges(),
             _ => false,
         };
+    }
+
+    private bool DiscardChanges()
+    {
+        ClearRecovery();
+        return true;
     }
 
     // --- import & batch -----------------------------------------------------
@@ -1564,6 +1645,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var progress = new Progress<string>(s => Status = s);
             var percent = new Progress<double>(p => ExportProgress = p * 100);
             var report = await BatchService.FillFromScryfallAsync(imported, progress, percent: percent);
+            foreach (var item in imported)   // backs the lookup attached inherit the set's metadata like their fronts
+                if (item.Card.BackFace is { } back) _setProfile.ApplyDefaults(back);
             _ = _symbols.PrimeAsync(Cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
             MarkDirty();
             CommitHistory();   // fields filled on non-selected cards don't trip OnCardChanged, so commit explicitly
@@ -1597,8 +1680,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var def = DefaultTemplateName;
             foreach (var c in chosen)
             {
-                if (string.IsNullOrEmpty(c.TemplateName)) c.TemplateName = def;
+                CardDetailsFill.TakeFrame(c, def);
                 _setProfile.ApplyDefaults(c);   // W1: inherit the set's shared metadata, like every other add path
+                if (c.BackFace != null) _setProfile.ApplyDefaults(c.BackFace);
                 Cards.Add(c);
             }
             SelectedCard = chosen[0];
@@ -1613,6 +1697,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     try { back.ArtPath = await ImageIntake.DownloadAsync(bu); } catch { /* skip */ }   // a double-faced card's back
                 if (!string.IsNullOrWhiteSpace(c.ArtPath) || string.IsNullOrWhiteSpace(c.ArtUrl)) continue;
                 try { c.ArtPath = await ImageIntake.DownloadAsync(c.ArtUrl); art++; } catch { /* skip */ }
+                CardDetailsFill.SplitSharedArt(c);   // a split card's art holds both halves: give each its side
             }
             MarkDirty();
             CommitHistory();
@@ -2209,14 +2294,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void SetArt(CardModel? card, string path)
     {
         if (card == null) return;
+        if (!InProject(card))
+        {
+            // Undo (or a delete) replaced the cards while the art downloaded: this one isn't in the set any more.
+            Status = "That card was undone or removed before its art arrived, so the art wasn't added.";
+            return;
+        }
         var local = ImageIntake.EnsureLocalCopy(path);
         card.ArtPath = local;
         card.ArtScale = 1.0;
         card.ArtOffsetX = 0;
         card.ArtOffsetY = 0;
+        // Only the selected card's edits reach OnCardChanged; art landing on a card the user has since clicked
+        // away from must still mark the set unsaved and be an undo step.
+        MarkDirty();
+        CommitHistory();
         Status = "Loaded art: " + Path.GetFileName(local)
                  + (card.IsBackFace ? " (back face)" : card.IsOtherHalf ? $" (for “{card.Name}”)" : "");
     }
+
+    /// <summary>Whether a card (or a back face / other half) is still part of the set.</summary>
+    private bool InProject(CardModel card) =>
+        Cards.Any(c => ReferenceEquals(c, card) || ReferenceEquals(c.BackFace, card) || ReferenceEquals(c.OtherHalf, card));
 
     private void OnResetArt(object sender, RoutedEventArgs e) => ResetArt();
 
@@ -2636,6 +2735,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (SuppressClosePrompt) return;
         if (!ConfirmDiscardIfDirty()) e.Cancel = true;
+        else { _recoveryTimer.Stop(); ClearRecovery(); }
     }
 
     // --- INotifyPropertyChanged ---------------------------------------------

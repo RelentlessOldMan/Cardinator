@@ -195,14 +195,27 @@ public static class ImageIntake
 
     /// <summary>Downloads an image URL into the art cache and returns its full path. Validates scheme and
     /// content-type, enforces a size cap, and writes atomically so a failed download leaves nothing behind.</summary>
+    internal static TimeSpan DownloadTimeout = TimeSpan.FromSeconds(30);
+
     public static async Task<string> DownloadAsync(string url, CancellationToken ct = default)
+    {
+        try { return await DownloadCoreAsync(url, ct); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // Our own 30 s timeout (or HttpClient's), not the caller cancelling: an ordinary download failure, so
+            // callers that let a real cancellation through don't mistake it for one.
+            throw new InvalidOperationException("The image took too long to download.");
+        }
+    }
+
+    private static async Task<string> DownloadCoreAsync(string url, CancellationToken ct)
     {
         if (!IsHttpUrl(url))
             throw new InvalidOperationException("Only http(s) image links can be downloaded.");
 
         // Per-request timeout that also honors the caller's cancellation.
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        timeout.CancelAfter(DownloadTimeout);
         var tok = timeout.Token;
 
         using var resp = await Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, tok);

@@ -778,6 +778,11 @@ public partial class FrameDesignWindow : Window
         ApplyLayout(_redo.Pop());
     }
 
+    /// <summary>Whether Esc / Enter with this element focused mean Cancel / Apply for the whole window: not while
+    /// typing in a box, and not in an open dropdown list.</summary>
+    internal static bool KeysCloseWindow(object? focused)
+        => focused is not TextBox and not ComboBoxItem and not ComboBox { IsDropDownOpen: true };
+
     private void OnEditorKeyDown(object sender, KeyEventArgs e)
     {
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
@@ -787,9 +792,11 @@ public partial class FrameDesignWindow : Window
         if (ctrl && (e.Key == Key.Y || (e.Key == Key.Z && shift))) { Redo(); e.Handled = true; return; }
         // Esc discards the whole layout session, so don't fire it while the user is typing in a field —
         // there Esc is the usual "get me out of this box" reflex, not "throw away my work".
-        if (e.Key == Key.Escape && Keyboard.FocusedElement is not TextBox)
+        // Nor while a dropdown is open: there Esc closes the list and Enter picks the item (this window-level
+        // preview handler runs before the dropdown would see the key).
+        if (e.Key == Key.Escape && KeysCloseWindow(Keyboard.FocusedElement))
         { OnCancel(this, new RoutedEventArgs()); e.Handled = true; return; }
-        if (e.Key == Key.Enter && Keyboard.FocusedElement is not TextBox) { OnApply(this, new RoutedEventArgs()); e.Handled = true; return; }
+        if (e.Key == Key.Enter && KeysCloseWindow(Keyboard.FocusedElement)) { OnApply(this, new RoutedEventArgs()); e.Handled = true; return; }
 
         bool typing = Keyboard.FocusedElement is TextBox;
 
