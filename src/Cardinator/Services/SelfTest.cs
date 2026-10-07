@@ -683,6 +683,12 @@ public static class SelfTest
             (WithSplitHalf(C("QA Fire", "{1}{R}", "Instant", "Fire deals 2 damage divided as you choose among one or two targets.", art)), "Alchemist's Steel", "Split card (picture frame)"),
             (HalfFrame(WithSplitHalf(C("QA Tear", "{1}{R}", "Instant", "Destroy target artifact.\nFuse (You may cast one or both halves of this card from your hand.)", art)), "Parchment"), "Crimson Red", "Split card (other half on its own frame, Fuse bar per half)"),
             (HalfFrame(WithAftermath(C("QA Bound", "{1}{B}", "Instant", "Target creature gets +1/+0 until end of turn.", art)), "Arcane Parchment"), "Alchemist's Steel", "Aftermath (lower half on its own picture frame)"),
+            (C("QA Soldier", "", "Token Creature — Soldier", "", art, "1", "1"), "Gold Multicolor", "Token (vanilla: no text box)"),
+            (C("QA Spirit", "", "Token Creature — Spirit", "Flying\nWhen this token dies, draw a card.", art, "1", "1"), "Crimson Red", "Token (short text box)"),
+            (C("QA Emblem", "", "Emblem — Tester", "Creatures you control get +2/+2 and have flying.", art), "Planeswalker", "Emblem"),
+            (C("QA Thopter", "", "Token Artifact Creature — Thopter", "", art, "1", "1"), "Full Art", "Token (full art, vanilla)"),
+            (C("QA Construct", "", "Token Artifact Creature — Construct", "This token gets +1/+1 for each artifact you control.", art, "0", "0"), "Alchemist's Steel", "Token (picture frame rearranged, medallion)"),
+            (C("QA Gold", "", "Token Artifact — Gold", "", art), "Sealed Gate", "Token (picture frame, vanilla: small box)"),
             (WithAftermath(C("QA Destined", "{1}{B}", "Instant", "Target creature gets +1/+0 and gains indestructible until end of turn.", art)), "Midnight", "Aftermath"),
             (WithAftermath(C("QA Fated", "{2}{G}", "Sorcery", "Search your library for a basic land card.", art)), "Sealed Gate", "Aftermath (picture frame's sideways version)"),
         };

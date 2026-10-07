@@ -1379,8 +1379,13 @@ public sealed class CardRenderer
         double titleManaGap = 22;
         double titleMaxW = (manaWidth > 0 ? manaX - titleManaGap : bar.Right - pad) - titleLeft;
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(spec.TitleFont.Color));
+        // A token's name is centred, as printed (only when it has no cost to share the bar with); an
+        // indicator's indent is kept on both sides so the name stays centred on the card.
+        bool centred = card.IsToken && manaWidth == 0;
+        if (centred) titleMaxW = bar.Width - 2 * (titleLeft - bar.X);
         var ft = FitText(card.Name, spec.TitleFont, spec.TitleFont.Size, 16, titleMaxW, brush);
         double ty = bar.Y + (bar.Height - ft.Height) / 2;
+        if (centred) titleLeft = bar.X + (bar.Width - ft.Width) / 2;
         DrawGlyphRun(dc, ft, new Point(titleLeft, ty), spec.TitleFont);
     }
 
@@ -1558,6 +1563,9 @@ public sealed class CardRenderer
         // Straddle the description panel's bottom edge: the box's MIDDLE sits on the panel bottom, so the
         // text ends around the box's top half and the box hangs half-below the panel (classic MTG look).
         double top = tb.Bottom - rect.Height / 2;
+        // A vanilla token has no panel: the box sits just under its type line (overlapping it by the 4 px
+        // TemplateSpec.ToToken leaves), clear of the type line's text and set symbol.
+        if (spec.IsTokenLayout && tb.Height < 1) top = spec.TypeBar.Bottom - 4;
         // But never let it reach the bottom black border — always keep a clear gap above the rim.
         double border = Math.Max(0, spec.BorderThickness);
         const double borderGap = 16;
@@ -2340,6 +2348,11 @@ public sealed class CardRenderer
         if (template.FrameImage is not BitmapSource frame) return null;
         return _ornaments.GetValue(frame, f => new System.Runtime.CompilerServices.StrongBox<Rect?>(FindBottomOrnament((BitmapSource)f, spec))).Value;
     }
+
+    /// <summary>Records the medallion of a frame image made from another (a token version), where the search
+    /// can't be trusted: its box is shorter than the medallion's limits allow, though the medallion is unchanged.</summary>
+    internal static void KnowOrnament(ImageSource frame, Rect? ornament)
+        => _ornaments.AddOrUpdate(frame, new System.Runtime.CompilerServices.StrongBox<Rect?>(ornament));
 
     private static Rect? FindBottomOrnament(BitmapSource frame, TemplateSpec spec)
     {

@@ -1143,6 +1143,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Status = "Added a blank card.";
     }
 
+    private void OnAddToken(object sender, RoutedEventArgs e)
+    {
+        AddAndSelect(SampleCards.BlankToken(DefaultTemplateName));
+        Status = "Added a token — a type line starting \"Token\" (or \"Emblem\") gives it the token layout.";
+    }
+
     private void OnDuplicateCard(object sender, RoutedEventArgs e)
     {
         if (Busy) return;   // the button is disabled while busy; Ctrl+D would otherwise slip through

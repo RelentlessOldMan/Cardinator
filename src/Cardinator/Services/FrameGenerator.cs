@@ -515,6 +515,7 @@ public static class FrameGenerator
         foreach (var r in new[] { spec.TitleBar, spec.TypeBar, spec.EffectiveTextBox })   // no P/T box (drawn per-card)
         {
             var rect = ToRect(r);
+            if (rect.Height < 1) continue;
             dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(85, 0, 0, 0)), null,
                 new Rect(rect.X - 4, rect.Y + 6, rect.Width, rect.Height), panelR, panelR);
             dc.DrawRoundedRectangle(fill, pen, rect, panelR, panelR);
@@ -573,6 +574,7 @@ public static class FrameGenerator
         foreach (var r in new[] { spec.TypeBar, spec.EffectiveTextBox })   // no P/T box (drawn per-card)
         {
             var rect = ToRect(r);
+            if (rect.Height < 1) continue;
             dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(100, 0, 0, 0)), null,
                 new Rect(rect.X - 4, rect.Y + 6, rect.Width, rect.Height), panelR, panelR);   // drop shadow (bottom-left)
             dc.DrawRoundedRectangle(panelBrush, pPen, rect, panelR, panelR);
@@ -842,6 +844,7 @@ public static class FrameGenerator
             foreach (var reg in new[] { spec.TitleBar, spec.TypeBar, spec.EffectiveTextBox })
             {
                 var rect = ToRect(reg);
+                if (rect.Height < 1) continue;
                 if (spec.ConnectedPanels)
                     ModernPlate(dc, rect, panelColor, frame2Color, dark, panelR, curvedEnds: reg == spec.TitleBar);
                 else
@@ -914,6 +917,7 @@ public static class FrameGenerator
         foreach (var reg in new[] { spec.TitleBar, spec.TypeBar, spec.TextBox })
         {
             var rect = ToRect(reg);
+            if (rect.Height < 1) continue;
             if (spec.ConnectedPanels)
                 ModernPlate(dc, rect, panelColor, frame2Color, dark, panelR, curvedEnds: reg == spec.TitleBar || reg == spec.TypeBar);
             else
@@ -1038,6 +1042,7 @@ public static class FrameGenerator
     private static void DrawPanel(DrawingContext dc, Brush fill, Pen pen, Color panelColor, Region r, double radius)
     {
         var rect = ToRect(r);
+        if (rect.Height < 1) return;   // no such panel (a vanilla token's text box)
         // Drop shadow (bottom-LEFT) gives the panel a raised, 3D look with light from the upper-right.
         dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(95, 0, 0, 0)), null,
             new Rect(rect.X - 4, rect.Y + 6, rect.Width, rect.Height), radius, radius);

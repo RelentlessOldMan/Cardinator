@@ -1,4 +1,4 @@
-using Cardinator.Models;
+﻿using Cardinator.Models;
 
 namespace Cardinator.Services;
 
@@ -16,6 +16,17 @@ public static class SampleCards
         RulesText = "",
         Power = "2",
         Toughness = "2",
+        TemplateName = templateName,
+    };
+
+    /// <summary>A token to start from: a 1/1 Soldier, no cost, no rules (so no text box until it gets some).
+    /// The "Token" in its type line is what gives it the token layout.</summary>
+    public static CardModel BlankToken(string templateName) => new()
+    {
+        Name = "Soldier",
+        TypeLine = "Token Creature — Soldier",
+        Power = "1",
+        Toughness = "1",
         TemplateName = templateName,
     };
 
