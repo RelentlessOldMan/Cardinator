@@ -12,10 +12,12 @@ a print-quality **PNG**. Every field is editable, so you can make completely ori
 - 🎨 **Custom frames** — bring your own frame PNG (file or URL) and Cardinator turns it into a
   template; tune fonts (size/color/shadow) and regions to match.
 - 📦 **No install, no runtime** — ships as a single self-contained `Cardinator.exe` (Windows 10/11).
-- 🗂️ **One card or a hundred** — build a project, import a CSV, batch-export, print 3×3 sheets,
-  export PNG/JPEG with print **bleed & DPI**, and a matching **card back** for double-sided printing.
-- 🔌 **Works offline** — frames, mana symbols and sample cards are generated locally; the internet
-  is only used for Scryfall lookups and downloading art.
+- 🗂️ **One card or a hundred** — build a project, import a CSV, batch-export, print 3×3 sheets
+  with optional card backs for double-sided printing; print **bleed**, a set **DPI** and A4 pages are on the
+  [command line](docs/CLI.md).
+- 🔌 **Works offline** — frames and sample cards are built in, and mana symbols are drawn as clean pips until
+  Scryfall's real ones are cached (after that they work offline too); the internet is only used for Scryfall
+  lookups, symbol art and downloading art.
 
 ---
 
@@ -177,12 +179,13 @@ output are all checked in.** Click a thumbnail for that example's guide.
   set's tokens print with it),
   **double-faced cards** (one card with two faces: flip the preview, a drawn corner indicator, both sides
   exported), and **sideways cards** — **Battles** (with a defense shield), **Planes** and **Phenomena** turn
-  landscape automatically on every drawn frame, and print sheets rotate them back into a normal slot. Split
-  cards import as two cards.
+  landscape automatically on every drawn frame, and print sheets rotate them back into a normal slot. Split,
+  flip, aftermath and adventure cards import as one card.
 - **Mana:** `{2}{R}{W}`, `{X}`, `{T}`, `{C}`, hybrids `{R/W}`, Phyrexian `{U/P}` — inline in rules
   text too. Loose input like `2RW` is normalized automatically.
 - **Symbols:** authentic Scryfall SVG art, cached locally after first use; clean drawn pips as an
-  offline fallback. Drop in a **custom set-symbol image** per card (or across a whole set).
+  offline fallback. Drop in a **custom set-symbol image** for the whole set (**Set defaults…**) or for the
+  cards you select (**Set fields on all…**).
 
 ## Keyboard shortcuts
 

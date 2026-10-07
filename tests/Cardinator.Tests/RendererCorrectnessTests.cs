@@ -237,7 +237,7 @@ public class RendererCorrectnessTests
                 var e1 = zip.CreateEntry("sub\\template.json");
                 using (var w = new StreamWriter(e1.Open())) w.Write(specJson);
                 var e2 = zip.CreateEntry("sub\\frame.png");
-                using (var b = new BinaryWriter(e2.Open())) b.Write(new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G', 1, 2, 3, 4 });
+                using (var b = new BinaryWriter(e2.Open())) b.Write(TestHelpers.PngBytes(4, 4));
             }
 
             var name = TemplateImporter.ImportBundle(zipPath);

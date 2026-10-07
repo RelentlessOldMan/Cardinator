@@ -27,6 +27,20 @@ public sealed class CardRenderer
 
     public CardRenderer(SymbolService symbols) => _symbols = symbols;
 
+    // Text boxes whose text was still too tall at the smallest size (counted while drawing; see TextOverflows).
+    private int _textOverflows;
+
+    /// <summary>How many of the card's text boxes can't hold their text even at the smallest size the renderer
+    /// shrinks to — the text then runs past the box's bottom. Draws the card (without making a bitmap) to find out.</summary>
+    internal int TextOverflows(CardModel card, Template template)
+    {
+        template = TemplateService.ResolveFor(card, template);
+        _textOverflows = 0;
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen()) Draw(dc, card, template, previewHints: false);
+        return _textOverflows;
+    }
+
     /// <summary>Drops the caches derived from mana-symbol ART (the big-land coin silhouette and the pip
     /// background colors). Call this when <see cref="SymbolService"/> reports new symbols: the pips
     /// themselves pick up the real Scryfall SVGs immediately, but anything sampled FROM a pip would
@@ -627,7 +641,9 @@ public sealed class CardRenderer
         double pad = 16;
         double pipD = bar.Height * 0.62;
         bool hasRarity = !string.IsNullOrWhiteSpace(card.Rarity);
-        double rightLimit = hasRarity ? bar.Right - pad - pipD - 8 : bar.Right - pad;
+        var custom = hasRarity ? TryLoadSetSymbol(card.SetSymbolPath) : null;
+        var symSize = custom != null ? SetSymbolSize(custom, pipD) : new Size(pipD, pipD);
+        double rightLimit = hasRarity ? bar.Right - pad - symSize.Width - 8 : bar.Right - pad;
 
         if (!string.IsNullOrWhiteSpace(card.TypeLine))
         {
@@ -638,16 +654,24 @@ public sealed class CardRenderer
 
         if (hasRarity)
         {
-            var box = new Rect(bar.Right - pad - pipD, bar.Y + (bar.Height - pipD) / 2, pipD, pipD);
-            var custom = TryLoadSetSymbol(card.SetSymbolPath);
+            var box = new Rect(bar.Right - pad - symSize.Width, bar.Y + (bar.Height - symSize.Height) / 2, symSize.Width, symSize.Height);
             if (custom != null)
-                dc.DrawImage(custom, box);   // custom set icon (whole set shares it)
+                dc.DrawImage(custom, box);   // custom set icon (whole set shares it), in its own proportions
             else
             {
                 var (fill, _) = RarityStyle(card.Rarity);
                 DrawSetSymbol(dc, box, fill, card.SetCode);
             }
         }
+    }
+
+    /// <summary>The size a set-symbol image is drawn at: its own shape, as tall as the rarity pip (a wide symbol may
+    /// run up to 1.8 pips wide, then shrinks to fit), right-aligned where the pip goes — never squashed square.</summary>
+    internal static Size SetSymbolSize(BitmapSource img, double pipD)
+    {
+        double w = Math.Max(1, img.PixelWidth), h = Math.Max(1, img.PixelHeight);
+        double k = Math.Min(pipD * 1.8 / w, pipD / h);
+        return new Size(w * k, h * k);
     }
 
     // Small cache for custom set-symbol images (keyed by path + file stamp), so batch renders don't
@@ -1717,6 +1741,7 @@ public sealed class CardRenderer
             if (best.Height <= box.Height) break;
         }
         if (best == null) return;
+        if (best.Height > box.Height + 1) _textOverflows++;
 
         foreach (var p in best.Items)
         {
@@ -1729,6 +1754,15 @@ public sealed class CardRenderer
             dc.DrawLine(dividerPen, new Point(box.X + box.Width * 0.12, d),
                                     new Point(box.Right - box.Width * 0.12, d));
     }
+
+    /// <summary>QA hook: where each piece of <paramref name="rules"/> lands when laid out in <paramref name="box"/> —
+    /// its rectangle, and whether it's an inline symbol.</summary>
+    internal List<(Rect Rect, bool Symbol)> InspectTextLayout(string rules, Rect box, FontSpec font, double size, double symSize)
+        => LayoutContent(rules, "", box, font, size, font, size, symSize, null).Items
+            .Select(p => p.Text != null
+                ? (new Rect(p.X, p.Y, p.Text.WidthIncludingTrailingWhitespace, p.Text.Height), false)
+                : (new Rect(p.X, p.Y, p.SymSize, p.SymSize), true))
+            .ToList();
 
     private TextLayout LayoutContent(string rules, string flavor, Rect box,
         FontSpec rulesFont, double rulesSize, FontSpec flavorFont, double flavorSize, double symSize, Rect? avoid)
@@ -1762,9 +1796,8 @@ public sealed class CardRenderer
     {
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
         double lineHeight = fontSize * 1.34;
-        double x = box.X, y = startY;
+        double y = startY;
         var probe = MakeText("Hg", font, fontSize, brush);
-        double spaceWidth = MakeText(" ", font, fontSize, brush).WidthIncludingTrailingWhitespace;
         // Inline symbols read best centered on the text's cap height, not the full line box (which has
         // descent space below the glyphs and would make the symbol look bottom-aligned).
         double symTopOffset = probe.Baseline - fontSize * 0.34 - symSize / 2;
@@ -1782,37 +1815,25 @@ public sealed class CardRenderer
         {
             if (para.Trim().Length == 0) { y += lineHeight * 0.5; continue; }
 
-            bool first = true;
-            foreach (var word in BuildWords(para, font, fontSize, symSize, brush))
-            {
-                double gap = (first || word.NoLeadingGap) ? 0 : spaceWidth;
-                if (!first && x + gap + word.Width > RightAt(y))
-                {
-                    x = box.X;
-                    y += lineHeight;
-                    gap = 0;
-                }
-                x += gap;
+            y = FlowWords(BuildWords(para, font, fontSize, symSize, brush), box.X, box.X, y, lineHeight, RightAt,
+                (word, px, py) => placed.Add(word.Text != null
+                    ? new Placed(px, py, word.Text, null, 0)
+                    : new Placed(px, py + symTopOffset, null, word.Sym, symSize)),
+                fontSize, brush);
 
-                if (word.Text != null)
-                    placed.Add(new Placed(x, y, word.Text, null, 0));
-                else if (word.Sym != null)
-                    placed.Add(new Placed(x, y + symTopOffset, null, word.Sym, symSize));
-
-                x += word.Width;
-                first = false;
-            }
-
-            x = box.X;
             y += lineHeight + lineHeight * 0.35;   // line close + paragraph gap
         }
 
         return y;
     }
 
-    private readonly record struct Word(FormattedText? Text, ImageSource? Sym, double Width, bool NoLeadingGap);
+    /// <summary>One piece of a paragraph: a word or an inline symbol. <see cref="Lead"/> is the room before it when
+    /// it doesn't start a line — a space if one was typed, a hairline between two symbols written together
+    /// ("{2}{R}"), else nothing ("{T}:"). <see cref="BreakBefore"/>: a line may wrap here (only where a space was).</summary>
+    private readonly record struct Word(FormattedText? Text, ImageSource? Sym, double Width, double Lead, bool BreakBefore,
+        string? Raw = null, FontSpec? Font = null);
 
-    private IEnumerable<Word> BuildWords(string para, FontSpec font, double fontSize, double symSize, Brush brush)
+    private List<Word> BuildWords(string para, FontSpec font, double fontSize, double symSize, Brush brush)
     {
         // Reminder text in (parentheses) renders italic, like real cards.
         var italicFont = new FontSpec
@@ -1820,29 +1841,103 @@ public sealed class CardRenderer
             Family = font.Family, Size = font.Size, Color = font.Color,
             Bold = font.Bold, Italic = true, Align = font.Align,
         };
+        double space = MakeText(" ", font, fontSize, brush).WidthIncludingTrailingWhitespace;
         int parenDepth = 0;
+        var words = new List<Word>();
+        bool spaced = false, afterSymbol = false;   // what came just before the next piece
 
         foreach (var tok in ManaText.Tokenize(para))
         {
             if (tok.IsSymbol)
             {
                 var sym = _symbols.GetSymbol(tok.Value);
-                yield return new Word(null, sym, symSize, NoLeadingGap: false);
+                words.Add(new Word(null, sym, symSize, spaced ? space : afterSymbol ? symSize * 0.08 : 0, spaced));
+                spaced = false; afterSymbol = true;
                 continue;
             }
 
-            foreach (var raw in tok.Value.Split(' '))
+            var s = tok.Value;
+            for (int i = 0; i < s.Length;)
             {
-                if (raw.Length == 0) continue;
+                if (IsBreakingSpace(s[i])) { spaced = true; i++; continue; }   // (a no-break space stays in its word)
+                int j = i;
+                while (j < s.Length && !IsBreakingSpace(s[j])) j++;
+                var raw = s[i..j];
+                i = j;
                 bool italic = parenDepth > 0 || raw.Contains('(');
                 parenDepth += raw.Count(c => c == '(') - raw.Count(c => c == ')');
                 if (parenDepth < 0) parenDepth = 0;
 
-                var ft = MakeText(raw, italic ? italicFont : font, fontSize, brush);
-                bool noGap = ",.:;)".IndexOf(raw[0]) >= 0;
-                yield return new Word(ft, null, ft.WidthIncludingTrailingWhitespace, noGap);
+                var f = italic ? italicFont : font;
+                var ft = MakeText(raw, f, fontSize, brush);
+                bool gap = spaced && ",.:;)".IndexOf(raw[0]) < 0;   // "a card ." still reads "a card."
+                words.Add(new Word(ft, null, ft.WidthIncludingTrailingWhitespace, gap ? space : 0, gap, raw, f));
+                spaced = false; afterSymbol = false;
             }
         }
+        return words;
+    }
+
+    private static bool IsBreakingSpace(char c) => c == ' ' || c == '\t';
+
+    /// <summary>Lays a paragraph's pieces out from (<paramref name="x"/>, <paramref name="y"/>), wrapping to
+    /// <paramref name="lineLeft"/> only where a space was typed: a run written without spaces — "{2}{R}," or
+    /// "{T}:" — moves to the next line whole rather than splitting mid-cost. A run too long for any line breaks where
+    /// it must, and one word wider than the line (no spaces at all) is split between letters, so nothing runs past
+    /// the box's edge. Returns the top of the last line.</summary>
+    private double FlowWords(List<Word> words, double x, double lineLeft, double y, double lineHeight,
+        Func<double, double> rightAt, Action<Word, double, double> place, double fontSize, Brush brush)
+    {
+        bool lineStart = true;
+        void NewLine() { x = lineLeft; y += lineHeight; lineStart = true; }
+        for (int i = 0; i < words.Count; i++)
+        {
+            var w = words[i];
+            if (!lineStart)
+            {
+                double right = rightAt(y);
+                bool wrap;
+                if (w.BreakBefore)
+                {
+                    double run = w.Width;
+                    for (int j = i + 1; j < words.Count && !words[j].BreakBefore; j++) run += words[j].Lead + words[j].Width;
+                    bool fitsALine = run <= rightAt(y + lineHeight) - lineLeft;
+                    wrap = x + w.Lead + run > right && (fitsALine || x + w.Lead + w.Width > right);
+                }
+                else wrap = x + w.Lead + w.Width > right;   // inside a run too long for any line
+                if (wrap) NewLine();
+            }
+            if (!lineStart) x += w.Lead;
+
+            // A word wider than the whole line: as many letters as fit on each line.
+            if (w.Text != null && w.Raw is { Length: > 1 } raw && w.Font != null && x + w.Width > rightAt(y))
+            {
+                for (int start = 0; start < raw.Length;)
+                {
+                    double right = rightAt(y);
+                    int n = 1;
+                    var piece = MakeText(raw.Substring(start, 1), w.Font, fontSize, brush);
+                    while (start + n < raw.Length)
+                    {
+                        var longer = MakeText(raw.Substring(start, n + 1), w.Font, fontSize, brush);
+                        if (x + longer.WidthIncludingTrailingWhitespace > right) break;
+                        piece = longer;
+                        n++;
+                    }
+                    place(w with { Text = piece, Width = piece.WidthIncludingTrailingWhitespace }, x, y);
+                    x += piece.WidthIncludingTrailingWhitespace;
+                    lineStart = false;
+                    start += n;
+                    if (start < raw.Length) NewLine();
+                }
+                continue;
+            }
+
+            place(w, x, y);
+            x += w.Width;
+            lineStart = false;
+        }
+        return y;
     }
 
     // --- planeswalker layout ------------------------------------------------
@@ -1863,10 +1958,11 @@ public sealed class CardRenderer
         {
             var t = raw.Trim();
             if (t.Length == 0) continue;
-            var m = Regex.Match(t, @"^([+\-−–]?\d+)\s*:\s*(.+)$");
+            // "+1:", "−3:", "0:" — and "−X:" (Chandra's), where X is chosen when the ability is activated.
+            var m = Regex.Match(t, @"^([+\-−–][Xx]|[+\-−–]?\d+)\s*:\s*(.+)$");
             if (m.Success)
             {
-                var cost = m.Groups[1].Value.Replace('-', '−').Replace('–', '−');
+                var cost = m.Groups[1].Value.Replace('-', '−').Replace('–', '−').Replace('x', 'X');
                 rows.Add((cost, m.Groups[2].Value.Trim()));
             }
             else rows.Add((null, t));
@@ -2548,6 +2644,7 @@ public sealed class CardRenderer
             best = LayoutPw(rows, box, spec.RulesFont, size, spec.RulesSymbolSize * (size / spec.RulesFont.Size), loyaltyShields, avoid);
             if (best.Height <= box.Height) break;
         }
+        if (best != null && best.Height > box.Height + 1) _textOverflows++;
         return (best, box);
     }
 
@@ -2573,7 +2670,6 @@ public sealed class CardRenderer
         double lineHeight = fontSize * 1.34;
         double badgeH = loyaltyShields ? fontSize * 1.7 : fontSize * 1.25;   // shields are taller (pointed)
         double gap = fontSize * 0.5;
-        double spaceWidth = MakeText(" ", font, fontSize, brush).WidthIncludingTrailingWhitespace;
         var badgeFont = new FontSpec { Family = "Segoe UI", Bold = true };
         double y = box.Y;
 
@@ -2596,18 +2692,11 @@ public sealed class CardRenderer
             }
 
             double startX = box.X + (cost != null ? badgeW + gap : 0);
-            double x = startX, lineY = y;
-            bool first = true;
-            foreach (var word in BuildWords(text, font, fontSize, symSize, brush))
-            {
-                double g = (first || word.NoLeadingGap) ? 0 : spaceWidth;
-                if (!first && x + g + word.Width > RightAt(lineY)) { x = box.X; lineY += lineHeight; g = 0; }
-                x += g;
-                if (word.Text != null) L.Placed.Add(new Placed(x, lineY, word.Text, null, 0));
-                else if (word.Sym != null) L.Placed.Add(new Placed(x, lineY + (lineHeight - symSize) / 2, null, word.Sym, symSize));
-                x += word.Width;
-                first = false;
-            }
+            double lineY = FlowWords(BuildWords(text, font, fontSize, symSize, brush), startX, box.X, y, lineHeight, RightAt,
+                (word, px, py) => L.Placed.Add(word.Text != null
+                    ? new Placed(px, py, word.Text, null, 0)
+                    : new Placed(px, py + (lineHeight - symSize) / 2, null, word.Sym, symSize)),
+                fontSize, brush);
 
             if (cost != null)
                 L.Badges.Add((new Rect(box.X, y + (lineHeight - badgeH) / 2, badgeW, badgeH), costFt!, cost!));

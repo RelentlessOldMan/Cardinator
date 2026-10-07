@@ -218,6 +218,8 @@ public sealed class ScryfallClient
             var identifiers = chunk.Select(r =>
                 !string.IsNullOrWhiteSpace(r.Set) && !string.IsNullOrWhiteSpace(r.Collector)
                     ? new Dictionary<string, string> { ["set"] = r.Set!.ToLowerInvariant(), ["collector_number"] = r.Collector! }
+                    : !string.IsNullOrWhiteSpace(r.Set)   // "Lightning Bolt (M10)": that card in that set
+                    ? new Dictionary<string, string> { ["name"] = r.Name ?? "", ["set"] = r.Set!.ToLowerInvariant() }
                     : new Dictionary<string, string> { ["name"] = r.Name ?? "" }).ToList();
             var body = JsonSerializer.Serialize(new { identifiers });
 

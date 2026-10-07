@@ -18,6 +18,7 @@ public static class TemplateImporter
     {
         if (frameBytes is not { Length: > 0 })
             throw new ArgumentException("The frame image was empty.", nameof(frameBytes));
+        EnsureReadableImage(frameBytes);
 
         var displayName = string.IsNullOrWhiteSpace(name) ? "Custom" : name.Trim();
         var dir = UniqueTemplateDir(TextUtil.Slug(displayName));
@@ -44,6 +45,25 @@ public static class TemplateImporter
 
     /// <summary>True when the image is wider than tall. Reads only the header (no full decode); an image
     /// that can't be read is treated as portrait, the long-standing default.</summary>
+    /// <summary>Throws unless the bytes decode as a picture: a file that only looks like one (a renamed document, a
+    /// cut-off download) must fail the import with a reason, not install a frame that the list then silently skips.</summary>
+    internal static void EnsureReadableImage(byte[] bytes)
+    {
+        try
+        {
+            var bi = new System.Windows.Media.Imaging.BitmapImage();
+            bi.BeginInit();
+            bi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;   // decodes every pixel now
+            bi.StreamSource = new MemoryStream(bytes);
+            bi.EndInit();
+            if (bi.PixelWidth < 1 || bi.PixelHeight < 1) throw new InvalidOperationException();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("That frame image can't be read — it may be damaged or not really a picture.", ex);
+        }
+    }
+
     internal static bool IsLandscapeImage(byte[] bytes)
     {
         try
@@ -106,7 +126,7 @@ public static class TemplateImporter
         using (var zip = ZipFile.OpenRead(bundlePath))
         {
             var specs = zip.Entries
-                .Where(e => LeafName(e).Equals("template.json", StringComparison.OrdinalIgnoreCase) && !IsVariantEntry(e))
+                .Where(e => LeafName(e).Equals("template.json", StringComparison.OrdinalIgnoreCase) && !IsVariantEntry(zip, e))
                 .OrderBy(e => Normalized(e).Count(c => c == '/')).ThenBy(e => Normalized(e), StringComparer.OrdinalIgnoreCase)
                 .ToList();
             foreach (var spec in specs)
@@ -152,6 +172,7 @@ public static class TemplateImporter
         var specJson = ReadEntryText(specEntry);
         var frameBytes = ReadEntryBytes(frameEntry);
         if (frameBytes.Length == 0) throw new InvalidOperationException("The bundle's frame.png was empty.");
+        EnsureReadableImage(frameBytes);
 
         // Parse to validate + get the display name; force CustomFrame so the frame is kept verbatim.
         var spec = TemplateSpec.LoadFromJson(specJson);
@@ -214,7 +235,7 @@ public static class TemplateImporter
         if (!File.Exists(specPath) || !File.Exists(framePath)) return false;
         zip.CreateEntryFromFile(specPath, prefix + "template.json");
         zip.CreateEntryFromFile(framePath, prefix + "frame.png");
-        foreach (var v in new[] { TemplateService.FlipVariant, TemplateService.LandscapeVariant })
+        foreach (var v in TemplateService.VariantKeys)
         {
             var vs = Path.Combine(templateDir, v, "template.json");
             var vf = Path.Combine(templateDir, v, "frame.png");
@@ -229,7 +250,7 @@ public static class TemplateImporter
     /// a damaged variant is skipped (the frame itself is already in), never fails the import.</summary>
     private static void ImportVariants(ZipArchive zip, string dir, string folder)
     {
-        foreach (var v in new[] { TemplateService.FlipVariant, TemplateService.LandscapeVariant })
+        foreach (var v in TemplateService.VariantKeys)
         {
             var spec = FindVariantEntry(zip, folder, v, "template.json");
             var frame = FindVariantEntry(zip, folder, v, "frame.png");
@@ -270,16 +291,19 @@ public static class TemplateImporter
                 || e.FullName.EndsWith("\\" + fileName, StringComparison.OrdinalIgnoreCase))
             // The frame's own files, not a flip/ or landscape/ layout's (those are unpacked separately);
             // the shallowest match wins when a tool zipped the folder itself.
-            .Where(e => !IsVariantEntry(e))
+            .Where(e => !IsVariantEntry(zip, e))
             .OrderBy(e => e.FullName.Replace('\\', '/').Count(c => c == '/'))
             .FirstOrDefault();
 
-    private static bool IsVariantEntry(ZipArchiveEntry e)
+    /// <summary>A file in a frame's flip/, landscape/ or token/ layout folder — one that sits beside a template.json
+    /// of its own. A frame that merely has one of those names (frames/flip/ in a shared set, with nothing in
+    /// frames/ itself) is a frame, not a layout.</summary>
+    private static bool IsVariantEntry(ZipArchive zip, ZipArchiveEntry e)
     {
-        var parts = e.FullName.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length >= 2
-            && (parts[^2].Equals(TemplateService.FlipVariant, StringComparison.OrdinalIgnoreCase)
-                || parts[^2].Equals(TemplateService.LandscapeVariant, StringComparison.OrdinalIgnoreCase));
+        var parts = Normalized(e).Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2 || !TemplateService.VariantKeys.Contains(parts[^2], StringComparer.OrdinalIgnoreCase)) return false;
+        var parent = string.Concat(parts[..^2].Select(p => p + "/")) + "template.json";
+        return zip.Entries.Any(x => Normalized(x).Equals(parent, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string ReadEntryText(ZipArchiveEntry e)

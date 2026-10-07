@@ -27,6 +27,17 @@ public static class CardDetailsFill
         if (!string.IsNullOrWhiteSpace(face.SetCode)) target.SetCode = face.SetCode;
         if (!string.IsNullOrWhiteSpace(face.CollectorNumber)) target.CollectorNumber = face.CollectorNumber;
         if (!string.IsNullOrWhiteSpace(face.Rarity)) target.Rarity = face.Rarity;
+        if (!string.IsNullOrWhiteSpace(face.AdventureName)) CopyAdventure(target, face);
+    }
+
+    /// <summary>An adventure card's spell (<i>Stomp</i> on <i>Bonecrusher Giant</i>): the mapper keeps it on the
+    /// creature's face, so every fill path must carry it over, or the card loses its storybook box.</summary>
+    internal static void CopyAdventure(CardModel target, CardModel face)
+    {
+        target.AdventureName = face.AdventureName;
+        target.AdventureCost = face.AdventureCost;
+        target.AdventureType = face.AdventureType;
+        target.AdventureText = face.AdventureText;
     }
 
     /// <summary>
@@ -185,6 +196,7 @@ public static class CardDetailsFill
         target.SetCode = face.SetCode;
         target.CollectorNumber = face.CollectorNumber;
         target.Rarity = face.Rarity;
+        CopyAdventure(target, face);   // the looked-up card's adventure, or none
         // Intentionally NOT copied: Name, ArtPath, ArtScale/Offset, TemplateName, FlavorText, Artist.
     }
 }

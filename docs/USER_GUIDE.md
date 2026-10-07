@@ -10,7 +10,9 @@ A friendly walkthrough for making cards. If you just want the short version, see
 1. Put `Cardinator.exe` anywhere you like (a folder on your Desktop is fine) and double-click it.
 2. The first time it runs, it creates a **`CardinatorData`** folder right next to the exe. That's
    where it keeps templates, downloaded mana symbols, your saved projects, and exported cards.
-   You can move the exe + that folder together to another PC and everything comes with it.
+   You can move the exe + that folder together to another PC and everything comes with it. (If the exe's
+   folder can't be written to — say it's under *Program Files* — the folder goes in
+   `%APPDATA%\Cardinator` instead, and failing that in your temp folder.)
 
 There's nothing to install and no runtime to download — it's a single self-contained program.
 
@@ -55,7 +57,8 @@ the live preview that updates as you type.*
    while leaving your card's **name, art and frame untouched**. (So "Boogie Woogie" can have Lightning
    Bolt's stats.) Tick **Also use its art** to take the looked-up card's Scryfall art as well (Cancel
    puts yours back). *(No internet? Just type the fields yourself.)* **Ctrl+L** still does a quick
-   look-up of the selected card by its own name, and takes its name and art.
+   look-up of the selected card by its own name, and takes its name — and its art, if the card has none
+   yet (art you've already added is never replaced).
 6. **Export PNG…** saves a print-quality **1500×2100** image — pick **PNG or JPEG** in the save
    dialog. It's tagged **600 DPI**, so it prints at real card size (2.5″×3.5″).
    Phone photos used as art come out the right way up. Exports default to your set's `out` folder (or wherever you last saved one), and **Open
@@ -67,14 +70,16 @@ the live preview that updates as you type.*
 
 > **Mana symbols** use the real Scryfall artwork. The first time you use a symbol it's downloaded
 > and cached; after that it works offline. Before it's cached (or with no internet), Cardinator
-> draws clean colored pips instead, so nothing ever breaks. You can also point a card at a **custom
-> set-symbol image** (in **Edit details…**, or across a whole set via **Set fields on all…**).
+> draws clean colored pips instead, so nothing ever breaks. You can also use a **custom set-symbol
+> image** — for the whole set in **Set defaults…**, or for the cards you select with **Set fields on all…**.
+> It's drawn in its own proportions, where the rarity pip goes.
 
-> **The CHECKS panel** below the preview watches the selected card as you edit and flags problems
-> before you export — missing art, an unrecognized `{symbol}`, a footer overlapping the text box, a
-> region that falls outside the card, or a collector number used by more than one card. It also looks at
-> the **rendered pixels**, so it even catches art that's assigned but came out **blank** (a moved or
-> corrupt image file). A green "✓ No issues" means you're clear.
+> **The CHECKS panel** (in the editing column, just above **Export PNG…**) watches the selected card as you
+> edit and flags problems before you export — an unrecognized `{symbol}`, a footer overlapping the text box,
+> a region that falls outside the card, rules text too long for its box, or a collector number used by more
+> than one card. It also looks at the **rendered pixels**, so it even catches art that's assigned but came out
+> **blank** (a moved or corrupt image file). Lighter **notes** (ℹ) point out things that may be on purpose —
+> no art yet, two cards with the same name. "✓ No issues" means you're clear.
 
 > **Undo/redo:** every edit is undoable — use the header **Undo** / **Redo** buttons or **Ctrl+Z** /
 > **Ctrl+Y** (**Ctrl+Shift+Z** also redoes).
@@ -283,9 +288,9 @@ by card, or import a whole batch.
     your project** you're asked whether to **skip the duplicates** or add them anyway.
 - **Import deck…** — paste a **Moxfield deck URL** (or the deck's exported text) and Cardinator pulls
   the whole decklist in, quantities and all.
-- **Scryfall search…** — type a Scryfall query (e.g. `t:dragon c:r`, `set:dom`) and Cardinator
-  imports up to 60 matching cards **with their real art** in one go — a fast way to build a themed
-  set. (Also on the command line via `--search`.)
+- **Scryfall search…** — type a Scryfall query (e.g. `t:dragon c:r`, `set:dom`) and Cardinator lists up
+  to 60 matching cards; tick the ones you want and **Add** brings them in **with their real art** — a fast
+  way to build a themed set. (Also on the command line via `--search`.)
 - **Add art from folder…** — point it at a folder of images and it attaches them to cards by
   matching the filename to the card name (`serra angel.png` → "Serra Angel"). Only fills cards
   that don't already have art. Exact filename matches are used silently; any **best-guess** (fuzzy)
@@ -299,7 +304,8 @@ by card, or import a whole batch.
   you already have. Defaults are saved with the project.
 - **Set fields on all…** — a bulk editor: set the **set code, artist, rarity, copyright, frame** and
   a **custom set-symbol image** on every card at once (leave a field blank to keep each card's own). If you
-  **multi-select** cards in the list first, it asks whether to apply to just those or the whole set.
+  **multi-select** cards in the list first, it asks whether to apply to just those or the whole set. A new
+  frame goes on each card's back face too, unless that back face has a frame of its own.
 - **Check all cards** — runs the CHECKS across the whole set and lists every card that needs attention
   (missing art/frame, bad symbol, duplicate/stale number, broken special layout…), then jumps to the first.
 - **Share set + frames…** — zips the whole set (project + `art/` + a bundle for each custom frame the
@@ -310,7 +316,8 @@ by card, or import a whole batch.
 - **Export all…** — renders every card to PNGs (600 DPI, real card size) in a folder you choose. Runs
   in the background with a progress bar so the window stays responsive, even for 100 cards.
 - **Print sheet…** — lays cards out **9 per page (3×3) at real size (2.5″×3.5″, 300 DPI)** on
-  Letter (or A4) pages with cut marks — one PNG per page, ready to print and cut. It first asks
+  Letter pages with cut marks — one PNG per page, ready to print and cut. (A4 pages are on the command line:
+  `--sheet … a4`.) It first asks
   whether to include **card backs** for double-sided printing: **Front + back** writes a mirrored back
   page after each front page (flip on the long edge), **Fronts only** writes just the fronts.
 
@@ -319,7 +326,9 @@ whole project. Use **New / Open / Save** in the top-right to manage projects.
 
 **Saving a set.** When you **Save**, Cardinator writes a **set folder**: the `.cardinator` project file
 plus an `art/` subfolder (your images are copied in) and an `out/` subfolder (where Export and Print
-sheet default). The whole folder is self-contained — **move, zip or share it** and every card still
+sheet default). So the first time, **make a new, empty folder for the set** in the Save dialog (its *New
+folder* button) — saving straight into Documents or the Desktop puts `art/` and `out/` there too (Cardinator
+warns if the folder already holds another set). The whole folder is self-contained — **move, zip or share it** and every card still
 finds its art, because art is stored as a path relative to the folder. A one-off single card needs no
 setup: the folder is only created the first time you save. (Older single-file projects still open fine.)
 
@@ -348,7 +357,7 @@ The first row names the columns, in any order, matched without caring about case
 punctuation (`Mana Cost`, `mana_cost` and `manacost` are the same). Commas, semicolons (what Excel
 writes in many European languages) or tabs all work, and a file saved by Excel's plain **CSV** option
 keeps its accents and curly quotes. Only `name` is required; a row with no cost, type or rules is looked
-up on Scryfall. Write a line break in rules or flavor as `\n`, or inside a quoted field (as Excel does).
+up on Scryfall. Costs can be typed loosely — `2RW`, `W/U` (hybrid), `G/P` (Phyrexian) all become symbols. Write a line break in rules or flavor as `\n`, or inside a quoted field (as Excel does).
 
 | Column | Also accepted | What it holds |
 |---|---|---|
@@ -369,6 +378,7 @@ up on Scryfall. Write a line break in rules or flavor as `\n`, or inside a quote
 | `artist` | illustrator, illus | Artist credit |
 | `copyright` | copy | Copyright line |
 | `lookup` | scryfall, fetch | `yes` / `no`: force or skip the Scryfall lookup |
+| `qty` | quantity, count, copies, amount | How many copies of the row (`4` or `4x`); blank = 1 |
 
 Special layouts add their own columns (any one of them makes the row that kind of card):
 **flip** `flip_name`, `flip_type`, `flip_rules`, `flip_power`, `flip_toughness` / `flip_pt`;

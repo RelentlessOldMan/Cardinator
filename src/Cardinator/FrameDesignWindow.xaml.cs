@@ -316,6 +316,14 @@ public partial class FrameDesignWindow : Window
         ReadControlsInto(_spec);
         _spec.Normalize();
 
+        // A built-in renamed in place would be gone for good: its folder keeps the new name, and a built-in
+        // only heals when its files go missing. So the renamed frame becomes a frame of its own instead.
+        if (IsBuiltIn && _spec.Name != _savedName && !string.IsNullOrWhiteSpace(_spec.Name))
+        {
+            SaveCopy(_spec.Name);
+            return;
+        }
+
         try
         {
             WriteTemplate(_templateDir, _templateDir);   // save in place
@@ -350,7 +358,12 @@ public partial class FrameDesignWindow : Window
         if (ask.ShowDialog() != true) return;
         var newName = ask.Value;
         if (newName.Length == 0) { return; }
+        SaveCopy(newName);
+    }
 
+    /// <summary>Writes the current edits to a new template folder called <paramref name="newName"/>.</summary>
+    private void SaveCopy(string newName)
+    {
         try
         {
             var srcDir = _templateDir;
@@ -418,6 +431,18 @@ public partial class FrameDesignWindow : Window
             if (File.Exists(fromFrame)) File.Copy(fromFrame, framePath, overwrite: true);
         }
         // (same-dir baked custom keeps its existing frame.png untouched — unchanged from before.)
+
+        // A copy keeps the frame's hand-made flip / sideways / token layouts, or its flip and split cards would
+        // quietly drop back to the plain frame.
+        if (!sameDir)
+            foreach (var v in TemplateService.VariantKeys)
+            {
+                var from = Path.Combine(srcDir, v);
+                if (!Directory.Exists(from)) continue;
+                var to = Directory.CreateDirectory(Path.Combine(destDir, v)).FullName;
+                foreach (var f in Directory.GetFiles(from))
+                    File.Copy(f, Path.Combine(to, Path.GetFileName(f)), overwrite: true);
+            }
 
         _spec.Save(Path.Combine(destDir, "template.json"));
     }

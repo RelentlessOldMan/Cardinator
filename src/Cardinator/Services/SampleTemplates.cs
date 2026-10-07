@@ -21,7 +21,7 @@ public static class SampleTemplates
     /// MSBuild names "&lt;slug&gt;.flip.frame.png".</summary>
     private static (string slug, string? variant) SplitVariant(string slug)
     {
-        foreach (var v in new[] { TemplateService.FlipVariant, TemplateService.LandscapeVariant })
+        foreach (var v in TemplateService.VariantKeys)
             if (slug.EndsWith("." + v, System.StringComparison.OrdinalIgnoreCase))
                 return (slug[..^(v.Length + 1)], v);
         return (slug, null);

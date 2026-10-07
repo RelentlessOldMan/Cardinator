@@ -134,11 +134,12 @@ src/Cardinator/
     JsonCompat.cs          The one set of JSON options (the backward-compatibility rules)
     ProjectWriter.cs       The single save path: localize art -> relative paths -> backup -> atomic write
     ProjectBackup.cs       Rolling backups/ copies (recent + first of each day), Restore
+    RecoveryStore.cs       Recovery copies of unsaved work (every minute, on Windows shutdown), offered at launch
     SetFolder.cs           Makes a set folder self-contained (art/ copies)
     SetPackager.cs         "Share set + frames…" zip
     SetValidator.cs        "Check all cards" over the whole set
     LiveChecks.cs          CHECKS = CardValidator + RenderInspector
-    RenderInspector.cs     Pixel checks on a rendered card (borders, overlaps)
+    RenderInspector.cs     Pixel checks on a rendered card (borders, blank art) + text too long for its box
     MoxfieldClient.cs / MoxfieldFetcher.cs  Moxfield deck import (pure helpers / WebView2 fetch)
     SampleAssets.cs / SampleTemplates.cs    Extract the bundled sample art / picture frames on first run
 tests/Cardinator.Tests/    xUnit tests; golden/ holds the golden-image regression baselines
@@ -156,9 +157,19 @@ examples/                  Worked examples (inputs + outputs): real-cards/custom
 2. **Frame** — `template.FrameImage` drawn over the whole card; its transparent window lets the art
    show through. Full-art frames are just a thin border, and legibility scrims + per-font `shadow`
    outlines keep the text readable directly on the art.
-3. **Title + mana**, **type line + rarity pip**, then the **body** — which branches by card type:
-   planeswalker / saga / class (badged rows), adventure (storybook pages), or a normal rules+flavor box.
-4. **Power/Toughness** (or **loyalty**), then the **footer** (collector / set / artist).
+3. **Title + mana**, **type line + rarity pip** (or the set's own symbol image), then the **body** — which
+   branches by card type: planeswalker / saga / class (badged rows), level up / Station / Case (bands),
+   prototype / mutate (a band across the top, then the rules), adventure (storybook pages), a basic land's
+   big mana symbol, or a normal rules+flavor box. Rules text flows word by word, wrapping only where a space
+   was typed (so `{2}{R}:` never splits), and shrinks to fit; text that still doesn't fit is reported to
+   CHECKS (`RenderInspector.Overflow`).
+4. **Power/Toughness** (or **loyalty** / a Battle's **defense**), then the **footer** (collector / set / artist).
+
+Some cards take a different path before any of that: a **split** or **aftermath** card is drawn as two small
+cards turned sideways (`DrawSplit`), a **meld** back as its half of the melded card (`DrawMeldBack`), and a
+**flip** card as its two halves, the second through a 180° turn. The frame itself can change too:
+`TemplateService.ResolveFor` swaps in a frame's **flip**, **landscape** (Battles, Planes) or **token** layout —
+a hand-made one from the frame's `flip/`, `landscape/` or `token/` folder, or one derived on the fly.
 
 The live preview renders at `supersample: 1`; export uses `supersample: 2` for print quality.
 Rendering must happen on an **STA thread** (that's why the batch/export paths hop threads, and why

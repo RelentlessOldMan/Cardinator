@@ -15,8 +15,10 @@ public static class SetFolder
     /// the cards at the copies. Images already inside the folder are left alone (re-saving never duplicates),
     /// and a file shared by several cards (e.g. one set symbol for the whole set) is copied only once.
     /// Returns the number of images that exist but could NOT be copied in (they stay absolute and won't travel).
+    /// The set defaults' symbol (<paramref name="profile"/>) is copied in the same way, sharing one copy with the
+    /// cards that use it — otherwise new cards in a moved or shared set would get a symbol that isn't there.
     /// </summary>
-    public static int LocalizeImages(IReadOnlyList<CardModel> cards, string projectFolder)
+    public static int LocalizeImages(IReadOnlyList<CardModel> cards, string projectFolder, SetProfile? profile = null)
     {
         var artDir = Path.Combine(projectFolder, "art");
         string artRoot;
@@ -40,6 +42,8 @@ public static class SetFolder
             try { File.Copy(full, dest, overwrite: false); copied[full] = dest; return dest; }
             catch { stranded++; return p; }   // couldn't copy — keep the original path (won't travel)
         }
+
+        if (profile != null) profile.SetSymbolPath = Localize(profile.SetSymbolPath) ?? "";
 
         // Both faces of a double-faced card: the back's art must travel with the set like the front's.
         foreach (var face in cards.SelectMany(c => c.Parts()))
