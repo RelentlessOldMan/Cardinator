@@ -251,9 +251,9 @@ with `t:token` (add a name or type, e.g. `t:token t:spirit`) brings in a batch. 
 built-in frames are redrawn for it, and picture frames (the alchemy samples, imported ones) are rearranged —
 their art window stretched down and their text box shortened — keeping their own borders and medallion
 (they keep a small box even on a vanilla token, since the box is part of their picture). A CSV row is a token
-the same way: put the "Token …" type line in its `type` column.
+the same way: put the "Token …" type line in its `type` column. [Example 05](../examples/05-tokens-emblems/) is nine tokens on one print sheet.
 
-<p><img src="images/token-card.png" width="620" alt="Three tokens: a vanilla 2/2 Angel Soldier with no text box, a 1/1 Spirit with a short text box, and an emblem with one ability, each with tall art and its name centred"></p>
+<p><img src="images/token-card.png" width="620" alt="Three tokens: an Elf Druid with a short text box, a vanilla 1/1 Soldier with no text box, and an emblem with one ability, each with tall art and its name centred"></p>
 
 **Authoring them by hand:** open **Edit details…** and use the **Special layouts** section to set a
 **Subtitle** (a small plate under the title, on any card), the **Adventure** half (name/cost/type/text —
