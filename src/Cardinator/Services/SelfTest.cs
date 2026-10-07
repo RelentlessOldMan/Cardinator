@@ -433,8 +433,7 @@ public static class SelfTest
 
             var templates = new TemplateService().LoadAll();
             var def = templates[0].Name;
-            foreach (var c in cards)
-                if (string.IsNullOrEmpty(c.TemplateName)) c.TemplateName = def;
+            foreach (var c in cards) CardDetailsFill.TakeFrame(c, def);
 
             Console.WriteLine($"Downloading art for {cards.Count} card(s)…");
             foreach (var c in cards.SelectMany(c => new[] { c, c.BackFace }).OfType<CardModel>())   // DFC backs too
@@ -443,6 +442,7 @@ public static class SelfTest
                 try { c.ArtPath = Task.Run(() => ImageIntake.DownloadAsync(c.ArtUrl)).GetAwaiter().GetResult(); }
                 catch (Exception ex) { Console.WriteLine($"  art failed for {c.Name}: {ex.Message}"); }
             }
+            foreach (var c in cards) CardDetailsFill.SplitSharedArt(c);
 
             var symbols = new SymbolService();
             var tokens = cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)).Distinct().ToList();

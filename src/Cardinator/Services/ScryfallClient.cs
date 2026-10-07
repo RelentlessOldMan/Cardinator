@@ -27,6 +27,21 @@ public sealed class ScryfallClient
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static DateTime _lastCall = DateTime.MinValue;
 
+    // Scryfall's published limits (scryfall.com/docs/api/rate-limits): 10 requests a second in general, but only 2
+    // a second for card search, named lookups, random and collection — and a 429 locks the client out for 30 s.
+    internal static TimeSpan FastGap = TimeSpan.FromMilliseconds(100);
+    internal static TimeSpan SlowGap = TimeSpan.FromMilliseconds(500);
+    internal static TimeSpan TooManyRequestsWait = TimeSpan.FromSeconds(30);
+
+    /// <summary>The spacing Scryfall asks for before a request to <paramref name="uri"/>.</summary>
+    internal static TimeSpan GapFor(Uri? uri)
+    {
+        var path = uri?.AbsolutePath ?? "";
+        foreach (var slow in new[] { "/cards/search", "/cards/named", "/cards/random", "/cards/collection" })
+            if (path.StartsWith(slow, StringComparison.OrdinalIgnoreCase)) return SlowGap;
+        return FastGap;
+    }
+
     private static HttpClient CreateClient()
     {
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
@@ -114,7 +129,7 @@ public sealed class ScryfallClient
             Content = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json"),
         }, ct);
 
-    /// <summary>Shared send with the Scryfall rate-limit throttle (~10/s) and 429/503 backoff+retry. The
+    /// <summary>Shared send with the Scryfall rate-limit throttle (<see cref="GapFor"/>) and 429/503 backoff+retry. The
     /// request is built fresh per attempt because an HttpRequestMessage can't be resent.</summary>
     private static async Task<string?> SendAsync(Func<HttpRequestMessage> makeRequest, CancellationToken ct)
     {
@@ -124,15 +139,16 @@ public sealed class ScryfallClient
             const int maxAttempts = 3;
             for (int attempt = 1; ; attempt++)
             {
+                using var request = makeRequest();
                 var sinceLast = DateTime.UtcNow - _lastCall;
-                var minGap = TimeSpan.FromMilliseconds(100);
+                var minGap = GapFor(request.RequestUri);
                 if (sinceLast < minGap)
                     await Task.Delay(minGap - sinceLast, ct);
 
                 HttpResponseMessage resp;
                 try
                 {
-                    resp = await Http.SendAsync(makeRequest(), ct);
+                    resp = await Http.SendAsync(request, ct);
                 }
                 catch (HttpRequestException ex)
                 {
@@ -158,8 +174,10 @@ public sealed class ScryfallClient
                          || resp.StatusCode == HttpStatusCode.ServiceUnavailable)
                         && attempt < maxAttempts)
                     {
+                        // A 429 means Scryfall has locked us out for 30 s: retrying sooner only extends it.
                         var wait = resp.Headers.RetryAfter?.Delta
-                                   ?? TimeSpan.FromMilliseconds(500 * attempt);
+                                   ?? (resp.StatusCode == HttpStatusCode.TooManyRequests
+                                       ? TooManyRequestsWait : TimeSpan.FromMilliseconds(500 * attempt));
                         await Task.Delay(wait, ct);
                         continue;
                     }

@@ -117,7 +117,7 @@ public class ProjectBackupTests : IDisposable
     [Theory]
     [InlineData(@"MySet\backups\MySet.20261001-120000.cardinator", @"MySet\MySet.cardinator")]
     [InlineData(@"MySet\backups\MySet.v2.20261001-120000-3.cardinator", @"MySet\MySet.v2.cardinator")]
-    [InlineData(@"MySet\backups\copied by hand.cardinator", "")]
+    [InlineData(@"MySet\backups\copied by hand.cardinator", null)]   // no set file above it: a set kept in a "backups" folder
     [InlineData(@"MySet\MySet.cardinator", null)]
     public void ABackupFile_KnowsWhichSetFileItBacksUp(string file, string? setFile)
     {

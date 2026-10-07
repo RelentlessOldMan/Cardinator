@@ -181,7 +181,8 @@ over it.
 1. Copy an existing folder under `CardinatorData/templates/` (e.g. `ocean-blue`) to a new name.
 2. Open its `template.json` and change `name`, the `colors`, and any rectangles/fonts you want.
 3. **Delete the `frame.png`** in your copy (so Cardinator regenerates it from your edits) — or
-   replace it with your own transparent PNG.
+   replace it with your own transparent PNG. A picture you put there is never drawn over, and neither is a
+   hand-made `flip/` or `landscape/` frame.
 4. Restart Cardinator. Your template appears in the dropdown.
 
 Cardinator is resilient about template files: a missing or corrupt `template.json`/`frame.png` for

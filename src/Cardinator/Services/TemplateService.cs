@@ -545,6 +545,7 @@ public sealed class TemplateService
         {
             try { if (File.ReadAllText(hashPath).Trim() == want) return; } catch { /* regenerate below */ }
         }
+        if (IsHandMade(framePath, hashPath)) return;
 
         // Write to a temp file then move into place, so a crash mid-render can never leave a truncated
         // frame.png that still matches its hash (which would then be composited as a stale/corrupt frame).
@@ -617,6 +618,21 @@ public sealed class TemplateService
     private static void SafeDelete(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore */ }
+    }
+
+    /// <summary>Whether a procedural template's frame.png is a picture someone put there rather than one this
+    /// code drew — which must never be drawn over. Every drawn frame gets its <c>.hash</c> written just after
+    /// the image, so a frame.png with no hash (a hand-made flip/ or landscape/ layout, a bundle's variant), or one
+    /// written well after its hash (the PNG replaced in a copied template folder) is hand-made.</summary>
+    internal static bool IsHandMade(string framePath, string hashPath)
+    {
+        try
+        {
+            if (!File.Exists(framePath)) return false;
+            if (!File.Exists(hashPath)) return true;
+            return File.GetLastWriteTimeUtc(framePath) > File.GetLastWriteTimeUtc(hashPath).AddSeconds(2);
+        }
+        catch { return true; }   // can't tell: keeping a picture is safe, drawing over it isn't
     }
 
     /// <summary>Moves a file that couldn't be read out of the way (keeping its bytes) instead of deleting it,

@@ -273,7 +273,8 @@ by card, or import a whole batch.
 
 - **Import file…** — load a file of cards. It accepts:
   - a plain **list of names**, one per line (each looked up on Scryfall) — a deck list works too:
-    quantities (`4 Lightning Bolt`), printing hints (`Sol Ring (CMR) 472`, any case) and section
+    quantities (`4 Lightning Bolt`), printing hints (`Sol Ring (CMR) 472`; a lowercase code like `(cmr)` counts
+    only with a number after it, so `Goblin King (alt)` keeps its name) and section
     headings (`Sideboard:`, `Creatures (25)`) are understood;
   - `Name | C:\art\thing.png` per line (name + art);
   - a **CSV/TSV with a header row**, columns matched by friendly names in any order. See the
@@ -322,14 +323,17 @@ sheet default). The whole folder is self-contained — **move, zip or share it**
 finds its art, because art is stored as a path relative to the folder. A one-off single card needs no
 setup: the folder is only created the first time you save. (Older single-file projects still open fine.)
 
-**Your work is protected three ways.** (1) Saves are **atomic** — a crash or full disk mid-save can never
+**Your work is protected four ways.** (1) Saves are **atomic** — a crash or full disk mid-save can never
 truncate a good file. (2) Every save first tucks the previous version into a **`backups/`** folder (the last
 15, plus the first of each of the last 30 days, so a burst of saves can't flush older history; saving an
 unchanged set adds no copy); click **Restore…** (top-right) to roll back to an earlier one if a save or an update ever
 goes wrong. Restoring loads that older version with its art intact and keeps pointing at your real project
 file, so a single **Save** puts it back in place (and backs up the bad version first). (3) If a project file
-is ever unreadable, Cardinator preserves it as a `.corrupt-backup` instead of losing it. And every new
-version is built to **open files from every older version**.
+is ever unreadable, Cardinator preserves it as a `.corrupt-backup` instead of losing it. (4) While a set has
+unsaved changes, a **recovery copy** is kept every minute, and again if Windows logs off, shuts down or restarts
+for an update (none of which ask to save). If Cardinator never got to save, the next launch offers to open the
+recovered copy; **Save** then puts it back over your set. And every new version is built to **open files from
+every older version**.
 
 Opening a backup file directly (**Open** or a drop) works the same as **Restore…**: **Save** writes it back
 over the set's own file, never into `backups/`. And **Open** only opens sets — a card or frame `.json` is
