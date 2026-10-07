@@ -47,6 +47,20 @@ public static class BatchService
             foreach (var member in group)
             {
                 found++;
+                // A deck list's printing hint that turned out wrong ("(M10) 999", or a set without that card) is
+                // replaced by the printing actually found, so the footer never shows a set and number that don't
+                // go together. The card's own set code (a custom set's, or the set defaults') is left alone.
+                var f0 = faces[0];
+                if (member.PrintingHint && !Blank(f0.SetCode)
+                    && (!string.Equals(member.Card.SetCode, f0.SetCode, StringComparison.OrdinalIgnoreCase)
+                        || (!Blank(member.Card.CollectorNumber) && !string.Equals(member.Card.CollectorNumber, f0.CollectorNumber, StringComparison.OrdinalIgnoreCase))))
+                {
+                    log.Add($"  note: \"{member.Card.Name}\" ({member.Card.SetCode} {member.Card.CollectorNumber}) wasn't found as written — "
+                            + $"used the printing {f0.SetCode} {f0.CollectorNumber}.");
+                    member.Card.SetCode = f0.SetCode;
+                    member.Card.CollectorNumber = f0.CollectorNumber;
+                    member.Card.Rarity = f0.Rarity;
+                }
                 FillBlanks(member.Card, faces[0], canonicalName: true);
                 filled++;
                 if (downloadArt && Blank(member.Card.ArtPath) && !Blank(faces[0].ArtUrl))
@@ -81,6 +95,8 @@ public static class BatchService
             var c = g.First().Card;
             return (!Blank(c.SetCode) && !Blank(c.CollectorNumber))
                 ? new ScryfallClient.CardRef(null, c.SetCode, c.CollectorNumber)
+                : g.First().PrintingHint && !Blank(c.SetCode)
+                ? new ScryfallClient.CardRef(c.Name, c.SetCode, null)   // "(M10)" with no number: that set's printing
                 : new ScryfallClient.CardRef(c.Name, null, null);
         }).ToList();
         log.Add($"refs: {refs.Count(r => r.Set != null)} by set+cn, {refs.Count(r => r.Name != null)} by name");
@@ -94,6 +110,7 @@ public static class BatchService
 
         var bySetCn = new Dictionary<string, List<CardModel>>(StringComparer.OrdinalIgnoreCase);
         var byName = new Dictionary<string, List<CardModel>>(StringComparer.OrdinalIgnoreCase);
+        var bySetName = new Dictionary<string, List<CardModel>>(StringComparer.OrdinalIgnoreCase);
         foreach (var faces in matches)
         {
             if (faces.Count == 0) continue;
@@ -102,7 +119,7 @@ public static class BatchService
                 bySetCn.TryAdd(f.SetCode + "|" + f.CollectorNumber, faces);
             // Index by the returned name AND (for DFCs) each face name, so "Front // Back" or "Front" both match.
             foreach (var face in faces)
-                if (!Blank(face.Name)) byName.TryAdd(face.Name, faces);
+                if (!Blank(face.Name)) { byName.TryAdd(face.Name, faces); bySetName.TryAdd(f.SetCode + "|" + face.Name, faces); }
         }
 
         var unresolved = new List<IGrouping<string, ImportedCard>>();
@@ -112,6 +129,7 @@ public static class BatchService
             List<CardModel>? faces = null;
             if (!Blank(c.SetCode) && !Blank(c.CollectorNumber))
                 bySetCn.TryGetValue(c.SetCode + "|" + c.CollectorNumber, out faces);
+            if (faces == null && !Blank(c.SetCode)) bySetName.TryGetValue(c.SetCode + "|" + c.Name, out faces);
             if (faces == null) byName.TryGetValue(c.Name, out faces);
             // Last resort within the batch: a DFC whose imported name is "Front // Back" — match the front.
             if (faces == null && c.Name.Contains("//"))
@@ -219,9 +237,9 @@ public static class BatchService
         Directory.CreateDirectory(outDir);
         var renderer = new CardRenderer(symbols);
 
-        // Tolerate duplicate template names (last one wins) instead of throwing.
+        // Tolerate duplicate template names instead of throwing: the first wins, as in the app and on the sheet.
         var byName = new Dictionary<string, Template>();
-        foreach (var t in templates) byName[t.Name] = t;
+        foreach (var t in templates) byName.TryAdd(t.Name, t);
         var fallback = templates[0];
 
         int exported = 0;
@@ -232,7 +250,9 @@ public static class BatchService
             try
             {
                 Template TemplateFor(CardModel c) =>
-                    (c.TemplateName is { Length: > 0 } n && byName.TryGetValue(n, out var t)) ? t : fallback;
+                    (c.TemplateName is { Length: > 0 } n && byName.TryGetValue(n, out var t)) ? t
+                    : c.IsBackFace && string.IsNullOrWhiteSpace(c.TemplateName) ? TemplateFor(card)   // a back with none: its front's
+                    : fallback;
 
                 var bmp = CardExporter.AtCardSize(renderer.RenderToBitmap(card, TemplateFor(card), supersample: 2));
                 var path = Path.Combine(outDir, $"{i + 1:000}_{TextUtil.Slug(card.Name)}.png");
@@ -284,6 +304,7 @@ public static class BatchService
         if (Blank(target.SetCode)) target.SetCode = src.SetCode;
         if (Blank(target.CollectorNumber)) target.CollectorNumber = src.CollectorNumber;
         if (Blank(target.Rarity)) target.Rarity = src.Rarity;
+        if (Blank(target.AdventureName) && !Blank(src.AdventureName)) CardDetailsFill.CopyAdventure(target, src);
     }
 
     private static bool Blank(string? s) => string.IsNullOrWhiteSpace(s);

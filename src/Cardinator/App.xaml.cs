@@ -369,8 +369,9 @@ public partial class App : Application
            real card name and it fills the mana cost, type, rules text, power/toughness and printing info —
            while leaving your card's **name, art and frame untouched**. So you can call a card "Boogie
            Woogie" and still pull Lightning Bolt's stats.
-        6. **Watch the CHECKS panel.** It flags problems as you go — missing art, an unrecognized symbol, a
-           footer overlapping the text box, duplicate collector numbers — so nothing surprises you at export.
+        6. **Watch the CHECKS panel** (just above **Export PNG…**). It flags problems as you go — an
+           unrecognized symbol, a footer overlapping the text box, text too long for its box, duplicate
+           collector numbers — and notes things like missing art, so nothing surprises you at export.
         7. **Export.** Click **Export PNG…** for a print-quality image, or **Copy image** to paste it
            straight into a chat. **Open output folder** opens wherever you last exported.
 
@@ -398,8 +399,11 @@ public partial class App : Application
 
         ## Make a whole set at once
 
-        1. Put your card names in a text or CSV file — one per line, or with columns for art and frame:
+        1. Put your card names in a text or CSV file — one per line, or as a CSV whose first row names the
+           columns (art, frame, `qty` for several copies, and more — see the
+           [CSV columns](USER_GUIDE.md#csv-columns)):
            ```
+           name, art, frame
            Lightning Bolt, bolt.png, Crimson Red
            Counterspell,   counter.png, Ocean Blue
            ```
@@ -410,11 +414,13 @@ public partial class App : Application
         4. Use **Set fields on all…** to apply one frame (and/or set code, artist, rarity, copyright) to
            every card at once — blank fields are left unchanged, so you can re-frame a whole set in one step.
         5. **Export all…** writes every card to a PNG, or **Print sheet…** lays them out at real card size
-           on Letter/A4 pages (with cut marks and optional bleed) ready to print.
+           on Letter pages with cut marks, ready to print (A4 pages and print bleed are on the
+           [command line](CLI.md)).
 
         ## Saving a set
         **Save** writes your project into a **set folder**: the project file plus an `art/` subfolder (your
-        images are copied in) and an `out/` subfolder (where exports and sheets default). The whole folder is
+        images are copied in) and an `out/` subfolder (where exports and sheets default) — so give each set a
+        new folder of its own the first time you save. The whole folder is
         self-contained — move, zip or share it and every card still finds its art. One-off single cards need
         no setup: the folder is only created when you first save.
 

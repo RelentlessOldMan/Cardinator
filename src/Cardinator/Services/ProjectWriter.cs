@@ -24,7 +24,7 @@ public static class ProjectWriter
         var projFolder = Path.GetDirectoryName(Path.GetFullPath(path))!;
 
         // 1. Self-contained: external art + set symbols (both faces) are copied into <set>\art.
-        int stranded = SetFolder.LocalizeImages(cards, projFolder);
+        int stranded = SetFolder.LocalizeImages(cards, projFolder, profile);
         try { Directory.CreateDirectory(Path.Combine(projFolder, "out")); } catch { /* best effort */ }
 
         // 2. Portable: the set symbol in the profile travels with the folder like card art.

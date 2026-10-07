@@ -21,15 +21,30 @@ public static class RenderInspector
         if (card.IsMeldBack)
         {
             var melded = CardRenderer.MeldedCard(card);
-            return Inspect(renderer.RenderToBitmap(melded, template), melded, template.Spec);
+            return Inspect(renderer.RenderToBitmap(melded, template), melded, template.Spec)
+                .Concat(Overflow(renderer, melded, template)).ToList();
         }
-        if (!card.IsSplit) return Inspect(rendered ?? renderer.RenderToBitmap(card, template), card, template.Spec);
+        if (!card.IsSplit)
+            return Inspect(rendered ?? renderer.RenderToBitmap(card, template), card, template.Spec)
+                .Concat(Overflow(renderer, card, template)).ToList();
         var g = CardRenderer.SplitGeometry(card, template);
         var (a, b) = (g.First, g.Other);
         return Inspect(renderer.RenderToBitmap(a.Card, a.Template), a.Card, a.Template.Spec)
+            .Concat(Overflow(renderer, a.Card, a.Template))
             .Concat(Inspect(renderer.RenderToBitmap(b.Card, b.Template), b.Card, b.Template.Spec)
+                .Concat(Overflow(renderer, b.Card, b.Template))
                 .Select(i => new ValidationIssue(i.Severity, i.Code, "Other half: " + i.Message, i.Field)))
             .ToList();
+    }
+
+    /// <summary>A warning when the card's text is too long for its box even at the smallest size: the renderer
+    /// shrinks text to fit, and past that point the last lines run out of the box.</summary>
+    internal static IEnumerable<ValidationIssue> Overflow(CardRenderer renderer, CardModel card, Template template)
+    {
+        if (renderer.TextOverflows(card, template) > 0)
+            yield return new(IssueSeverity.Warning, "text-overflow",
+                "The text is too long for the text box, even at the smallest size — the end runs out of the box. Shorten it, or use a frame with a bigger box.",
+                nameof(card.RulesText));
     }
 
     public static IReadOnlyList<ValidationIssue> Inspect(BitmapSource bmp, CardModel card, TemplateSpec templateSpec)

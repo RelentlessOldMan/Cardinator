@@ -82,7 +82,10 @@ public sealed class TemplateService
         {
             var next = installed ? new Dictionary<string, Template>(StringComparer.Ordinal)
                                  : new Dictionary<string, Template>(_extra, StringComparer.Ordinal);
-            foreach (var t in templates) next[t.Name] = t;
+            // Two folders whose frames share a name: the first (in LoadFolder's order) wins, as everywhere else. (A
+            // frame loaded now still replaces one of that name loaded from a folder earlier.)
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var t in templates) if (seen.Add(t.Name)) next[t.Name] = t;
             if (installed) _installed = next; else _extra = next;
         }
     }
@@ -93,6 +96,9 @@ public sealed class TemplateService
     public const string LandscapeVariant = "landscape";
     /// <summary>Subfolder / <see cref="Template.Variants"/> key for a frame's token layout.</summary>
     public const string TokenVariant = "token";
+
+    /// <summary>Every hand-made layout subfolder a frame can have — loaded, bundled, imported and copied together.</summary>
+    public static readonly string[] VariantKeys = { FlipVariant, LandscapeVariant, TokenVariant };
 
     /// <summary>
     /// The template a face ACTUALLY renders with. A face that wants landscape (a Battle, a Plane, or one
@@ -391,11 +397,13 @@ public sealed class TemplateService
     public static int CountReferencing(IEnumerable<CardModel> cards, string templateName)
         => cards?.Count(c => FramesUsed(c).Contains(templateName, StringComparer.OrdinalIgnoreCase)) ?? 0;
 
-    /// <summary>Every frame a card is drawn with: its own and, on a split card, its other half's own.</summary>
+    /// <summary>Every frame a card is drawn with: its own, its back face's and, on a split card, its other half's own.</summary>
     public static IEnumerable<string> FramesUsed(CardModel card)
     {
         if (!string.IsNullOrWhiteSpace(card.TemplateName)) yield return card.TemplateName;
         if (card.IsSplit && !string.IsNullOrWhiteSpace(card.HalfTemplateName)) yield return card.HalfTemplateName;
+        if (card.BackFace is { TemplateName: { } back } && !string.IsNullOrWhiteSpace(back)
+            && !string.Equals(back, card.TemplateName, StringComparison.Ordinal)) yield return back;
     }
 
     private static HashSet<string> BuildBuiltInSlugSet()
@@ -442,7 +450,7 @@ public sealed class TemplateService
             // Optional hand-made layouts beside it (flip/, landscape/, token/). A broken variant is just skipped —
             // the card then renders with the plain frame, never fails.
             var variants = new Dictionary<string, Template>(StringComparer.OrdinalIgnoreCase);
-            foreach (var key in new[] { FlipVariant, LandscapeVariant, TokenVariant })
+            foreach (var key in VariantKeys)
             {
                 var vdir = Path.Combine(dir, key);
                 if (!Directory.Exists(vdir)) continue;
@@ -460,7 +468,11 @@ public sealed class TemplateService
             });
         }
 
-        result.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+        // By name, then by folder: List.Sort isn't stable, and two frames with the same name must come out in the
+        // same order every time so every lookup (the picker, the sheet, Export all, the split-half catalog) takes
+        // the same one — the first.
+        result.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name) is var c and not 0 ? c
+                              : StringComparer.OrdinalIgnoreCase.Compare(a.FramePath, b.FramePath));
         return result;
     }
 

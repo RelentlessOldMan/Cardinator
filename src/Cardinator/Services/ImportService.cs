@@ -7,7 +7,9 @@ namespace Cardinator.Services;
 /// <summary>A parsed card plus whether its blank fields should be filled from Scryfall.</summary>
 /// <remarks><paramref name="MeldHalfGiven"/> is false only for a CSV meld card whose half the list didn't say (nor its
 /// partner's): the lookup then picks it from Scryfall's collector numbers.</remarks>
-public sealed record ImportedCard(CardModel Card, bool NeedsLookup, bool MeldHalfGiven = true);
+/// <param name="PrintingHint">The set / collector number came from a deck list's "(SET) 123" hint — a guess at a real
+/// printing, which the lookup replaces with the printing it actually found — rather than the card's own data.</param>
+public sealed record ImportedCard(CardModel Card, bool NeedsLookup, bool MeldHalfGiven = true, bool PrintingHint = false);
 
 /// <summary>The outcome of parsing a list: the cards, plus how many non-blank/non-comment lines
 /// were dropped because they couldn't be turned into a card (so the UI can tell the user instead
@@ -71,6 +73,8 @@ public static class ImportService
         ["rarity"] = "rarity",
         ["copyright"] = "copyright", ["copy"] = "copyright",
         ["lookup"] = "lookup", ["scryfall"] = "lookup", ["fetch"] = "lookup",
+        // How many copies of the row (a deck export's "Count" column): "4" or "4x".
+        ["qty"] = "qty", ["quantity"] = "qty", ["count"] = "qty", ["copies"] = "qty", ["amount"] = "qty",
     };
 
     /// <summary>
@@ -281,7 +285,7 @@ public static class ImportService
                     CollectorNumber = collector,
                     TemplateName = defaultTemplate,
                 };
-                result.Add(new ImportedCard(card, NeedsLookup: true));
+                result.Add(new ImportedCard(card, NeedsLookup: true, PrintingHint: setCode.Length > 0));
             }
         }
         return new ImportResult(result, skipped);
@@ -364,7 +368,7 @@ public static class ImportService
             // Split card columns: the second half has its own cost, rules and art; set details are the row's.
             var split = new CardModel
             {
-                Name = Get("splitname"), ManaCost = Get("splitcost"), TypeLine = Get("splittype"),
+                Name = Get("splitname"), ManaCost = ManaText.NormalizeCost(Get("splitcost")), TypeLine = Get("splittype"),
                 RulesText = Unescape(Get("splitrules")), FlavorText = Unescape(Get("splitflavor")),
                 ArtPath = ResolveArt(Get("splitart"), artBaseDir), TemplateName = card.TemplateName,
             };
@@ -406,10 +410,18 @@ public static class ImportService
             bool blank = card.ManaCost.Length == 0 && card.TypeLine.Length == 0 && card.RulesText.Length == 0;
             bool needsLookup = ParseLookupFlag(Get("lookup")) ?? blank;
             result.Add(new ImportedCard(card, needsLookup));
+            // Extra copies are separate cards, as "4 Lightning Bolt" makes in a list. Not for a meld row, whose
+            // partner is paired by position.
+            if (!card.IsMeld)
+                for (int i = 1; i < ParseQty(Get("qty")); i++) result.Add(new ImportedCard(card.Clone(), needsLookup));
         }
         PairMeldRows(result, melds);
         return new ImportResult(result, skipped);
     }
+
+    /// <summary>A quantity cell ("4", "4x", "x4") as a copy count from 1 to 99; 1 when blank or unreadable.</summary>
+    private static int ParseQty(string v)
+        => int.TryParse(v.Trim().Trim('x', 'X').Trim(), out var n) ? Math.Clamp(n, 1, 99) : 1;
 
     /// <summary>"top"/"bottom" from a meld-half cell ("top", "upper", "1", "bottom", "lower", "2", …), or "".</summary>
     private static string ParseMeldHalf(string v) => v.Trim().ToLowerInvariant() switch

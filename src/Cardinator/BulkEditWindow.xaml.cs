@@ -20,9 +20,17 @@ public partial class BulkEditWindow : Window
     public string? TemplateName { get; private set; }
     public string? SetSymbolPath { get; private set; }
 
-    public BulkEditWindow(IEnumerable<string> templateNames)
+    /// <param name="selectedCount">When only some cards were chosen (the selection), how many — the text then
+    /// says so instead of "every card"; null = the whole set.</param>
+    public BulkEditWindow(IEnumerable<string> templateNames, int? selectedCount = null)
     {
         InitializeComponent();
+        if (selectedCount is int n)
+        {
+            HeadingText.Text = $"Set fields on {n} selected card{(n == 1 ? "" : "s")}";
+            ScopeText.Text = "Blank fields are left unchanged. Applies only to the cards you selected.";
+            ClearText.Text = "Clear on the selected cards (empties the field)";
+        }
         RarityBox.ItemsSource = new[] { NoChange, "C", "U", "R", "M" };
         RarityBox.SelectedIndex = 0;
         FrameBox.ItemsSource = new[] { NoChange }.Concat(templateNames);

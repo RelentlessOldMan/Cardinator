@@ -155,6 +155,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _viewingBack = false;
             _viewingMelded = false;
             _meldPartner = null;
+            SyncFramePicker();
             Status = "Removed the back face.";
         }
         else
@@ -189,6 +190,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_selectedCard?.BackFace == null) return;
         _viewingBack = !_viewingBack;
         if (!_viewingBack) _viewingMelded = false;
+        SyncFramePicker();
         RefreshDfcControls();
         RefreshMeldControls();
         RenderPreview();
@@ -319,6 +321,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_selectedCard?.IsMeld != true) return;
         _viewingMelded = !_viewingMelded;
         _viewingBack = true;   // the melded card is the back face's content
+        SyncFramePicker();
         RefreshDfcControls();
         RefreshMeldControls();
         RenderPreview();
@@ -543,8 +546,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (_selectedCard != null)
             {
                 AttachCardEvents(_selectedCard);
-                var t = Templates.FirstOrDefault(x => x.Name == _selectedCard.TemplateName);
-                if (t != null) { _selectedTemplate = t; OnPropertyChanged(nameof(SelectedTemplate)); }
+                SyncFramePicker();
             }
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasSelection));
@@ -572,8 +574,43 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// and the pixel inspector judge the same geometry the preview draws.</summary>
     private Template? TemplateFor(CardModel card)
     {
-        var t = Templates.FirstOrDefault(x => x.Name == card.TemplateName) ?? _selectedTemplate ?? Templates.FirstOrDefault();
+        var t = BaseTemplateFor(card);
         return t == null ? null : TemplateService.ResolveFor(card, t);
+    }
+
+    /// <summary>The installed frame a face is drawn with: its own; for a back face with none, its front's; else (its
+    /// frame isn't installed) the set's house frame or the first one — never just whichever frame the picker last
+    /// showed, so a card on a missing frame looks the same however you got to it.</summary>
+    private Template? BaseTemplateFor(CardModel card)
+    {
+        if (Templates.FirstOrDefault(x => x.Name == card.TemplateName) is { } own) return own;
+        if (string.IsNullOrWhiteSpace(card.TemplateName) && _selectedCard is { } front && ReferenceEquals(front.BackFace, card)
+            && Templates.FirstOrDefault(x => x.Name == front.TemplateName) is { } frontFrame)
+            return frontFrame;
+        return Templates.FirstOrDefault(x => x.Name == _defaultTemplate) ?? Templates.FirstOrDefault();
+    }
+
+    /// <summary>Points the frame picker at the shown face's own frame — blank when that frame isn't installed (the
+    /// card is flagged for it), so the picker, Design… and Delete never act on a frame the card doesn't use.</summary>
+    private void SyncFramePicker()
+    {
+        if (PreviewSide is not { } face) return;
+        _selectedTemplate = string.IsNullOrWhiteSpace(face.TemplateName)
+            ? BaseTemplateFor(face)
+            : Templates.FirstOrDefault(x => x.Name == face.TemplateName);
+        _syncingTemplates = true;
+        try { OnPropertyChanged(nameof(SelectedTemplate)); }
+        finally { _syncingTemplates = false; }
+    }
+
+    /// <summary>Puts a card on a frame, taking along an ordinary back face that was on the same frame (or none) —
+    /// a back face made with the card keeps following it; one given a frame of its own keeps that.</summary>
+    internal static void SetFrame(CardModel card, string name)
+    {
+        if (card.BackFace is { } back && !card.IsMeld
+            && (string.IsNullOrWhiteSpace(back.TemplateName) || back.TemplateName == card.TemplateName))
+            back.TemplateName = name;
+        card.TemplateName = name;
     }
 
     /// <summary>Short app version shown in the header (e.g. "v1.1.4"), so the running build is obvious.</summary>
@@ -616,10 +653,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _selectedTemplate = value;
             OnPropertyChanged();
             // Only push the frame onto the card for a genuine user change — not during restore/load or a
-            // programmatic re-sync (which would spuriously dirty the card / churn undo history).
-            if (value != null && _selectedCard != null && !_restoring && !_loading && !_syncingTemplates
-                && !string.Equals(value.Name, _selectedCard.TemplateName, StringComparison.Ordinal))
-                _selectedCard.TemplateName = value.Name;
+            // programmatic re-sync (which would spuriously dirty the card / churn undo history). It goes on the
+            // face being shown: the back face's own frame while the back is shown.
+            if (value != null && PreviewSide is { } face && !_restoring && !_loading && !_syncingTemplates
+                && !string.Equals(value.Name, face.TemplateName, StringComparison.Ordinal))
+            {
+                if (ReferenceEquals(face, _selectedCard)) SetFrame(face, value.Name);
+                else face.TemplateName = value.Name;
+            }
             RenderPreview();
         }
     }
@@ -1017,7 +1058,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (choice == ConfirmResult.Affirmative) targets = selected;
         }
 
-        var dlg = new BulkEditWindow(Templates.Select(t => t.Name)) { Owner = this };
+        var dlg = new BulkEditWindow(Templates.Select(t => t.Name), targets.Count < Cards.Count ? targets.Count : null) { Owner = this };
         if (dlg.ShowDialog() != true) return;
 
         int n = ApplyBulkEdit(targets, dlg.SetCode, dlg.Artist, dlg.Rarity, dlg.Copyright, dlg.TemplateName, dlg.SetSymbolPath);
@@ -1079,17 +1120,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (artist != null) c.Artist = artist;
             if (rarity != null) c.Rarity = rarity;
             if (copyright != null) c.Copyright = copyright;
-            if (templateName != null) c.TemplateName = templateName;
+            if (templateName != null) SetFrame(c, templateName);
             if (setSymbolPath != null) c.SetSymbolPath = setSymbolPath;
         }
         MarkDirty();
         CommitHistory();
         // Re-sync the frame dropdown to the selected card, whose frame may have changed.
-        if (_selectedCard != null)
-        {
-            var t = Templates.FirstOrDefault(x => x.Name == _selectedCard.TemplateName);
-            if (t != null && !ReferenceEquals(t, _selectedTemplate)) SelectedTemplate = t;
-        }
+        SyncFramePicker();
         _renderTimer.Stop();   // cancel any pending debounce so our explicit render is the final word
         RenderPreview();       // re-render the active card immediately with the new values
         return targets.Count;
@@ -1199,8 +1236,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         int errors = issues.Count(i => i.Severity == IssueSeverity.Error);
         int warns = issues.Count(i => i.Severity == IssueSeverity.Warning);
+        int notes = issues.Count(i => i.Severity == IssueSeverity.Info);   // no art yet, a shared name…
 
-        if (errors == 0 && warns == 0)
+        if (errors == 0 && warns == 0 && notes == 0)
         {
             ValidationSummary = "✓ No issues";
             ValidationDetails = "";
@@ -1211,11 +1249,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var parts = new List<string>();
         if (errors > 0) parts.Add($"{errors} error{(errors > 1 ? "s" : "")}");
         if (warns > 0) parts.Add($"{warns} warning{(warns > 1 ? "s" : "")}");
-        ValidationSummary = "⚠ " + string.Join(" · ", parts);
+        if (notes > 0) parts.Add($"{notes} note{(notes > 1 ? "s" : "")}");
+        ValidationSummary = (errors + warns > 0 ? "⚠ " : "✓ ") + string.Join(" · ", parts);
         ValidationDetails = string.Join("\n", issues
-            .Where(i => i.Severity != IssueSeverity.Info)
             .OrderByDescending(i => i.Severity)
-            .Select(i => "• " + i.Message));
+            .Select(i => (i.Severity == IssueSeverity.Info ? "ℹ " : "• ") + i.Message));
         HasValidationIssues = true;
     }
 
@@ -1731,8 +1769,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var percent = new Progress<double>(p => ExportProgress = p * 100);
             var report = await BatchService.FillFromScryfallAsync(items, progress, percent: percent);
             _ = _symbols.PrimeAsync(Cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
+            foreach (var item in items)   // backs the fill attached inherit the set's metadata like their fronts
+                if (item.NeedsLookup && item.Card.BackFace is { } back) _setProfile.ApplyDefaults(back);
             MarkDirty();
             CommitHistory();   // fields filled in place don't trip OnCardChanged for non-selected cards
+            RefreshCardShape();   // the selected card may have gained a back face or another half
             RenderPreview();
             OnPropertyChanged(nameof(ProjectSummary));
             int dfc = items.Count(i => i.Card.IsDoubleFaced);   // DFCs fill as one card with a back face
@@ -1902,7 +1943,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_selectedCard == null) return;
         new DetailsWindow(_selectedCard, _scryfall) { Owner = this }.ShowDialog();
         CommitHistory();   // coalesce the dialog's edits into one undo step and refresh the preview
+        RefreshCardShape();   // its lookup may have added a back face or another half
         RenderPreview();
+    }
+
+    /// <summary>Re-syncs everything that depends on the selected card's shape — the back face, flip/split and meld
+    /// controls, the meld partner and the frame picker — after something other than those controls changed it
+    /// (a lookup, the details dialog, a batch fill).</summary>
+    private void RefreshCardShape()
+    {
+        if (_selectedCard is { } card)
+        {
+            if (card.BackFace == null) { _viewingBack = false; _viewingMelded = false; }
+            if (card.OtherHalf == null) { _viewingFlipped = false; _readingSideways = false; _activeHalf = false; }
+            _meldPartner = MeldPartner(card);
+        }
+        SyncFramePicker();
+        RefreshDfcControls();
+        RefreshFlipControls();
+        RefreshMeldControls();
     }
 
     private void OnHelp(object sender, RoutedEventArgs e)
@@ -1947,7 +2006,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     var fullArt = AskFrameFullArt();
                     if (fullArt == null) { Status = "Import cancelled."; return; }
                     name = TemplateImporter.CreateFromFile(Path.GetFileNameWithoutExtension(path), path, fullArt.Value);
-                    Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
+                    Status = $"Imported frame as template \"{name}\". Click Design… to fit its text regions to the picture.";
                 }
             }
             else
@@ -1959,7 +2018,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (fullArt == null) { Status = "Import cancelled."; return; }
                 Status = "Downloading frame…";
                 name = await TemplateImporter.CreateFromUrlAsync("", url, fullArt.Value);
-                Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
+                Status = $"Imported frame as template \"{name}\". Click Design… to fit its text regions to the picture.";
             }
             bool reframes = _selectedCard != null && _selectedCard.TemplateName != name;
             RefreshTemplates(name);
@@ -1988,11 +2047,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         };
     }
 
+    /// <summary>The frame in the picker. With no card selected an empty picker means the first frame; with one, an
+    /// empty picker means the card's frame isn't installed — nothing to act on.</summary>
+    private Template? PickedFrame() => _selectedTemplate ?? (PreviewSide == null ? Templates.FirstOrDefault() : null);
+
+    private string NoFramePicked(string verb) => PreviewSide is { TemplateName.Length: > 0 } face
+        ? $"This card's frame “{face.TemplateName}” isn't installed — pick a frame first, then {verb} it."
+        : $"No frame selected to {verb}.";
+
     /// <summary>Exports the selected template as a shareable bundle (frame.png + template.json in one file).</summary>
     private void OnExportTemplate(object sender, RoutedEventArgs e)
     {
-        var t = _selectedTemplate ?? Templates.FirstOrDefault();
-        if (t == null) { Status = "No frame selected to export."; return; }
+        var t = PickedFrame();
+        if (t == null) { Status = NoFramePicked("export"); return; }
         try
         {
             var dlg = new SaveFileDialog
@@ -2016,8 +2083,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// bundled frames are protected (they self-heal on launch, so deleting them is pointless).</summary>
     private void OnDeleteFrame(object sender, RoutedEventArgs e)
     {
-        var t = _selectedTemplate ?? Templates.FirstOrDefault();
-        if (t == null) { Status = "No frame selected to delete."; return; }
+        var t = PickedFrame();
+        if (t == null) { Status = NoFramePicked("delete"); return; }
 
         var dir = Path.GetDirectoryName(t.FramePath);
         if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
@@ -2062,8 +2129,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// <summary>Opens the frame-design editor for the selected template; regenerates + re-renders on Apply.</summary>
     private void OnFrameDesign(object sender, RoutedEventArgs e)
     {
-        var t = _selectedTemplate ?? Templates.FirstOrDefault();
-        if (t == null) { Status = "No frame selected to design."; return; }
+        var t = PickedFrame();
+        if (t == null) { Status = NoFramePicked("design"); return; }
         try
         {
             var dir = Path.GetDirectoryName(t.FramePath);
@@ -2079,7 +2146,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     renamed = RenameFrameReferences(oldName, newName);
                     if (renamed > 0) { MarkDirty(); CommitHistory(); }
                 }
-                RefreshTemplates(win.AppliedTemplateName);
+                RefreshTemplates(FrameToPutOnCard(t.Name, win.AppliedTemplateName, win.RenamedFrom));
                 RenderPreview();
                 Status = renamed > 0
                     ? $"Renamed the frame to \"{win.AppliedTemplateName}\" and moved {renamed} card(s) to it. Other saved sets still use \"{win.RenamedFrom}\"."
@@ -2091,6 +2158,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = "Frame design failed: " + ex.Message;
         }
     }
+
+    /// <summary>After Frame Design: the frame to put on the selected card — only a new one (Save as new). A frame
+    /// changed or renamed in place leaves every card on the frame it had (a renamed frame's cards follow it by
+    /// name), including a card whose own frame isn't installed.</summary>
+    internal static string? FrameToPutOnCard(string opened, string? applied, string? renamedFrom)
+        => renamedFrom == null && applied != null && applied != opened ? applied : null;
 
     /// <summary>Points every card face/half and the set's house frame that use frame <paramref name="from"/> at
     /// <paramref name="to"/>. Returns how many references changed.</summary>
@@ -2113,12 +2186,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// card's own frame — even when that frame was just deleted, so the card is flagged instead of quietly moved.</param>
     private void RefreshTemplates(string? applyName = null)
     {
-        var wanted = _selectedCard?.TemplateName is { Length: > 0 } own ? own : _selectedTemplate?.Name;
+        var wanted = _selectedTemplate?.Name;
         Templates.Clear();
         foreach (var t in _templates.LoadAll()) Templates.Add(t);
-        _syncingTemplates = true;
-        try { SelectedTemplate = Templates.FirstOrDefault(t => t.Name == wanted) ?? Templates.FirstOrDefault(); }
-        finally { _syncingTemplates = false; }
+        if (PreviewSide != null) SyncFramePicker();   // the shown face's own frame, blank if it's gone
+        else
+        {
+            _syncingTemplates = true;
+            try { SelectedTemplate = Templates.FirstOrDefault(t => t.Name == wanted) ?? Templates.FirstOrDefault(); }
+            finally { _syncingTemplates = false; }
+        }
         if (applyName != null && Templates.FirstOrDefault(t => t.Name == applyName) is { } applied)
             SelectedTemplate = applied;   // a user action: re-frames the card as one undo step
         RefreshHalfFrameBox();
@@ -2237,8 +2314,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 ? " Your art and frame are unchanged."
                 : gotArt ? " Added matching art; your frame is unchanged."
                          : " No art found; your frame is unchanged.";
-            RefreshDfcControls();
-            RefreshMeldControls();
+            RefreshCardShape();
             Status = card.IsMeld
                 ? $"Loaded “{f.Name}” from Scryfall as a meld card: its back is the {card.MeldHalf} half of “{card.BackFace!.Name}”."
                   + (MeldPartner(card) == null && card.MeldWith.Length > 0 ? $" Use “Add meld partner” for “{card.MeldWith}”." : "") + artNote
@@ -2357,7 +2433,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (Busy) { Status = "Busy — wait for the current export to finish."; return; }
         if (_selectedCard == null) return;
-        var template = _selectedTemplate ?? Templates.FirstOrDefault();
+        var template = TemplateFor(_selectedCard);   // the front's own frame, whichever side is shown
         if (template == null) return;
         var dlg = new SaveFileDialog
         {
@@ -2734,6 +2810,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (SuppressClosePrompt) return;
+        // An export or print sheet still writing would be cut off mid-file when the app exits.
+        if (IsExporting && ConfirmDialog.Show(this, "Export still running",
+                "Cards are still being exported. Closing now stops it part-way, and the file being written may be "
+                + "left incomplete.", affirmative: "Keep exporting", negative: "Close anyway") != ConfirmResult.Negative)
+        {
+            e.Cancel = true;
+            return;
+        }
         if (!ConfirmDiscardIfDirty()) e.Cancel = true;
         else { _recoveryTimer.Stop(); ClearRecovery(); }
     }

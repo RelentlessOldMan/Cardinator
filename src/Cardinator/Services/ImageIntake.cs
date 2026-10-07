@@ -221,19 +221,19 @@ public static class ImageIntake
         using var resp = await Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, tok);
         resp.EnsureSuccessStatusCode();
 
-        // Accept only real images: an image/* content-type, or an unknown/binary type with an image URL.
-        // Reject e.g. text/html error pages even when the URL happens to end in ".png".
+        // Accept only real images: an image/* content-type, or an unknown/binary one ("application/octet-stream",
+        // S3's "binary/octet-stream", a share link's download) whose bytes turn out to be a picture — checked once
+        // it's downloaded. Reject e.g. text/html error pages even when the URL happens to end in ".png".
         var mediaType = resp.Content.Headers.ContentType?.MediaType;
         bool typeIsImage = mediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ?? false;
-        bool typeUnknown = string.IsNullOrEmpty(mediaType)
-                           || mediaType!.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase);
-        if (!(typeIsImage || (typeUnknown && LooksLikeImagePath(url))))
+        bool typeUnknown = string.IsNullOrEmpty(mediaType) || IsBinaryType(mediaType!);
+        if (!(typeIsImage || typeUnknown))
             throw new InvalidOperationException("That link didn't return an image file.");
 
         if (resp.Content.Headers.ContentLength is long declared && declared > MaxDownloadBytes)
             throw new InvalidOperationException("That image is too large to download.");
 
-        var ext = ExtensionFor(mediaType, url);
+        var ext = ExtensionFor(typeIsImage ? mediaType : null, url);
         var baseName = Path.GetFileNameWithoutExtension(url.Split('?')[0]);
         var path = Path.Combine(AppPaths.ArtCacheDir, UniqueFileName(baseName, ext));
 
@@ -257,6 +257,12 @@ public static class ImageIntake
                     await dst.WriteAsync(buffer.AsMemory(0, read), tok);
                 }
             }
+            if (!typeIsImage)
+            {
+                // A binary download is kept only if it's a picture, named for what it really is.
+                var sniffed = SniffImageExtension(tmp) ?? throw new InvalidOperationException("That link didn't return an image file.");
+                path = Path.ChangeExtension(path, sniffed);
+            }
             File.Move(tmp, path, overwrite: true);
         }
         catch
@@ -268,4 +274,25 @@ public static class ImageIntake
     }
 
     private static string ShortId() => Guid.NewGuid().ToString("N")[..8];
+
+    /// <summary>A content-type that says only "some bytes": application/octet-stream, binary/octet-stream and kin.</summary>
+    private static bool IsBinaryType(string mediaType)
+        => mediaType.EndsWith("/octet-stream", StringComparison.OrdinalIgnoreCase)
+           || mediaType.Equals("application/binary", StringComparison.OrdinalIgnoreCase)
+           || mediaType.Equals("application/x-binary", StringComparison.OrdinalIgnoreCase)
+           || mediaType.Equals("application/force-download", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The image extension a file's first bytes announce (PNG, JPEG, GIF, BMP, WebP), or null.</summary>
+    internal static string? SniffImageExtension(string file)
+    {
+        var h = new byte[12];
+        int n;
+        using (var fs = File.OpenRead(file)) n = fs.Read(h, 0, h.Length);
+        if (n >= 8 && h[0] == 0x89 && h[1] == 0x50 && h[2] == 0x4E && h[3] == 0x47) return ".png";
+        if (n >= 3 && h[0] == 0xFF && h[1] == 0xD8 && h[2] == 0xFF) return ".jpg";
+        if (n >= 6 && h[0] == 'G' && h[1] == 'I' && h[2] == 'F' && h[3] == '8') return ".gif";
+        if (n >= 2 && h[0] == 'B' && h[1] == 'M') return ".bmp";
+        if (n >= 12 && h[0] == 'R' && h[1] == 'I' && h[2] == 'F' && h[3] == 'F' && h[8] == 'W' && h[9] == 'E' && h[10] == 'B' && h[11] == 'P') return ".webp";
+        return null;
+    }
 }

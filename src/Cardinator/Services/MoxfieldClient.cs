@@ -69,7 +69,7 @@ public static class MoxfieldClient
                 cards.Add(new ImportedCard(new CardModel
                 {
                     Name = cardName, SetCode = set, CollectorNumber = cn, TemplateName = defaultTemplate,
-                }, NeedsLookup: true));
+                }, NeedsLookup: true, PrintingHint: set.Length > 0));
         return (name, cards);
     }
 
