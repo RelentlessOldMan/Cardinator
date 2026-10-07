@@ -10,6 +10,7 @@ on:
 jobs:
   build-test:
     runs-on: windows-latest   # WPF (net8.0-windows) needs Windows
+    timeout-minutes: 30       # a hung test (a modal dialog, a stuck download) fails instead of burning 6 hours
 
     steps:
       - uses: actions/checkout@v4
@@ -25,11 +26,11 @@ jobs:
       - name: Build (Release)
         run: dotnet build -c Release --no-restore
 
-      # Golden-image tests compare against baselines rendered on the author's machine; font
-      # anti-aliasing differs on the CI image, so they're a local-only regression guard. The
-      # remaining tests already render cards headlessly (STA threads), covering the pipeline.
+      # Every test, the golden images included: their baselines are rendered on a dev machine, and the CI
+      # image's renders match them within the tests' tolerance (checked 1.6.16), so a renderer regression
+      # fails here too. CARDINATOR_UPDATE_GOLDEN is refused on CI, so it can't re-baseline its way to green.
       - name: Test
-        run: dotnet test -c Release --no-build --filter "FullyQualifiedName!~GoldenTests"
+        run: dotnet test -c Release --no-build
 
   # Every version that reaches main gets a GitHub release: when the <Version> in Cardinator.csproj has
   # no v<version> release yet, publish the single self-contained exe and release it, with the pushed
@@ -39,6 +40,12 @@ jobs:
     needs: build-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: windows-latest
+    timeout-minutes: 30
+    # Two pushes close together must not both decide "v<version> is new" and race to create it: releases run one
+    # at a time, in order, and the second then finds the version released.
+    concurrency:
+      group: release
+      cancel-in-progress: false
     permissions:
       contents: write
     env:
@@ -69,6 +76,21 @@ jobs:
       - name: Publish the exe
         if: steps.ver.outputs.exists == 'false'
         run: dotnet publish src/Cardinator/Cardinator.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+
+      # The tests ran the Debug/Release build, not this single-file, self-contained exe. Run IT before anyone can
+      # download it: it must say the version being released and render a card (--selftest).
+      - name: Check the published exe
+        if: steps.ver.outputs.exists == 'false'
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $p = Start-Process -FilePath publish/Cardinator.exe -ArgumentList '--version' -Wait -PassThru -NoNewWindow -RedirectStandardOutput version.txt
+          $said = (Get-Content version.txt -Raw).Trim()
+          if ($p.ExitCode -ne 0 -or $said -ne "Cardinator $v") { throw "The published exe says '$said' (exit $($p.ExitCode)), not 'Cardinator $v'." }
+          $p = Start-Process -FilePath publish/Cardinator.exe -ArgumentList '--selftest' -Wait -PassThru -NoNewWindow -RedirectStandardOutput selftest.txt
+          Get-Content selftest.txt
+          if ($p.ExitCode -ne 0) { throw "The published exe failed its self-test (exit $($p.ExitCode))." }
+          Remove-Item -Recurse -Force publish/CardinatorData -ErrorAction SilentlyContinue
 
       - name: Create the release
         if: steps.ver.outputs.exists == 'false'

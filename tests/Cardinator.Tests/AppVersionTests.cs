@@ -17,6 +17,23 @@ public class AppVersionTests
         Assert.Equal($"{asm.Major}.{asm.Minor}.{asm.Build}", App.VersionNumber());
     }
 
+    /// <summary>The version the app shows is the csproj's &lt;Version&gt; — read from the csproj itself, so the test
+    /// isn't just comparing the assembly with itself (an AssemblyVersion override, or a stale build, would pass that).</summary>
+    [Fact]
+    public void VersionNumber_IsTheCsprojVersion()
+    {
+        var csproj = Path.Combine(RepoRoot(), "src", "Cardinator", "Cardinator.csproj");
+        var declared = System.Xml.Linq.XDocument.Load(csproj).Descendants("Version").Select(e => e.Value.Trim()).First(v => v.Length > 0);
+        Assert.Equal(declared, App.VersionNumber());
+    }
+
+    private static string RepoRoot()
+    {
+        for (var d = new DirectoryInfo(AppContext.BaseDirectory); d != null; d = d.Parent)
+            if (File.Exists(Path.Combine(d.FullName, "src", "Cardinator", "Cardinator.csproj"))) return d.FullName;
+        throw new DirectoryNotFoundException("repo root");
+    }
+
     [Fact]
     public void VersionNumber_IsThreePartNumeric()
         => Assert.Matches(@"^\d+\.\d+\.\d+$", App.VersionNumber());

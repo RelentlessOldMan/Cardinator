@@ -6,13 +6,18 @@ namespace Cardinator.Services;
 /// <summary>
 /// Extracts the bundled sample TEMPLATES (raster custom frames = frame.png + template.json) into
 /// CardinatorData/templates on first run, so they show up as built-in frames without any procedural
-/// drawing. Only writes files that aren't already present, so a user's tweaks (or deletions of the
-/// other files in a template) are preserved. Idempotent and cheap after the first call.
+/// drawing. A missing file is written; a file a newer version ships differently is refreshed — but only
+/// when it's still exactly what an earlier version wrote (recorded in <see cref="ManifestName"/>), so a frame
+/// the user changed is never overwritten. Idempotent and cheap after the first call.
 /// </summary>
 public static class SampleTemplates
 {
     // Resource names look like "Cardinator.Assets.templates.<slug>.frame.png" / ".template.json".
     private const string Marker = ".templates.";
+
+    /// <summary>In the templates folder: each extracted file (by its path there) and the hash of the bytes this app
+    /// last wrote to it. A file whose hash still matches was left alone by the user, so an upgrade may replace it.</summary>
+    internal const string ManifestName = ".bundled-frames.json";
     private static bool _done;
     private static readonly object _lock = new();
 
@@ -63,6 +68,9 @@ public static class SampleTemplates
             try
             {
                 var asm = Assembly.GetExecutingAssembly();
+                var manifestPath = System.IO.Path.Combine(AppPaths.TemplatesDir, ManifestName);
+                var manifest = ReadManifest(manifestPath);
+                bool manifestChanged = false;
                 foreach (var res in asm.GetManifestResourceNames())
                 {
                     int i = res.IndexOf(Marker, System.StringComparison.Ordinal);
@@ -79,23 +87,59 @@ public static class SampleTemplates
                     var dir = System.IO.Path.Combine(AppPaths.TemplatesDir, slug);
                     if (variant != null) dir = System.IO.Path.Combine(dir, variant);
                     var dest = System.IO.Path.Combine(dir, file);
-                    if (File.Exists(dest)) continue;
+                    var key = System.IO.Path.GetRelativePath(AppPaths.TemplatesDir, dest).Replace('\\', '/');
                     try
                     {
-                        using var stream = asm.GetManifestResourceStream(res);
-                        if (stream == null) continue;
-                        Directory.CreateDirectory(dir);
-                        IoUtil.AtomicWrite(dest, tmp =>
+                        byte[] bundled;
+                        using (var stream = asm.GetManifestResourceStream(res))
                         {
-                            using var fs = File.Create(tmp);
-                            stream.CopyTo(fs);
-                        });
+                            if (stream == null) continue;
+                            using var ms = new MemoryStream();
+                            stream.CopyTo(ms);
+                            bundled = ms.ToArray();
+                        }
+                        var bundledHash = Hash(bundled);
+                        if (File.Exists(dest))
+                        {
+                            var onDisk = Hash(File.ReadAllBytes(dest));
+                            if (onDisk == bundledHash)
+                            {
+                                // Up to date — remember it as ours, so a later version may refresh it.
+                                if (!manifest.TryGetValue(key, out var known) || known != onDisk) { manifest[key] = onDisk; manifestChanged = true; }
+                                continue;
+                            }
+                            // Different: refresh only what an earlier version wrote and nobody has touched since.
+                            if (!manifest.TryGetValue(key, out var written) || written != onDisk) continue;
+                        }
+                        Directory.CreateDirectory(dir);
+                        IoUtil.AtomicWriteBytes(dest, bundled);
+                        manifest[key] = bundledHash;
+                        manifestChanged = true;
                     }
                     catch { /* skip this one; a missing frame just won't appear in the list */ }
                 }
+                if (manifestChanged)
+                    try { IoUtil.AtomicWriteText(manifestPath, System.Text.Json.JsonSerializer.Serialize(manifest)); } catch { /* best effort */ }
             }
             catch { /* never let template extraction block startup */ }
             _done = true;
         }
     }
+
+    /// <summary>Forgets that extraction ran this session (tests run it again against changed files).</summary>
+    internal static void ResetForTests() { lock (_lock) _done = false; }
+
+    private static Dictionary<string, string> ReadManifest(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path))
+                       ?? new Dictionary<string, string>();
+        }
+        catch { /* unreadable: start over — files then only get recorded, never replaced, until it's rebuilt */ }
+        return new Dictionary<string, string>();
+    }
+
+    private static string Hash(byte[] bytes) => System.Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
 }

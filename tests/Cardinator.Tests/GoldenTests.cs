@@ -15,8 +15,10 @@ namespace Cardinator.Tests;
 ///
 /// The cards deliberately use NO mana/inline symbols so the output doesn't depend on which Scryfall
 /// SVGs happen to be cached. Baselines live next to this file under <c>golden/</c> and are created on
-/// first run. To intentionally re-baseline after a deliberate visual change, delete <c>golden/</c>
-/// (or set the env var <c>CARDINATOR_UPDATE_GOLDEN=1</c>) and run the tests again.
+/// first run. To intentionally re-baseline after a deliberate visual change, set the env var
+/// <c>CARDINATOR_UPDATE_GOLDEN=1</c> and run the tests: each baseline that really changed is rewritten and its test
+/// FAILS saying so (never a silent pass — a variable left set must not turn the checks off), then unset it and run
+/// again to see them pass. Re-baselining is refused on CI.
 /// </summary>
 public class GoldenTests
 {
@@ -89,8 +91,15 @@ public class GoldenTests
 
                 if (ShouldUpdate())
                 {
-                    SavePng(bmp, baseline);
-                    return;   // explicit re-baseline requested
+                    Assert.False(OnCi(), "CARDINATOR_UPDATE_GOLDEN is set on CI: baselines are only re-made on a dev machine.");
+                    bool changed = !File.Exists(baseline)
+                        || ToBgra32(LoadPng(baseline)) is var old && (old.Length != actual.Length || DiffFraction(old, actual) > MaxDiffFraction);
+                    if (changed)
+                    {
+                        SavePng(bmp, baseline);
+                        Assert.Fail($"Re-baselined \"{key}\" ({baseline}). Unset CARDINATOR_UPDATE_GOLDEN and run again to check against it.");
+                    }
+                    // Within tolerance: the old baseline stays, and is checked like any other run below.
                 }
                 // Never bootstrap silently: a renamed or mistyped key would create its own baseline and
                 // pass green having compared nothing at all.
@@ -104,7 +113,7 @@ public class GoldenTests
                 double frac = DiffFraction(expected, actual);
                 Assert.True(frac <= MaxDiffFraction,
                     $"'{key}' differs from golden baseline by {frac:P2} of pixels (limit {MaxDiffFraction:P0}). " +
-                    $"If this change is intended, delete tests/Cardinator.Tests/golden/{key}.png and re-run.");
+                    $"If this change is intended, re-run with CARDINATOR_UPDATE_GOLDEN=1 to re-baseline it.");
             }
             finally { File.Delete(artPath); }
         });
@@ -113,6 +122,10 @@ public class GoldenTests
 
     private static bool ShouldUpdate()
         => Environment.GetEnvironmentVariable("CARDINATOR_UPDATE_GOLDEN") == "1";
+
+    private static bool OnCi()
+        => Environment.GetEnvironmentVariable("CI") is "true" or "1"
+           || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
 
     private static string GoldenDir([CallerFilePath] string thisFile = "")
         => Path.Combine(Path.GetDirectoryName(thisFile)!, "golden");
