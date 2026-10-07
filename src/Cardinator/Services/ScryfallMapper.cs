@@ -26,14 +26,21 @@ public static class ScryfallMapper
         return MapElement(doc.RootElement);
     }
 
-    /// <summary>Maps the cards from a Scryfall /cards/search response (its <c>data[]</c> array).</summary>
+    /// <summary>Maps the cards from a Scryfall /cards/search response (its <c>data[]</c> array). A card with
+    /// several faces comes back as ONE card the same way a lookup makes it (<see cref="CardDetailsFill.AttachFaces"/>:
+    /// a double-faced card with its back face, a split/flip card with its other half).</summary>
     public static List<CardModel> MapSearch(string json)
     {
         using var doc = JsonDocument.Parse(json);
         var result = new List<CardModel>();
         if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
             foreach (var el in data.EnumerateArray())
-                result.AddRange(MapElement(el));
+            {
+                var faces = MapElement(el);
+                if (faces.Count == 0) continue;
+                result.Add(faces[0]);
+                result.AddRange(CardDetailsFill.AttachFaces(faces[0], faces));   // faces it couldn't absorb
+            }
         return result;
     }
 

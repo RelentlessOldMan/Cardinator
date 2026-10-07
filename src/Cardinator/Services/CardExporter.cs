@@ -42,6 +42,11 @@ public static class CardExporter
         return outBmp;
     }
 
+    /// <summary>Tags a rendered card with the DPI that prints it at real card size (2.5 in on its short side),
+    /// so a print tool doesn't fall back to 96 DPI and print it several times too big.</summary>
+    public static BitmapSource AtCardSize(BitmapSource card) =>
+        StampDpi(card, Math.Round(Math.Min(card.PixelWidth, card.PixelHeight) / 2.5, 2));
+
     private static void Save(BitmapEncoder encoder, string path)
     {
         // Encode to a temp file then move into place, so a mid-encode failure (disk full, decode fault)

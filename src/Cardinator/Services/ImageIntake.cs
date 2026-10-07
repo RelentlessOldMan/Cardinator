@@ -80,13 +80,7 @@ public static class ImageIntake
     /// art side by side).</summary>
     public static (string left, string right) SplitSideBySide(string path, double at = 0.5)
     {
-        var img = new BitmapImage();
-        img.BeginInit();
-        img.CacheOption = BitmapCacheOption.OnLoad;
-        img.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-        img.StreamSource = new MemoryStream(File.ReadAllBytes(path));
-        img.EndInit();
-        img.Freeze();
+        var img = LoadOriented(File.ReadAllBytes(path));
         int w = img.PixelWidth, h = img.PixelHeight, half = (int)Math.Round(w * Math.Clamp(at, 0.05, 0.95));
         if (half < 1 || h < 1) throw new InvalidOperationException("Image too small to split.");
         var name = Path.GetFileNameWithoutExtension(path);
@@ -94,6 +88,54 @@ public static class ImageIntake
         var right = new CroppedBitmap(img, new System.Windows.Int32Rect(half, 0, w - half, h));
         left.Freeze(); right.Freeze();
         return (SaveBitmap(left, name + "-left"), SaveBitmap(right, name + "-right"));
+    }
+
+    /// <summary>Decodes an image (frozen, file not held) turned the way it's meant to be seen: phone photos are
+    /// stored sideways with an EXIF "orientation" tag that WPF's decoder ignores, so it's applied here.</summary>
+    public static BitmapSource LoadOriented(byte[] bytes)
+    {
+        var img = new BitmapImage();
+        img.BeginInit();
+        img.CacheOption = BitmapCacheOption.OnLoad;
+        img.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+        img.StreamSource = new MemoryStream(bytes);
+        img.EndInit();
+        img.Freeze();
+        return Orient(img, ReadOrientation(bytes));
+    }
+
+    /// <summary>The EXIF orientation (1–8) of an encoded image; 1 (as stored) when it has none.</summary>
+    public static int ReadOrientation(byte[] bytes)
+    {
+        try
+        {
+            var frame = BitmapFrame.Create(new MemoryStream(bytes),
+                BitmapCreateOptions.DelayCreation | BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.None);
+            if (frame.Metadata is BitmapMetadata md)
+                foreach (var q in new[] { "/app1/ifd/{ushort=274}", "/ifd/{ushort=274}" })
+                    if (md.ContainsQuery(q) && md.GetQuery(q) is ushort o && o is >= 1 and <= 8) return o;
+        }
+        catch { /* formats without EXIF metadata (PNG, GIF, BMP…) */ }
+        return 1;
+    }
+
+    /// <summary>Turns/mirrors a stored image by its EXIF orientation so it displays upright.</summary>
+    public static BitmapSource Orient(BitmapSource img, int orientation)
+    {
+        // (clockwise turn, then mirror left-right) that undoes each stored orientation
+        var (turn, mirror) = orientation switch
+        {
+            2 => (0, true), 3 => (180, false), 4 => (180, true),
+            5 => (90, true), 6 => (90, false), 7 => (270, true), 8 => (270, false),
+            _ => (0, false),
+        };
+        if (turn == 0 && !mirror) return img;
+        var t = new TransformGroup();
+        if (turn != 0) t.Children.Add(new RotateTransform(turn));
+        if (mirror) t.Children.Add(new ScaleTransform(-1, 1));
+        var tb = new TransformedBitmap(img, t);
+        tb.Freeze();
+        return tb;
     }
 
     /// <summary>Saves a bitmap into the art cache as a PNG and returns its full path.</summary>

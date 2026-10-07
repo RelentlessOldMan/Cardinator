@@ -113,7 +113,7 @@ public static class SelfTest
     {
         try
         {
-            var content = File.ReadAllText(inputPath);
+            var content = ImportService.ReadListFile(inputPath);
             var templates = new TemplateService().LoadAll();
             var defaultTemplate = templates[0].Name;
 
@@ -162,7 +162,7 @@ public static class SelfTest
     {
         try
         {
-            var content = File.ReadAllText(inputPath);
+            var content = ImportService.ReadListFile(inputPath);
             var templates = new TemplateService().LoadAll();
             var cards = ImportService.Parse(content, artDir, templates[0].Name);
             Console.WriteLine($"Parsed {cards.Count} card(s).");
@@ -437,7 +437,7 @@ public static class SelfTest
                 if (string.IsNullOrEmpty(c.TemplateName)) c.TemplateName = def;
 
             Console.WriteLine($"Downloading art for {cards.Count} card(s)…");
-            foreach (var c in cards)
+            foreach (var c in cards.SelectMany(c => new[] { c, c.BackFace }).OfType<CardModel>())   // DFC backs too
             {
                 if (string.IsNullOrWhiteSpace(c.ArtUrl)) continue;
                 try { c.ArtPath = Task.Run(() => ImageIntake.DownloadAsync(c.ArtUrl)).GetAwaiter().GetResult(); }

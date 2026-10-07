@@ -914,7 +914,7 @@ public static class FrameGenerator
         }
 
         // 3) Nameplates + text box — thick 3D beveled panels with curved ends (title + type).
-        foreach (var reg in new[] { spec.TitleBar, spec.TypeBar, spec.TextBox })
+        foreach (var reg in new[] { spec.TitleBar, spec.TypeBar, spec.EffectiveTextBox })
         {
             var rect = ToRect(reg);
             if (rect.Height < 1) continue;

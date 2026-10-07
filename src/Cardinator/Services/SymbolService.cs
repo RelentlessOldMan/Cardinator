@@ -91,11 +91,13 @@ public sealed class SymbolService
                 if (inner.Length == 0 || !map.TryGetValue(inner, out var uri)) continue;
 
                 var svgPath = Path.Combine(AppPaths.SymbolsDir, SafeFile(inner) + ".svg");
-                if (File.Exists(svgPath)) continue;
+                if (File.Exists(svgPath) && LooksLikeSvg(File.ReadAllBytes(svgPath))) continue;   // a bad one is fetched again
 
                 try
                 {
                     var bytes = await Http.GetByteArrayAsync(uri, ct);
+                    // A captive portal or error page answers 200 with HTML — never cache that as the symbol.
+                    if (!LooksLikeSvg(bytes)) continue;
                     IoUtil.AtomicWriteBytes(svgPath, bytes);   // avoid a torn .svg if two primes race
                     changed = true;
                     await Task.Delay(60, ct);   // be polite to Scryfall's CDN
@@ -333,9 +335,16 @@ public sealed class SymbolService
         return s;
     }
 
-    private static string SafeFile(string inner)
+    /// <summary>The cache file name for a symbol: "R/W" → "R_W" (as always), and any other character by its code
+    /// ("½" → "u00BD", "∞" → "u221E") — they all used to become "_", so those symbols shared one file.</summary>
+    internal static string SafeFile(string inner) => string.Concat(inner.Select(c =>
+        char.IsAsciiLetterOrDigit(c) ? c.ToString() : c == '/' ? "_" : $"u{(int)c:X4}"));
+
+    /// <summary>True when downloaded bytes are an SVG document (not an HTML error or portal page).</summary>
+    internal static bool LooksLikeSvg(byte[] bytes)
     {
-        var chars = inner.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray();
-        return new string(chars);
+        var head = System.Text.Encoding.UTF8.GetString(bytes, 0, Math.Min(bytes.Length, 1024));
+        return head.Contains("<svg", StringComparison.OrdinalIgnoreCase)
+               && !head.Contains("<html", StringComparison.OrdinalIgnoreCase);
     }
 }
