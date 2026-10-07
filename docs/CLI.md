@@ -8,6 +8,16 @@ All output paths are created if they don't exist. Exit code is `0` on success, n
 
 ---
 
+## `--editframe <templateDir> [card.json]`
+
+Opens **just the frame layout editor** (a window, not headless) on one template folder (`template.json` +
+`frame.png`): drag and resize the text regions, tweak fonts, and **Apply** to save in place. Pass a card
+JSON to preview your real card in it instead of the sample.
+
+```powershell
+Cardinator.exe --editframe "CardinatorData\templates\my-frame" mycard.json
+```
+
 ## `--help`, `-h` / `--version`, `-v`
 
 ```powershell
@@ -125,10 +135,11 @@ Cardinator.exe --newtemplate "Showcase" https://example.com/frame.png fullart
 Your frame image should be a **transparent PNG** where the art window is see-through. Cardinator
 writes a starter `template.json` next to it with default regions — tune those to match your frame.
 
-## `--frames <outDir> [nosym]`
+## `--frames <outDir> [nosym] [builtin]`
 
 Renders one sample card on **every installed frame** — a style showcase (built-ins plus any you've
-imported). Add `nosym` to use the app's own generic pips instead of fetching Scryfall symbols.
+imported). Add `nosym` to use the app's own generic pips instead of fetching Scryfall symbols, and
+`builtin` to render only the frames that ship with the app (what the docs use).
 
 ```powershell
 Cardinator.exe --frames out

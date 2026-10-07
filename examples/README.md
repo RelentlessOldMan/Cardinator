@@ -13,10 +13,12 @@ before trying your own.
 | [**02 · Custom set**](02-custom-set/) | Design your own set from a spreadsheet | a CSV of invented cards + art | every card rendered + a print sheet |
 | [**03 · Full-art cards**](03-full-art/) | Text directly on the artwork | a CSV using the *Full Art* frame | full-art cards |
 | [**04 · Bring your own frame**](04-custom-frame/) | Use a frame you designed yourself | a transparent frame PNG | a new template + a card on it |
-| [**05 · Tokens & emblems**](05-tokens-emblems/) | The tokens a set makes, printed with it | a CSV with "Token …" / "Emblem …" type lines | nine tokens with tall art (a text box only if they have rules) on one print sheet |
+| [**05 · Tokens & emblems**](05-tokens-emblems/) | The tokens a set makes, printed with it | a CSV with "Token …" / "Emblem …" type lines | eight tokens and an emblem with tall art (a text box only if they have rules) on one print sheet |
 | [**06 · Printing**](06-printing/) | Print at home or via a print service | your finished cards | a card back for double-sided + a bleed/300-DPI export |
 
-Single card in a hurry? [`card.json`](card.json) renders with `--render` (see below).
+Single card in a hurry? [`card.json`](card.json) renders with
+`Cardinator.exe --render examples/card.json out.png` (see the [CLI reference](../docs/CLI.md)); point its
+`artPath` at an image to fill the art window.
 
 **Bonus — a whole set from a Scryfall search** (art comes from Scryfall, so outputs aren't checked
 in here): `Cardinator.exe --search "t:dragon c:r" out sheet max=9` fetches matching cards *with
@@ -24,7 +26,7 @@ their art* and lays them out on a print sheet.
 
 ## How to run any example
 
-**In the app (easiest):** click **Import list / CSV…** and pick the example's `.csv`. Art paths in
+**In the app (easiest):** click **Import file…** and pick the example's `.csv`. Art paths in
 the CSV resolve next to the file, so the art loads automatically. Then **Export all…** or
 **Print sheet…**.
 

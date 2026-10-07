@@ -99,8 +99,8 @@ dotnet publish src/Cardinator/Cardinator.csproj -c Release -r win-x64 `
 
 ## Quick start
 
-1. **Type a card name** and click **Search** (or **Ctrl+L**) to auto-fill from Scryfall — or type
-   the fields yourself for an original card.
+1. **Type a card name** and press **Ctrl+L** to auto-fill from Scryfall (or use **Search** in
+   **Edit details…**) — or type the fields yourself for an original card.
 2. **Pick a frame** from the dropdown.
 3. **Add art** — **Change art…**, **Paste** (image / file / URL), or **drag an image onto the
    window**. Drag the preview to pan, scroll to zoom.
@@ -138,7 +138,7 @@ output are all checked in.** Click a thumbnail for that example's guide.
 </tr>
 <tr>
 <td align="center" width="33%"><a href="examples/04-custom-frame/"><img src="examples/04-custom-frame/output/warden.png" width="185" alt="Custom frame"></a><br/><a href="examples/04-custom-frame/"><b>Custom frame</b></a><br/><sub>bring your own frame PNG</sub></td>
-<td align="center" width="33%"><a href="examples/05-tokens-emblems/"><img src="examples/05-tokens-emblems/output/002_angel.png" width="185" alt="Tokens and emblems"></a><br/><a href="examples/05-tokens-emblems/"><b>Tokens</b></a><br/><sub>the deck's extras</sub></td>
+<td align="center" width="33%"><a href="examples/05-tokens-emblems/"><img src="examples/05-tokens-emblems/output/001_elf-druid.png" width="185" alt="Tokens and emblems"></a><br/><a href="examples/05-tokens-emblems/"><b>Tokens</b></a><br/><sub>the deck's extras</sub></td>
 <td align="center" width="33%"><a href="examples/06-printing/"><img src="examples/06-printing/output/card-back.png" width="185" alt="Printing"></a><br/><a href="examples/06-printing/"><b>Printing</b></a><br/><sub>card back + bleed export</sub></td>
 </tr>
 </table>
@@ -156,7 +156,8 @@ output are all checked in.** Click a thumbnail for that example's guide.
 | **[Making your own frames](docs/TEMPLATES.md)** | The `template.json` format and how to add/share templates |
 | **[Command-line reference](docs/CLI.md)** | Headless modes for scripting/batch/verification |
 | **[Developing](docs/DEVELOPING.md)** | Build, test, architecture, and how rendering works |
-| **[Examples](examples/README.md)** | Ready-to-run worked examples — custom set, real-deck proxies, full-art, custom frame — with inputs **and** outputs checked in |
+| **[Gallery](docs/GALLERY.md)** | Sample cards across the frame styles |
+| **[Examples](examples/README.md)** | Ready-to-run worked examples — real-deck proxies, custom set, full-art, custom frame, tokens, printing — with inputs **and** outputs checked in |
 
 ---
 
@@ -213,9 +214,11 @@ auto-close). Fork it and make it your own.
 
 Cardinator is a fan-made tool and is **not affiliated with, endorsed, or sponsored by Wizards of
 the Coast.** "Magic: The Gathering," the mana symbols, and card names / rules text / artwork are
-© Wizards of the Coast and the respective artists. Cardinator ships **none** of that — the frames
-and card back are drawn by the app, and mana symbols, card data and art are fetched at runtime from
-the [Scryfall API](https://scryfall.com/docs/api) (used per their guidelines). It's meant for
+© Wizards of the Coast and the respective artists. The app itself contains **none** of that — the
+frames and card back are drawn by the app, and mana symbols, card data and art are fetched at runtime
+from the [Scryfall API](https://scryfall.com/docs/api) (used per their guidelines). Some example and
+documentation renders show real card names, rules text and Scryfall's mana symbols (never Wizards'
+artwork) to illustrate that fan use. It's meant for
 **personal / fan use** under Wizards' Fan Content Policy: don't sell what you make, and you're
 responsible for any art you import.
 

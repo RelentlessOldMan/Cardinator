@@ -37,7 +37,10 @@ public partial class SetDefaultsWindow : Window
         RarityBox.SelectedItem = string.IsNullOrWhiteSpace(current.Rarity) ? NoRarity : current.Rarity;
         if (RarityBox.SelectedItem == null) RarityBox.SelectedIndex = 0;
 
-        FrameBox.ItemsSource = new[] { NoFrame }.Concat(templateNames);
+        // A house frame that isn't installed here stays listed, so OK without touching it doesn't clear it.
+        var frames = templateNames.ToList();
+        if (!string.IsNullOrWhiteSpace(currentFrame) && !frames.Contains(currentFrame)) frames.Add(currentFrame);
+        FrameBox.ItemsSource = new[] { NoFrame }.Concat(frames);
         FrameBox.SelectedItem = string.IsNullOrWhiteSpace(currentFrame) ? NoFrame : currentFrame;
         if (FrameBox.SelectedItem == null) FrameBox.SelectedIndex = 0;
     }

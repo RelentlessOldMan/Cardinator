@@ -470,12 +470,16 @@ public static class SelfTest
     }
 
     /// <summary>Renders one sample card on every built-in frame (for a docs showcase). Returns 0.</summary>
-    public static int RunFrames(string outDir, bool noSym)
+    public static int RunFrames(string outDir, bool noSym, bool builtInOnly = false)
     {
         try
         {
             Directory.CreateDirectory(outDir);
             var templates = new TemplateService().LoadAll();
+            // builtin: the docs showcase must not pick up whatever frames this machine has imported.
+            if (builtInOnly)
+                templates = templates.Where(t => TemplateService.IsBuiltIn(
+                    Path.GetFileName(Path.GetDirectoryName(t.FramePath) ?? "") ?? "")).ToList();
             var symbols = new SymbolService();
             var card = new Cardinator.Models.CardModel
             {
@@ -483,7 +487,7 @@ public static class SelfTest
                 RulesText = "First strike, vigilance\n{T}: Draw a card, then discard a card.",
                 FlavorText = "One card, every frame.", Power = "3", Toughness = "3",
                 SetCode = "CST", CollectorNumber = "1", Rarity = "M", Artist = "Cardinator Demo",
-                ArtPath = "examples/01-custom-set/art/aria.png",
+                ArtPath = "examples/02-custom-set/art/aria.png",   // relative to the repo root (regen-docs runs there)
             };
             if (!noSym)
                 Task.Run(() => symbols.PrimeAsync(ManaText.SymbolTokens(card.ManaCost, card.RulesText)))

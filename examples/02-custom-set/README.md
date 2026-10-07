@@ -10,7 +10,7 @@ planeswalker) on different frames — all original, all rendered from one CSV.
 ```
 02-custom-set/
   cards.csv          <- the set: one row per card
-  art/               <- our our sample artwork (swap in your own)
+  art/               <- our sample artwork (swap in your own)
   output/            <- the rendered result (checked in)
 ```
 
@@ -28,6 +28,7 @@ Sunspire Edict,art/sunspire.png,{1}{W},Instant,Destroy target attacking or block
 "Chronoshaper, Timeless",art/chrono.png,{3}{U},Legendary Planeswalker — Chronoshaper,"+1: Draw a card.\n-2: Tap target permanent.\n-6: Take an extra turn after this one.",,,4,Planeswalker,M,Cardinator Demo
 ```
 
+Every column is listed in the [User Guide's CSV column reference](../../docs/USER_GUIDE.md#csv-columns).
 Optional extra columns: `defense` and `orientation` (Battles / sideways cards), and for a **flip card** the
 upside-down half's `flip_name`, `flip_type`, `flip_rules` and `flip_pt` (any of them makes the row a flip card;
 the half shares the row's art and set details), and for a **split card** the second half's `split_name`,
@@ -49,14 +50,14 @@ Soldier,art/soldier.png,,Token Creature — Soldier,,,1/1,,Gold Multicolor,C,Car
 
 ## In the app
 
-Import list / CSV… → `cards.csv` loads the whole set. Here it is with the planeswalker selected —
+**Import file…** → `cards.csv` loads the whole set. Here it is with the planeswalker selected —
 note the loyalty box and ability badges laid out automatically:
 
 ![Cardinator with the custom set loaded](output/app-set.png)
 
 ## Run it
 
-**App:** Import list / CSV… → `cards.csv`, then **Print sheet…** / **Export all…**
+**App:** **Import file…** → `cards.csv`, then **Print sheet…** / **Export all…**
 
 **Command line** (from the repo root):
 

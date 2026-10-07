@@ -21,6 +21,7 @@ language** — one shared frame, or a few frames by faction/color.
 
 - Today these live as **per-card fields** plus **project defaults**; there is no single "set manifest"
   object. **Set fields on all…** is how you stamp the shared identity across the set.
+- ✅ *Resolved in 1.1.1: **Set defaults…** (`SetProfile`, saved in the project) — the note below is the original finding.*
 - ⚠️ **Gap:** there's no set-level home for "this set's code/symbol/numbering/frame." It's reconstructed
   by applying fields to all cards. Re-opening a set and remembering "what was the house style?" relies on
   inspecting a card. A lightweight **set-profile** (saved in the project file) would make identity
@@ -30,7 +31,7 @@ language** — one shared frame, or a few frames by faction/color.
 Entry paths, often mixed within one set:
 - **Blank card → fill by hand** (original designs).
 - **Recreate real cards** (name + Ctrl+L, or details → Fill from Scryfall).
-- **Import list / CSV** (names, or name+art+frame columns).
+- **Import file…** (names, or name+art+frame columns).
 - **Scryfall search import** (e.g. `t:dragon c:r`) to seed a themed batch with real art.
 
 Review: ✅ The multiple on-ramps are a strength. ⚠️ Mixing them means **inconsistent state** mid-build
@@ -38,7 +39,7 @@ Review: ✅ The multiple on-ramps are a strength. ⚠️ Mixing them means **inc
 so the intended rhythm is **build loosely → normalize in a pass**, which should be made obvious in docs.
 
 ### W3 — Art direction across a set
-- Per-card art (Change art / paste / drag), or **Match art folder…** to bind a folder of images by
+- Per-card art (Change art / paste / drag), or **Add art from folder…** to bind a folder of images by
   filename in one shot.
 - On **Save**, all art is copied into the set's `art/` folder and stored as **relative paths**, so the
   set is self-contained and portable.
@@ -54,7 +55,7 @@ The step that turns a pile of cards into a *set*:
 - **Number cards** — assign `001/N …` in list order.
 - **CHECKS** — per-card validation (missing art, bad symbol, overlap, **duplicate collector numbers**).
 
-Review: ✅ These three are exactly the right tools. ⚠️ CHECKS is **per selected card**; there's no
+Review: ✅ These three are exactly the right tools. (✅ *Whole-set report since added: **Check all cards** / `SetValidator`.*) ⚠️ CHECKS is **per selected card**; there's no
 **"validate the whole set"** report (e.g. list every card with an issue). For a 100-card set that's the
 difference between confidence and clicking through 100 cards. 🐞 Verify **Number cards** recomputes `/N`
 correctly after adds/deletes (the denominator must track the current count).
@@ -130,14 +131,14 @@ folder, "duplicate set") would round out the lifecycle.
 - **C1 Pick (per-card) / C2 Design+Apply / C3 Design→Save as new / C4 Edit built-in (guarded) / C5 Import
   PNG·.cardframe·.zip·URL / C6 Export bundle / C7 Delete (user only).**
 - ✅ C3/C4/C7 close this pass's gaps (save-as-new doesn't mutate original; delete protects built-ins).
-- ⚠️ C5: a **user-made zip with multiple template folders imports only the first** (one template per
+- ✅ *Fixed in 1.6.8 (multi-frame zip import).* ⚠️ C5: a **user-made zip with multiple template folders imports only the first** (one template per
   file). Fine for shipped bundles; note it.
 
 ### D. Sets / batch
-- **D1 Import list/CSV / D2 Scryfall search import / D3 Match art folder / D4 Look up missing / D5 Number
+- **D1 Import file / D2 Scryfall search import / D3 Add art from folder / D4 Fill blanks from Scryfall / D5 Number
   cards / D6 Set fields on all / D7 reorder·duplicate / D8 Export all·Print sheet (+backs).**
 - ✅ Mixed frames + bulk re-frame both work; D6 "blank = unchanged" is right.
-- 🐞 **D8 Export all** — confirm it defaults to the set's `out/` (Export PNG & Print sheet do now).
+- ✅ *Fixed in 1.6.9.* 🐞 **D8 Export all** — confirm it defaults to the set's `out/` (Export PNG & Print sheet do now).
 
 ### E. Project / set-folder lifecycle
 - **E1 First Save → set folder** (project + `art/` + `out/`, art copied, relative paths). **E2 Move/zip,
@@ -153,7 +154,7 @@ folder, "duplicate set") would round out the lifecycle.
 - **G1 Missing art file** → dark backing + CHECKS "art-blank" (detection restored this pass).
 - **G2 Offline Scryfall** → graceful. **G3 Bad/HTML image URL** → rejected. **G4 Empty project / delete
   last card.** **G5 Unsaved-changes guard** on New/Open/close.
-- ⚠️ **G6 Double-faced card via details search fills only the FRONT** (the main-page Ctrl+L path adds the
+- ✅ *Fixed in 1.6.8.* ⚠️ **G6 Double-faced card via details search fills only the FRONT** (the main-page Ctrl+L path adds the
   back as a second card; details search does not). Decide if that asymmetry is intended.
 
 ---
@@ -263,6 +264,7 @@ These drive the fix backlog.
   - ✅ **1.6.3 — Aftermath (done).** Scryfall lists *Destined // Lead* as `layout: split` too, so it arrives as a split card; `CardModel.IsAftermath` = a split card whose other half's rules START with the Aftermath keyword (no new data, no new UI — parsed like the other special layouts). The split geometry was generalised: each half is a `SplitPart` (its card, its template, and ONE `ToCard` matrix — scale + quarter turn + offset — used by drawing, hit-testing and drag-to-pan alike). Aftermath: the first half is drawn upright across the top with the frame's wide layout (`ResolveFor` with Orientation=landscape → derived for drawn frames, the shipped landscape version for PCC/Jacob's frames, the plain picture otherwise); the other half is the normal card turned a quarter COUNTER-clockwise below it (title along the right edge, like the real card); credits along the bottom. Read sideways turns the preview counter-clockwise for it. Scryfall's aftermath art crop is cut at 61.3% (wide picture | narrow picture, measured on Destined // Lead). `SplitCardTests` gains geometry/orientation/hit-test/render/art-cut tests (+1 window test); `--qa` gains two aftermath cases.
 - ✅ **Split follow-ups (done, 1.6.9):** a split or aftermath card's other half can have a frame of its own: `CardModel.HalfTemplateName` (on the card, blank = the card's frame; the half's own `TemplateName` only ever recorded what it was made with, so older sets look unchanged), picked in **Other half's frame** under FLIP / SPLIT CARD (window test, undoable). `TemplateService.Named` looks frames up by name (installed frames, replaced on each `LoadAll`, then folders loaded with `LoadFrom`); `CardRenderer.HalfTemplate` → `SplitGeometry` gives each half its own scale and shape, so a frame of another shape fits its slot. Travels with **Share set + frames** and counts for the delete-frame warning (`TemplateService.FramesUsed`); CHECKS `half-frame-missing`; the other half's checks use its own frame; CSV `split_frame`. The Fuse / Room bar is each half's colour at its end (`SplitBarFill`, from the half's cost, lightened, blended at the gutter). Also fixed: plain rules text on a frame with a medallion set into the text box (PCC, most of Jacob's) now stops above it instead of running under it (`DrawTextBox` ornament; short text unchanged); the medallion cache is keyed by frame image. `SplitFramesTests` (8); `--qa` gains two cases (48 renders, 0 errors). Review pass: in `--rendercards templates=<dir>` a folder's frame now wins for the other half too, as it already did for the card (`TemplateService.Named` checks folder frames first).
 - ✅ **Token example (1.6.11):** `examples/05-tokens-emblems` redone for the token layout: nine tokens (vanilla, with rules, an emblem, one on a picture frame) across nine frames with original art made for it, rendered with `--batch`, plus the 3×3 print sheet; the User Guide's token picture comes from it.
+- ✅ **Independent review, data-safety batch (1.6.12):** six read-only reviewers (rendering, data safety, UI, network, docs, tests/CI); every finding below was checked in the code, and each fix has a test that fails without it. **Backups:** an unchanged file adds no copy, and pruning keeps the first backup of each of the last 30 days on top of the 15 newest (`ProjectBackup.Prune`), so Ctrl+S after a mistake can't flush the good copies. **Unsaved ●:** Set defaults / Add art from folder mark set-level changes (`_metaDirty`) that the card history can't see; a restored or directly opened backup has no history entry matching disk (`MarkUnsavedAgainstDisk`); Save commits the pending undo step first. **Opening:** a card/frame `.json` is refused (`NotAProjectException`, no `.corrupt-backup`); a file in `backups/` saves over its set file (`ProjectBackup.ProjectFileForBackup`). **House frame** is saved as loaded, even when not installed here (and Set defaults keeps listing it). **Frame Design rename in place** moves every card face/half and the house frame to the new name (`RenameFrameReferences`). Docs: wrong button names (Import file…, Fill blanks from Scryfall, Add art from folder…, Duplicate, Scryfall search…, Print sheet's Front + back), README's broken token image and legal wording, a CSV column reference in the User Guide, `--editframe` in CLI.md, `--frames builtin` (the frames page had empty art windows: a stale sample-art path), TEST_PLAN's stale gaps marked resolved.
 - ✅ **Tokens and emblems (done, 1.6.10):** `CardModel.IsToken` — "Token" or "Emblem" among the types before the dash (Scryfall's own type lines, so lookups, `t:token` search imports and CSV rows need nothing new). `TemplateService.ResolveFor` gives a token its frame's token layout (`TemplateSpec.ToToken`, `CardLayout` "token"): title, P/T box and credits stay put, the art grows down, the text box keeps its bottom edge and is sized to the text (`TokenTextLines`: a rough line count, at least 3 lines, at most the frame's box); a vanilla token has no text box (the generator skips zero-height panels, `EffectiveTextBox` doesn't stretch it, the P/T box sits under the type line). Drawn frames are generated for it (cached in `cache/token`); picture frames are rearranged (`RearrangeForToken`: the art's middle stretched, rows cut from the text box above its middle, so title, borders and medallion keep their pixels — no visible seam on the textured ones); the medallion found on the frame is reused (`CardRenderer.KnowOrnament`) and the box made taller for it; a picture frame's "token/" variant folder is used if it ships one; CHECKS `no-token-frame` only if that fails. The name is centred when there's no cost. **Add token** (CARDS) starts a vanilla 1/1 Soldier. `TokenTests` (17) + a window test; `--qa` gains six token cases (55 renders, 0 errors).
 - ✅ **A real 1.6.8 set as a fixture (1.6.9):** `fixtures/layouts-1.6.8/` is a set with every layout (the QA cards, a double-faced card, a meld pair, art in `art\`) saved by 1.6.8's own `ProjectWriter` from a worktree of commit 8b44477. `LegacyFixtureTests`: it loads every layout; a load + save keeps every value it wrote at every depth (only new fields may appear; checked to fail when a field is dropped); every card renders and its split cards keep the card's frame. Never regenerate it; add a new fixture for a new format instead.
 - ✅ **Station and Case (done, 1.6.8):** both reuse the level up bands (`CardModel.HasBands`; `LevelBand.Kind` picks the badge). Station (`IsStation`: a "7+ | …" line): `ParseStation` — prelude band, then one band per threshold holding every line after it; the P/T box on the band named by "artifact creature at N+" (else the last), never the base band; the badge is the threshold. Case (`IsCase`: a "Solved —" line): `ParseCase` — opening ability, To solve band (magnifying glass), Solved band (check mark), wording kept. `CardRenderer.BottomOrnament` finds a medallion set into the text box's bottom edge from the frame image (PCC frames and most of Jacob's; none of the drawn frames), and the bottom band's text stays above it. CHECKS: `station-no-thresholds`. `StationCaseTests` (11); `--qa` gains a Station and a Case (medallion frame).

@@ -31,7 +31,7 @@ Eidolon of the Great Revel,art/eidolon.png,Crimson Red
 
 ## Do it in the app
 
-1. **Import list / CSV…** → pick `deck.csv`. Cardinator adds all six cards and looks each one up on
+1. **Import file…** → pick `deck.csv`. Cardinator adds all six cards and looks each one up on
    Scryfall, filling in the real text and mana symbols. Your art (from the `art/` paths) loads with
    them. Here's the app with the deck loaded and *Lightning Bolt* selected — real text from Scryfall,
    your custom art in the preview:

@@ -42,10 +42,14 @@ public partial class ConfirmDialog : Window
         Buttons.Children.Add(button);
     }
 
+    /// <summary>Tests only: answers every prompt (given its title) instead of showing a modal window.</summary>
+    internal static Func<string, ConfirmResult>? TestAnswer;
+
     /// <summary>Shows the dialog and returns which button was chosen (Cancel if dismissed via Esc/close).</summary>
     public static ConfirmResult Show(Window owner, string title, string message,
         string affirmative, string? negative = null, string? cancel = null)
     {
+        if (TestAnswer != null) return TestAnswer(title);
         var dlg = new ConfirmDialog(title, message, affirmative, negative, cancel) { Owner = owner };
         dlg.ShowDialog();
         return dlg._result;

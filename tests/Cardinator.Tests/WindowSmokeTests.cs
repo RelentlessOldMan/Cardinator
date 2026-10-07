@@ -594,6 +594,159 @@ public class WindowSmokeTests
             finally { try { Directory.Delete(root, true); } catch { } }
         });
 
+    [Fact]
+    public void MainWindow_SetDefaults_StayUnsaved_UntilSaved()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            main.Dirty = false;
+            main.ApplySetDefaults(new SetProfile { SetCode = "ABC" }, "", applyToExisting: false);
+            Assert.True(main.Dirty, "changing the set defaults didn't mark the set unsaved");
+            main.CommitHistory();   // any later no-op commit (a cancelled dialog, an undo flush)…
+            main.Undo();
+            Assert.True(main.Dirty, "the set-defaults change was forgotten by a no-op commit — closing wouldn't prompt");
+        });
+
+    [Fact]
+    public void MainWindow_ABackupOpenedDirectly_StaysUnsaved_AndSavesOverItsSetFile_WithItsArt()
+        => OnAppThread(() =>
+        {
+            var root = Path.Combine(Path.GetTempPath(), "cardinator-bak-open-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var setFile = Path.Combine(root, "MySet", "MySet.cardinator");
+                var art = Path.Combine(root, "MySet", "art", "pic.png");
+                Directory.CreateDirectory(Path.GetDirectoryName(art)!);
+                var bmp = System.Windows.Media.Imaging.BitmapSource.Create(4, 4, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, new byte[64], 16);
+                var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+                using (var fs = File.Create(art)) enc.Save(fs);
+
+                ProjectWriter.Write(setFile, new[] { new CardModel { Name = "Good", ArtPath = art } }, "MySet", "", "", new SetProfile());
+                ProjectWriter.Write(setFile, new[] { new CardModel { Name = "Broken", ArtPath = art } }, "MySet", "", "", new SetProfile(), "20261001-120000");
+                var backup = Path.Combine(root, "MySet", "backups", "MySet.20261001-120000.cardinator");
+                Assert.True(File.Exists(backup));
+
+                var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+                Invoke(main, "LoadProjectFile", backup);   // File > Open on the backup, not Restore
+                var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                Assert.Equal(setFile, (string)typeof(Cardinator.MainWindow).GetField("_projectPath", flags)!.GetValue(main)!);
+                Assert.True(main.Dirty);
+                main.CommitHistory();   // e.g. Edit details → Cancel
+                Assert.True(main.Dirty, "the opened backup lost its ● — closing would keep the broken file on disk");
+
+                Invoke(main, "SaveProject", false);
+                Assert.False(main.Dirty);
+                var saved = CardProject.Load(setFile);
+                Assert.Equal("Good", saved.Cards[0].Name);
+                CardProject.ResolveArt(saved.Cards[0], Path.GetDirectoryName(setFile)!);
+                Assert.True(File.Exists(saved.Cards[0].ArtPath), "the restored set's art link is broken");
+                Assert.False(Directory.Exists(Path.Combine(root, "MySet", "backups", "art")), "saving wrote the set into backups\\");
+            }
+            finally { try { Directory.Delete(root, true); } catch { } }
+        });
+
+    [Fact]
+    public void MainWindow_ACardJson_IsntOpenedAsAnEmptySet()
+        => OnAppThread(() =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "cardinator-notaset-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var prompts = new System.Collections.Generic.List<string>();
+            ConfirmDialog.TestAnswer = t => { prompts.Add(t); return ConfirmResult.Affirmative; };
+            try
+            {
+                var cardJson = Path.Combine(dir, "bolt.json");
+                File.WriteAllText(cardJson, "{ \"name\": \"Lightning Bolt\", \"manaCost\": \"{R}\" }");
+                var before = File.ReadAllText(cardJson);
+                var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+                int cards = main.Cards.Count;
+                var ok = (bool)typeof(Cardinator.MainWindow).GetMethod("LoadProjectFile", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .Invoke(main, new object[] { cardJson })!;
+                Assert.False(ok);
+                Assert.Equal(cards, main.Cards.Count);   // the set that was open stays open
+                Assert.Contains("Not a set", prompts);
+                Assert.Empty(Directory.GetFiles(dir, "*corrupt*"));   // it isn't corrupt, so no rescue copy
+                Assert.Equal(before, File.ReadAllText(cardJson));
+            }
+            finally { ConfirmDialog.TestAnswer = null; try { Directory.Delete(dir, true); } catch { } }
+        });
+
+    [Fact]
+    public void MainWindow_SavingASet_KeepsItsHouseFrame_EvenWhenThatFrameIsntInstalled()
+        => OnAppThread(() =>
+        {
+            var root = Path.Combine(Path.GetTempPath(), "cardinator-house-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var setFile = Path.Combine(root, "Friend", "Friend.cardinator");
+                Directory.CreateDirectory(Path.GetDirectoryName(setFile)!);
+                ProjectWriter.Write(setFile, new[] { new CardModel { Name = "A", TemplateName = "Their Custom Frame" } },
+                    "Friend", "", "Their Custom Frame", new SetProfile());
+                var plain = Path.Combine(root, "Plain", "Plain.cardinator");
+                Directory.CreateDirectory(Path.GetDirectoryName(plain)!);
+                ProjectWriter.Write(plain, new[] { new CardModel { Name = "B" } }, "Plain", "", "", new SetProfile());
+
+                var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+                Invoke(main, "LoadProjectFile", setFile);
+                Invoke(main, "SaveProject", false);
+                Assert.Equal("Their Custom Frame", CardProject.Load(setFile).DefaultTemplate);
+
+                Invoke(main, "LoadProjectFile", plain);   // a set with no house frame doesn't silently get one
+                Invoke(main, "SaveProject", false);
+                Assert.Equal("", CardProject.Load(plain).DefaultTemplate);
+            }
+            finally { try { Directory.Delete(root, true); } catch { } }
+        });
+
+    [Fact]
+    public void MainWindow_SaveRightAfterTyping_SavesAndUndoesConsistently()
+        => OnAppThread(() =>
+        {
+            var root = Path.Combine(Path.GetTempPath(), "cardinator-quicksave-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var setFile = Path.Combine(root, "S", "S.cardinator");
+                Directory.CreateDirectory(Path.GetDirectoryName(setFile)!);
+                ProjectWriter.Write(setFile, new[] { new CardModel { Name = "Before" } }, "S", "", "", new SetProfile());
+                var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+                Invoke(main, "LoadProjectFile", setFile);
+
+                main.SelectedCard!.Name = "Typed";   // still inside the undo debounce
+                Invoke(main, "SaveProject", false);  // Ctrl+S straight away
+                Assert.False(main.Dirty);
+                main.CommitHistory();                // the debounce firing later
+                Assert.False(main.Dirty, "the ● came back although nothing changed since the save");
+                main.Undo();                         // back to "Before", which isn't what's on disk
+                Assert.Equal("Before", main.SelectedCard!.Name);
+                Assert.True(main.Dirty, "undoing past the save didn't mark the set unsaved");
+            }
+            finally { try { Directory.Delete(root, true); } catch { } }
+        });
+
+    [Fact]
+    public void MainWindow_RenamingAFrameInPlace_MovesEveryCardThatUsedIt()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            main.Cards.Clear();
+            var a = new CardModel { Name = "A", TemplateName = "My Frame" };
+            var b = new CardModel { Name = "B", TemplateName = "Other" };
+            b.BackFace = new CardModel { Name = "B back", TemplateName = "My Frame" };
+            var c = new CardModel { Name = "Fire", TypeLine = "Instant", TemplateName = "Other", HalfTemplateName = "My Frame" };
+            foreach (var x in new[] { a, b, c }) main.Cards.Add(x);
+            main.ApplySetDefaults(new SetProfile(), "My Frame", applyToExisting: false);
+
+            int n = main.RenameFrameReferences("My Frame", "My Frame v2");
+            Assert.Equal(4, n);
+            Assert.Equal("My Frame v2", a.TemplateName);
+            Assert.Equal("Other", b.TemplateName);
+            Assert.Equal("My Frame v2", b.BackFace!.TemplateName);
+            Assert.Equal("My Frame v2", c.HalfTemplateName);
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            Assert.Equal("My Frame v2", typeof(Cardinator.MainWindow).GetField("_defaultTemplate", flags)!.GetValue(main));
+        });
+
     private static void Invoke(object target, string method, params object?[] args)
         => target.GetType().GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .Invoke(target, args);

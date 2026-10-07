@@ -35,10 +35,12 @@ can compare the styles). Pick one from the **Frame** dropdown, or duplicate one 
 <td align="center"><img src="images/frames/showcase.png" width="150"><br/><sub>Showcase (borderless)</sub></td>
 <td align="center"><img src="images/frames/cinematic.png" width="150"><br/><sub>Cinematic (overlay)</sub></td>
 <td align="center"><img src="images/frames/tidecaller.png" width="150"><br/><sub>Tidecaller (wave)</sub></td>
+<td align="center"><img src="images/frames/azure-modern.png" width="150"><br/><sub>Azure Modern (modern)</sub></td>
+<td align="center"><img src="images/frames/ironwrought-showcase.png" width="150"><br/><sub>Ironwrought Showcase (composable)</sub></td>
 </tr>
 </table>
 
-Two more ship with the app and appear in the same **Frame** dropdown: **Azure Modern** (an M15-style
+The last two: **Azure Modern** (an M15-style
 `modern` frame — a textured colored background with connected, curved-out nameplates and a tapered
 base) and **Ironwrought Showcase** (a `composable` frame — full-bleed art with connected two-tone
 panels and a regal crown).
