@@ -378,6 +378,26 @@ public sealed class CardModel : INotifyPropertyChanged
         _ => IsLandscapeType,
     };
 
+    /// <summary>A token or an emblem, written the way Scryfall does: "Token Creature — Soldier", "Emblem —
+    /// Elspeth". Only the types before the dash count. It's drawn with its frame's token layout (tall art, a short
+    /// text box, or none on a vanilla token) and the name centred when there's no mana cost.</summary>
+    [JsonIgnore]
+    public bool IsToken
+    {
+        get
+        {
+            var types = (TypeLine ?? "").Split('—')[0];
+            foreach (var w in types.Split(new[] { ' ', '-', '/' }, StringSplitOptions.RemoveEmptyEntries))
+                if (w.Equals("Token", StringComparison.OrdinalIgnoreCase) || w.Equals("Emblem", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
+        }
+    }
+
+    /// <summary>True when the card has any rules or flavor text (a token without either is "vanilla").</summary>
+    [JsonIgnore]
+    public bool HasRulesOrFlavor => !string.IsNullOrWhiteSpace(RulesText) || !string.IsNullOrWhiteSpace(FlavorText);
+
     private bool HasTypeWord(string word)
     {
         foreach (var token in (TypeLine ?? "").Split(new[] { ' ', '—', '-', '/' }, StringSplitOptions.RemoveEmptyEntries))

@@ -178,6 +178,11 @@ public sealed class TemplateSpec
     [JsonIgnore]
     public bool IsFlipLayout => string.Equals((CardLayout ?? "").Trim(), "flip", System.StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>True for a token layout ("token": a tall art window, the type line low, a short text box or
+    /// none). Built-in frames derive it with <see cref="ToToken"/>; a picture frame may ship a "token" variant.</summary>
+    [JsonIgnore]
+    public bool IsTokenLayout => string.Equals((CardLayout ?? "").Trim(), "token", System.StringComparison.OrdinalIgnoreCase);
+
     public Region TitleBar { get; set; } = new() { X = 48, Y = 56, W = 654, H = 60 };
     public Region ArtWindow { get; set; } = new() { X = 48, Y = 126, W = 654, H = 462 };
     public Region TypeBar { get; set; } = new() { X = 48, Y = 598, W = 654, H = 56 };
@@ -192,6 +197,7 @@ public sealed class TemplateSpec
         {
             if (TextBox == null) return TextBox!;
             if (IsFlipLayout) return TextBox;   // the space below a flip half's rules belongs to its type line + the art
+            if (TextBox.H < 1) return TextBox;  // no text box at all (a vanilla token): nothing to extend
             var fp = (FooterPlacement ?? "frame").Trim().ToLowerInvariant();
             if (fp == "frame") return TextBox;
             // Footer isn't on the frame — extend the box down, but only enough to leave the SAME margin
@@ -384,6 +390,45 @@ public sealed class TemplateSpec
         s.FooterPlacement = "border";   // the bottom of the frame is the other half's name bar
         s.SubtitleBar = null;
         s.LegendaryCrown = false;       // a crown above each name would collide with the mirrored half
+        return s;
+    }
+
+    /// <summary>
+    /// The same template laid out as a TOKEN: the title, the P/T box and the credits stay put, and the art
+    /// grows down the card. With <paramref name="textLines"/> &gt; 0 the type line moves down and the text box is
+    /// just tall enough for that many lines of rules at full size (at least 3, at most the normal box), as on a
+    /// real token, whose box fits its text; with 0 (a vanilla
+    /// token, e.g. a 1/1 Soldier) there's no text box at all: the type line sits just above the P/T box and the
+    /// art runs down to it. A full-art frame's art already covers the card, so only the plates move. Returns
+    /// this spec unchanged when it is already a token or a flip layout.
+    /// </summary>
+    /// <param name="reserve">Extra height the box needs beyond its lines (a medallion set into its bottom edge,
+    /// which the text stops above).</param>
+    public TemplateSpec ToToken(int textLines, double reserve = 0)
+    {
+        if (IsTokenLayout || IsFlipLayout) return this;
+        var s = Clone();
+        s.CardLayout = "token";
+        bool fullArt = ArtWindow.X <= 1 && ArtWindow.Y <= 1 && ArtWindow.Right >= CanvasWidth - 1 && ArtWindow.Bottom >= CanvasHeight - 1;
+
+        double shift;
+        if (textLines > 0)
+        {
+            const double pad = 18;   // the renderer's text inset, top and bottom
+            double h = System.Math.Min(TextBox.H, 2 * pad + System.Math.Max(3, textLines) * RulesFont.Size * 1.22 + System.Math.Max(0, reserve));
+            shift = TextBox.H - h;
+            s.TextBox = new Region { X = TextBox.X, Y = TextBox.Y + shift, W = TextBox.W, H = h };
+        }
+        else
+        {
+            // The type line ends just inside the P/T box's top (the box overlaps the frame below it, like a
+            // real token's), never below where the text box ended.
+            double typeBottom = System.Math.Min(TextBox.Bottom, PtBox.Y + 4);
+            shift = System.Math.Max(0, typeBottom - TypeBar.Bottom);
+            s.TextBox = new Region { X = TextBox.X, Y = TypeBar.Bottom + shift, W = TextBox.W, H = 0 };
+        }
+        s.TypeBar = new Region { X = TypeBar.X, Y = TypeBar.Y + shift, W = TypeBar.W, H = TypeBar.H };
+        if (!fullArt) s.ArtWindow = new Region { X = ArtWindow.X, Y = ArtWindow.Y, W = ArtWindow.W, H = ArtWindow.H + shift };
         return s;
     }
 

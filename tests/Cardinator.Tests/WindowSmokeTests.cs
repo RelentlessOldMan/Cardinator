@@ -544,6 +544,22 @@ public class WindowSmokeTests
         });
 
     [Fact]
+    public void MainWindow_AddToken_AddsASelectedToken_PreviewedWithTheTokenLayout()   // 1.6.10
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            int before = main.Cards.Count;
+            Invoke(main, "OnAddToken", null, null);
+            Assert.Equal(before + 1, main.Cards.Count);
+            var card = main.SelectedCard!;
+            Assert.True(card.IsToken);
+            Assert.False(string.IsNullOrEmpty(card.TemplateName));
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tpl = (Template)typeof(Cardinator.MainWindow).GetMethod("TemplateFor", flags)!.Invoke(main, new object[] { card })!;
+            Assert.True(tpl.Spec.IsTokenLayout || tpl.Spec.IsLandscape);
+        });
+
+    [Fact]
     public void MainWindow_ExportAll_DefaultsToTheOpenSetsOutFolder_NotTheLastSetsOne()
         => OnAppThread(() =>
         {

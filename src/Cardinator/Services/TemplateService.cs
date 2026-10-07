@@ -37,6 +37,7 @@ public sealed class TemplateService
     private static readonly object VariantLock = new();
     private static readonly Dictionary<string, Template> LandscapeVariants = new();
     private static readonly Dictionary<string, Template> FlipVariants = new();
+    private static readonly Dictionary<string, Template> TokenVariants = new();
 
     // Frames by name, for the few places that pick a frame by name mid-render (a split card's other half with a
     // frame of its own): the installed ones, replaced by each LoadAll so a deleted frame drops out, and frames
@@ -68,6 +69,8 @@ public sealed class TemplateService
     public const string FlipVariant = "flip";
     /// <summary>Subfolder / <see cref="Template.Variants"/> key for a frame's sideways (landscape) layout.</summary>
     public const string LandscapeVariant = "landscape";
+    /// <summary>Subfolder / <see cref="Template.Variants"/> key for a frame's token layout.</summary>
+    public const string TokenVariant = "token";
 
     /// <summary>
     /// The template a face ACTUALLY renders with. A face that wants landscape (a Battle, a Plane, or one
@@ -90,6 +93,15 @@ public sealed class TemplateService
             if (template.Spec.IsFlipLayout) return template;
             if (template.Variants.TryGetValue(FlipVariant, out var flip)) return flip;
             return template.Spec.CustomFrame ? template : FlipOf(template) ?? template;
+        }
+
+        // A token wants its frame's token layout: tall art, a short text box (none on a vanilla token). A
+        // picture frame uses its hand-made "token" variant if it ships one, else its picture rearranged.
+        if (card.IsToken && !card.WantsLandscape)
+        {
+            if (template.Spec.IsTokenLayout || template.Spec.IsLandscape) return template;
+            if (template.Variants.TryGetValue(TokenVariant, out var token)) return token;
+            return TokenOf(template, TokenTextLines(card, template.Spec)) ?? template;
         }
 
         if (template.Spec.IsLandscape || !card.WantsLandscape) return template;
@@ -134,6 +146,122 @@ public sealed class TemplateService
             }
             catch { return null; }
         }
+    }
+
+    /// <summary>About how many lines a token's rules and flavor take in <paramref name="spec"/>'s text box at full
+    /// size (0 for a vanilla token), so its token layout's box fits its text. A rough count — the renderer still
+    /// shrinks text that doesn't fit — rounded up, plus room beside a P/T box, capped at 12.</summary>
+    internal static int TokenTextLines(CardModel card, TemplateSpec spec)
+    {
+        if (!card.HasRulesOrFlavor) return 0;
+        double perLine = System.Math.Max(10, (spec.TextBox.W - 36) / (spec.RulesFont.Size * 0.47));
+        double lines = 0;
+        foreach (var para in (card.RulesText ?? "").Split('\n').Where(p => p.Trim().Length > 0))
+            lines += System.Math.Ceiling(para.Trim().Length / perLine);
+        var flavor = (card.FlavorText ?? "").Split('\n').Where(p => p.Trim().Length > 0).ToList();
+        if (flavor.Count > 0) lines += 0.5 + flavor.Sum(p => System.Math.Ceiling(p.Trim().Length / perLine));
+        if (card.HasPowerToughness) lines += 0.6;   // the last line runs beside the P/T box
+        return (int)System.Math.Clamp(System.Math.Ceiling(lines), 1, 12);
+    }
+
+    /// <summary>The token layout of a template (<see cref="TemplateSpec.ToToken"/>) for that many lines of text
+    /// (0 = no text box). A drawn frame is generated for it; a picture frame's own picture is rearranged
+    /// (<see cref="RearrangeForToken"/>), keeping at least a small text box since its box is part of the picture.
+    /// Cached by content hash in <c>CardinatorData/cache/token</c>. Null if it can't be built — the caller falls
+    /// back to the plain frame.</summary>
+    public static Template? TokenOf(Template template, int textLines)
+    {
+        bool picture = template.Spec.CustomFrame;
+        if (picture && template.FrameImage is not BitmapSource) return null;
+        // A medallion set into the text box's bottom edge stays where it is (the rows below the cut keep their
+        // pixels), so it's found on the frame itself and the shorter box is made that much taller for the text.
+        var ornament = CardRenderer.BottomOrnament(template, template.Spec);
+        double reserve = ornament is { } o ? (template.Spec.TextBox.Bottom - 18) - (o.Top - 4) : 0;
+        var spec = template.Spec.ToToken(picture ? System.Math.Max(1, textLines) : textLines, reserve);
+        var key = spec.ContentHash();
+        if (picture)
+        {
+            // The picture is part of the result, so it's part of the key (a re-imported frame gets a new one).
+            var id = template.FramePath is { Length: > 0 } fp && File.Exists(fp)
+                ? $"{fp}|{new FileInfo(fp).Length}|{File.GetLastWriteTimeUtc(fp).Ticks}" : template.Name;
+            key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key + "|" + id)));
+        }
+        lock (VariantLock)
+        {
+            if (TokenVariants.TryGetValue(key, out var hit)) return hit;
+            try
+            {
+                var dir = Path.Combine(AppPaths.DataDir, "cache", "token");
+                Directory.CreateDirectory(dir);
+                var framePath = Path.Combine(dir, key[..20] + ".png");
+
+                BitmapImage frame;
+                try
+                {
+                    if (!File.Exists(framePath)) BuildToken(template, spec, framePath);
+                    frame = CustomFrameComposer.LoadBitmap(framePath);
+                }
+                catch
+                {
+                    SafeDelete(framePath);
+                    BuildToken(template, spec, framePath);
+                    frame = CustomFrameComposer.LoadBitmap(framePath);
+                }
+
+                var variant = new Template { Name = template.Name, Spec = spec, FramePath = framePath, FrameImage = frame };
+                // Searching the shorter box would reject the medallion as too big for it; it is the same one.
+                if (spec.TextBox.H > 0) CardRenderer.KnowOrnament(frame, ornament);
+                TokenVariants[key] = variant;
+                return variant;
+            }
+            catch { return null; }
+        }
+    }
+
+    private static void BuildToken(Template template, TemplateSpec spec, string framePath)
+    {
+        if (!template.Spec.CustomFrame) { GenerateAtomically(spec, framePath); return; }
+        var tmp = framePath + ".tmp";
+        CardExporter.SavePng(RearrangeForToken((BitmapSource)template.FrameImage, template.Spec, spec), tmp);
+        File.Move(tmp, framePath, overwrite: true);
+    }
+
+    /// <summary>A picture frame's picture laid out as its token version: the middle of the art window (or, on a
+    /// full-art frame, the open span between the title and the type line) is stretched down by the distance the
+    /// type line moved, and as many rows come out of the text box, above its middle — so the title, the type line,
+    /// the box's bottom edge with any medallion on it, and the card's bottom border keep their own pixels. The
+    /// same cut-and-rearrange idea as the picture frames' flip and sideways versions.</summary>
+    internal static BitmapSource RearrangeForToken(BitmapSource src, TemplateSpec from, TemplateSpec to)
+    {
+        var bmp = src.Format == System.Windows.Media.PixelFormats.Bgra32 ? src
+            : new FormatConvertedBitmap(src, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+        int w = bmp.PixelWidth, h = bmp.PixelHeight, stride = w * 4;
+        var pixels = new byte[stride * h];
+        bmp.CopyPixels(pixels, stride, 0);
+
+        double k = h / (double)from.CanvasHeight;
+        int Row(double y) => System.Math.Clamp((int)System.Math.Round(y * k), 0, h);
+        int shift = Row(to.TypeBar.Y) - Row(from.TypeBar.Y);
+        var outPx = (byte[])pixels.Clone();
+        if (shift > 0)
+        {
+            bool fullArt = from.ArtWindow.X <= 1 && from.ArtWindow.Y <= 1 && from.ArtWindow.Right >= from.CanvasWidth - 1 && from.ArtWindow.Bottom >= from.CanvasHeight - 1;
+            double a0 = fullArt ? from.TitleBar.Bottom : from.ArtWindow.Y, a1 = fullArt ? from.TypeBar.Y : from.ArtWindow.Bottom;
+            int bandTop = Row(a0 + (a1 - a0) * 0.2), bandBottom = Row(a0 + (a1 - a0) * 0.8);
+            // Rows taken out of the text box: starting a third of the way into what's kept of it.
+            int cut = Row(from.TextBox.Y + to.TextBox.H * 0.35);
+            if (bandBottom <= bandTop || cut + shift > Row(from.TextBox.Bottom)) return bmp;
+
+            int y = bandTop, band = bandBottom - bandTop, stretched = band + shift;
+            for (int i = 0; i < stretched; i++, y++)   // the band, stretched (nearest row)
+                Buffer.BlockCopy(pixels, (bandTop + (int)((i + 0.5) * band / stretched)) * stride, outPx, y * stride, stride);
+            int keep = cut - bandBottom;              // band's end down to the cut, moved down by `shift`
+            Buffer.BlockCopy(pixels, bandBottom * stride, outPx, y * stride, keep * stride);
+            // Below the removed rows everything is back where it was, as in the original.
+        }
+        var result = BitmapSource.Create(w, h, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, outPx, stride);
+        result.Freeze();
+        return result;
     }
 
     /// <summary>Generates a frame for <paramref name="spec"/> and replaces its bottom half with its top half
@@ -289,10 +417,10 @@ public sealed class TemplateService
             var t = LoadOne(dir, name: null);
             if (t == null) continue;
 
-            // Optional hand-made layouts beside it (flip/, landscape/). A broken variant is just skipped —
+            // Optional hand-made layouts beside it (flip/, landscape/, token/). A broken variant is just skipped —
             // the card then renders with the plain frame, never fails.
             var variants = new Dictionary<string, Template>(StringComparer.OrdinalIgnoreCase);
-            foreach (var key in new[] { FlipVariant, LandscapeVariant })
+            foreach (var key in new[] { FlipVariant, LandscapeVariant, TokenVariant })
             {
                 var vdir = Path.Combine(dir, key);
                 if (!Directory.Exists(vdir)) continue;
@@ -301,6 +429,7 @@ public sealed class TemplateService
                 // A variant must actually BE that shape, or it would be used for the wrong cards.
                 if (key == FlipVariant && !v.Spec.IsFlipLayout) continue;
                 if (key == LandscapeVariant && !v.Spec.IsLandscape) continue;
+                if (key == TokenVariant && !v.Spec.IsTokenLayout) continue;
                 variants[key] = v;
             }
             result.Add(variants.Count == 0 ? t : new Template

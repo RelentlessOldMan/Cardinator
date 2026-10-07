@@ -125,6 +125,14 @@ public static class CardValidator
                 + "upright half is shown. Pick a built-in frame (or one that comes with a flip layout).",
                 nameof(card.TemplateName)));
 
+        // A token gets its frame's token layout (tall art): derived for every frame, picture frames included, so
+        // this only shows if that failed.
+        if (card.IsToken && !card.WantsLandscape && !templateSpec.IsTokenLayout && !templateSpec.IsLandscape && templateSpec.CustomFrame)
+            issues.Add(new(IssueSeverity.Info, "no-token-frame",
+                "This is a token, but no token version of this frame could be made, so it's drawn as a normal card "
+                + "(smaller art). Pick a built-in frame for the token layout.",
+                nameof(card.TemplateName)));
+
         // Special layouts build their badges by parsing the rules-text syntax; warn when the syntax produced
         // none, so a mistyped planeswalker/saga/class doesn't silently render without its badges. Uses the
         // renderer's OWN parsers so this never drifts from what actually draws.

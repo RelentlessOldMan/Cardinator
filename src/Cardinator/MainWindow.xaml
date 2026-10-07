@@ -60,11 +60,13 @@
                     <TextBlock DockPanel.Dock="Top" Text="CARDS" Style="{StaticResource SectionLabel}"/>
                     <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="0,0,0,6">
                         <Button Content="Add" Click="OnAddCard" Margin="0,0,4,0" Padding="4,0" IsEnabled="{Binding NotBusy}"/>
-                        <Button Content="Duplicate" Click="OnDuplicateCard" Margin="2,0,2,0" Padding="4,0" IsEnabled="{Binding CanEditSelected}"/>
-                        <Button Content="Delete" Click="OnDeleteCard" Margin="4,0,0,0" Padding="4,0" IsEnabled="{Binding CanEditSelected}"/>
+                        <Button Content="Add token" Click="OnAddToken" Margin="2,0,2,0" Padding="4,0" IsEnabled="{Binding NotBusy}"
+                                ToolTip="Add a token (a 1/1 Soldier to start): tall art, its name centred, a text box only if it has rules"/>
+                        <Button Content="Duplicate" Click="OnDuplicateCard" Margin="4,0,0,0" Padding="4,0" IsEnabled="{Binding CanEditSelected}"/>
                     </UniformGrid>
-                    <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,0,8">
-                        <Button Content="Move ↑" Click="OnMoveUp" Margin="0,0,4,0" IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) up"/>
+                    <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="0,0,0,8">
+                        <Button Content="Delete" Click="OnDeleteCard" Margin="0,0,4,0" Padding="4,0" IsEnabled="{Binding CanEditSelected}"/>
+                        <Button Content="Move ↑" Click="OnMoveUp" Margin="2,0,2,0" IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) up"/>
                         <Button Content="Move ↓" Click="OnMoveDown" Margin="4,0,0,0" IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) down"/>
                     </UniformGrid>
 

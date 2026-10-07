@@ -39,6 +39,14 @@ they print opposite halves (the first row the top, unless `meld_half` says other
 whose text can be written on either row. Rows looked up on Scryfall get the melded card's missing text and art,
 and the right halves, from Scryfall.
 
+A **token** or **emblem** needs no extra column: start its `type` with `Token` or `Emblem` (`Token Creature —
+Soldier`, `Emblem — Elspeth`), leave `mana` blank, and it gets the token layout (tall art, the name centred, a
+text box only if `rules` has something in it):
+
+```csv
+Soldier,art/soldier.png,,Token Creature — Soldier,,,1/1,,Gold Multicolor,C,Cardinator Demo
+```
+
 ## In the app
 
 Import list / CSV… → `cards.csv` loads the whole set. Here it is with the planeswalker selected —

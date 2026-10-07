@@ -112,6 +112,7 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Mutate** | First rules line like `Mutate {1}{G}{G} (…)` | The mutate line in a shaded band across the top of the text box |
 | **Meld** | **Make meld card** (MELD section), or look up a meld card | Two double-faced cards whose backs, side by side, make one big melded card |
 | **Aftermath** | A split card whose other half's rules start with **Aftermath** | First half **upright across the top**, the other half **sideways** below it |
+| **Token / Emblem** | Type line starts with "Token" or "Emblem" (*Token Creature — Soldier*, *Emblem — Elspeth*), or **Add token** | **Tall art**, the name centred, a text box that fits its rules — **none** on a vanilla token |
 
 **Double-faced cards (DFC).** A card can have a **back face** — a front/back card that flips. Looking up a real
 double-faced card imports it as **one card with both faces**, whether you use **Ctrl+L**, a deck/CSV import or
@@ -238,6 +239,21 @@ double-sided just works: the top-half card goes on the left. A CSV import can ma
 [column reference](../examples/02-custom-set/README.md)); two rows with the same `meld_name` are partners.
 
 <p><img src="images/meld-card.png" width="520" alt="A meld pair's backs side by side: one big card, turned sideways, split across the two"></p>
+
+**Tokens and emblems.** Write the type line the way Scryfall does — *Token Creature — Soldier*, *Token
+Artifact — Treasure*, *Emblem — Elspeth* — and the card gets its frame's **token layout**: the art runs much
+further down the card, the name is centred in the title bar (when there's no mana cost), and the text box is
+just big enough for its rules. A **vanilla** token (no rules, like a 1/1 Soldier) has **no text box** at all: the
+type line sits on the P/T box. **Add token** (under CARDS) starts one. Tokens are ordinary cards in your set, so
+**Export all** and **Print sheet** do them with everything else — make the tokens your set creates and print
+them in one go. Looking up a real token works too (e.g. *Goblin // Soldier*), and **Import → Scryfall search**
+with `t:token` (add a name or type, e.g. `t:token t:spirit`) brings in a batch. Every frame has a token layout:
+built-in frames are redrawn for it, and picture frames (the alchemy samples, imported ones) are rearranged —
+their art window stretched down and their text box shortened — keeping their own borders and medallion
+(they keep a small box even on a vanilla token, since the box is part of their picture). A CSV row is a token
+the same way: put the "Token …" type line in its `type` column.
+
+<p><img src="images/token-card.png" width="620" alt="Three tokens: a vanilla 2/2 Angel Soldier with no text box, a 1/1 Spirit with a short text box, and an emblem with one ability, each with tall art and its name centred"></p>
 
 **Authoring them by hand:** open **Edit details…** and use the **Special layouts** section to set a
 **Subtitle** (a small plate under the title, on any card), the **Adventure** half (name/cost/type/text —

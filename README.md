@@ -56,6 +56,9 @@ Not just creatures and spells: the special layouts are drawn too, on every frame
 <td align="center" colspan="2"><img src="docs/images/station-case.png" width="370" alt="A Station card and a Case card"><br><b>Station &amp; Case</b></td>
 <td align="center" colspan="2"><img src="docs/images/battle-landscape.png" width="330" alt="A Battle drawn sideways"><br><b>Battles &amp; Planes</b><br><sub>drawn sideways</sub></td>
 </tr>
+<tr>
+<td align="center" colspan="4"><img src="docs/images/token-card.png" width="560" alt="Three tokens with tall art and centred names: a vanilla one with no text box, one with a short text box, and an emblem"><br><b>Tokens &amp; emblems</b><br><sub>tall art, a text box only if it has rules — make your set's tokens and print them with it</sub></td>
+</tr>
 </table>
 
 Plus planeswalkers, sagas, classes and double-faced cards. **[How to make each one →](docs/USER_GUIDE.md#special-card-types)**
@@ -169,6 +172,8 @@ output are all checked in.** Click a thumbnail for that example's guide.
   (*Case of the Burning Masks*: To solve and Solved bands),
   **meld** (*Bruna* + *Gisela*: two cards whose backs, side by side, make one big melded card),
   **prototype** and **mutate** (the band across the top of the text box, a prototype's in its own colour),
+  **tokens and emblems** (tall art, the name centred, a text box only if it has rules; on every frame, so a
+  set's tokens print with it),
   **double-faced cards** (one card with two faces: flip the preview, a drawn corner indicator, both sides
   exported), and **sideways cards** — **Battles** (with a defense shield), **Planes** and **Phenomena** turn
   landscape automatically on every drawn frame, and print sheets rotate them back into a normal slot. Split
