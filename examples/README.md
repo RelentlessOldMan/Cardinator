@@ -13,7 +13,7 @@ before trying your own.
 | [**02 · Custom set**](02-custom-set/) | Design your own set from a spreadsheet | a CSV of invented cards + art | every card rendered + a print sheet |
 | [**03 · Full-art cards**](03-full-art/) | Text directly on the artwork | a CSV using the *Full Art* frame | full-art cards |
 | [**04 · Bring your own frame**](04-custom-frame/) | Use a frame you designed yourself | a transparent frame PNG | a new template + a card on it |
-| [**05 · Tokens & emblems**](05-tokens-emblems/) | The extras a deck needs | a CSV with blank mana/PT | tokens and emblems, laid out right |
+| [**05 · Tokens & emblems**](05-tokens-emblems/) | The tokens a set makes, printed with it | a CSV with "Token …" / "Emblem …" type lines | nine tokens with tall art (a text box only if they have rules) on one print sheet |
 | [**06 · Printing**](06-printing/) | Print at home or via a print service | your finished cards | a card back for double-sided + a bleed/300-DPI export |
 
 Single card in a hurry? [`card.json`](card.json) renders with `--render` (see below).
