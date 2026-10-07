@@ -30,9 +30,12 @@ dotnet publish src/Cardinator/Cardinator.csproj -c Release -r win-x64 `
 1. Bump `<Version>` in `src/Cardinator/Cardinator.csproj` (patch for a normal batch; minor only when
    agreed; never the major).
 2. Commit and push to `main`.
-3. CI runs the tests; then its `release` job sees that `v<Version>` has no release yet, publishes the
-   self-contained `Cardinator.exe`, and creates the release with the commit message as its notes.
-   A push that doesn't change the version releases nothing.
+3. CI runs the tests (golden images included); then its `release` job sees that `v<Version>` has no
+   release yet, publishes the self-contained `Cardinator.exe`, **runs that exe** (`--version` must say the
+   version being released, and `--selftest` must render a card), and creates the release with the commit
+   message as its notes. A push that doesn't change the version releases nothing. Releases run one at a time
+   (a `concurrency` group), so two quick pushes can't race to create the same one, and each job has a
+   30-minute timeout.
 
 Check it: `gh run list --limit 1` (green) and `gh release view v<Version>`.
 
@@ -79,7 +82,10 @@ JSON there and re-run the script. Only the single starter card's art (`seraph-an
 in the app; everything else the app shows is the user's own art or pulled from Scryfall.
 
 After an intentional renderer change, also re-baseline the golden images:
-`$env:CARDINATOR_UPDATE_GOLDEN=1; dotnet test --filter GoldenTests` then run the tests again clean.
+`$env:CARDINATOR_UPDATE_GOLDEN=1; dotnet test --filter GoldenTests` — every baseline that changed is rewritten
+and its test **fails** naming it (so a variable left set can never quietly switch the checks off) — then
+`Remove-Item Env:CARDINATOR_UPDATE_GOLDEN` and run the tests again: they should pass. CI runs the goldens too (its renders match the dev
+machine's within the tolerance) and refuses to re-baseline.
 
 ---
 
