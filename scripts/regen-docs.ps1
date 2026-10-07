@@ -40,7 +40,7 @@ Write-Host "App screenshots + hero renders + QUICKSTART..." -ForegroundColor Cya
 Run @('--docs','docs')
 
 Write-Host "Per-frame images..." -ForegroundColor Cyan
-Run @('--frames','docs\images\frames')
+Run @('--frames','docs\images\frames','builtin')
 
 Write-Host "Gallery (from docs/gallery-src)..." -ForegroundColor Cyan
 $gOut = 'docs\images\gallery'

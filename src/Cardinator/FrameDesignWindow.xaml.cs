@@ -26,6 +26,11 @@ public partial class FrameDesignWindow : Window
     private readonly DispatcherTimer _previewTimer;
     private readonly System.Threading.CancellationTokenSource _cts = new();
     private bool _ready;
+    private string _savedName;   // the frame's name on disk, to tell an in-place rename apart
+
+    /// <summary>Set when Apply saved the frame IN PLACE under a new name: the name it had before. Cards find
+    /// their frame by name, so the caller must re-point the ones that used the old name.</summary>
+    public string? RenamedFrom { get; private set; }
 
     /// <summary>Set to the edited template's name when Apply succeeds.</summary>
     public string? AppliedTemplateName { get; private set; }
@@ -81,6 +86,7 @@ public partial class FrameDesignWindow : Window
         _renderer = new CardRenderer(_symbols);
         _spec = template.Spec.Clone();
         _isCustom = _spec.CustomFrame;
+        _savedName = _spec.Name;
         _customFrameImage = template.FrameImage;
         // Prefer the folder the frame lives in; fall back to the standard templates dir when a template
         // has no on-disk frame path yet (an in-memory template), so Apply always has a valid place to write.
@@ -314,6 +320,7 @@ public partial class FrameDesignWindow : Window
         {
             WriteTemplate(_templateDir, _templateDir);   // save in place
             AppliedTemplateName = _spec.Name;
+            if (_spec.Name != _savedName) { RenamedFrom ??= _savedName; _savedName = _spec.Name; }
             if (Standalone)
             {
                 Title = $"Frame layout — {_spec.Name}";

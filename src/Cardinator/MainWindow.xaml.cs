@@ -51,6 +51,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly List<(string json, int sel)> _history = new();
     private int _histIdx = -1;
     private int _savedHistIdx;             // history index that matches what's on disk (for accurate dirty state)
+    private bool _metaDirty;               // set-level edits the card history can't see (Set defaults, art folder)
     private DispatcherTimer _undoTimer = null!;
     private bool _restoring;
     private static readonly System.Text.Json.JsonSerializerOptions SnapOpts =
@@ -768,6 +769,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _history.Add((SnapshotJson(), SelectedIndex()));
         _histIdx = 0;
         _savedHistIdx = 0;   // a freshly seeded project matches its on-disk (or blank) baseline
+        _metaDirty = false;
         UpdateUndoRedo();
     }
 
@@ -775,7 +777,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void MarkSavedPoint()
     {
         _savedHistIdx = _histIdx;
+        _metaDirty = false;
         Dirty = false;
+    }
+
+    /// <summary>Unsaved = the cards differ from what's on disk (history position) OR a set-level setting
+    /// changed since the last save. Re-derived after every commit/undo, so it must count both.</summary>
+    private void RecomputeDirty() => Dirty = _metaDirty || _histIdx != _savedHistIdx;
+
+    /// <summary>What's loaded is NOT what's in the save target (a restored backup): no history position
+    /// matches disk, so the ● stays until a Save, whatever is undone or cancelled meanwhile.</summary>
+    private void MarkUnsavedAgainstDisk()
+    {
+        _savedHistIdx = -1;
+        Dirty = true;
     }
 
     private int SelectedIndex() => _selectedCard != null ? Cards.IndexOf(_selectedCard) : -1;
@@ -798,7 +813,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         int sel = SelectedIndex();
         if (_histIdx >= 0 && _history[_histIdx].json == json && _history[_histIdx].sel == sel)
         {
-            Dirty = _histIdx != _savedHistIdx;   // nothing changed — re-derive, so a cancelled edit clears ●
+            RecomputeDirty();   // nothing changed — re-derive, so a cancelled edit clears ●
             return;
         }
         if (_histIdx < _history.Count - 1)
@@ -807,7 +822,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _histIdx = _history.Count - 1;
         const int cap = 60;
         while (_history.Count > cap) { _history.RemoveAt(0); _histIdx--; _savedHistIdx--; }
-        Dirty = _histIdx != _savedHistIdx;
+        RecomputeDirty();
         UpdateUndoRedo();
     }
 
@@ -828,7 +843,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(HasCards));
         OnPropertyChanged(nameof(CanExport));
         // Dirty exactly when we're not sitting on the saved baseline (undo back to saved clears the ●).
-        Dirty = _histIdx != _savedHistIdx;
+        RecomputeDirty();
     }
 
     public void Undo()
@@ -943,12 +958,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var dlg = new SetDefaultsWindow(_setProfile, _defaultTemplate, Templates.Select(t => t.Name)) { Owner = this };
         if (dlg.ShowDialog() != true) return;
+        ApplySetDefaults(dlg.Profile, dlg.DefaultFrame, dlg.ApplyToExisting);
+    }
 
-        _setProfile = dlg.Profile;
-        _defaultTemplate = dlg.DefaultFrame;   // "" clears the house frame
+    /// <summary>Stores the set's house defaults (and fills blanks on existing cards if asked).</summary>
+    internal void ApplySetDefaults(SetProfile profile, string defaultFrame, bool applyToExisting)
+    {
+        _setProfile = profile;
+        _defaultTemplate = defaultFrame;   // "" clears the house frame
+        _metaDirty = true;   // not part of the card history, so CommitHistory alone would clear the ●
         MarkDirty();
 
-        if (dlg.ApplyToExisting && Cards.Count > 0)
+        if (applyToExisting && Cards.Count > 0)
         {
             int changed = Cards.Count(c => _setProfile.ApplyDefaults(c));
             // The default frame fills cards that don't already have one.
@@ -1238,10 +1259,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _projectPath = path;
             SetProjectFolder(projFolder);
             _artBaseDir = project.ArtBaseDir;
-            // Restore the set's default frame so new/imported cards inherit the house style (M4).
-            _defaultTemplate = !string.IsNullOrWhiteSpace(project.DefaultTemplate)
-                               && Templates.Any(t => t.Name == project.DefaultTemplate)
-                ? project.DefaultTemplate : "";
+            // Restore the set's default frame so new/imported cards inherit the house style (M4). Kept as saved
+            // even when it isn't installed here (DefaultTemplateName falls back for new cards), so saving on a
+            // machine without that frame doesn't rewrite the set's house frame.
+            _defaultTemplate = project.DefaultTemplate ?? "";
             // Restore the set's shared metadata defaults (W1); resolve its symbol path back to absolute.
             _setProfile = project.Profile ?? new SetProfile();
             if (projFolder != null)
@@ -1256,6 +1277,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                      + (missingArt > 0 ? $"  ⚠ {missingArt} card(s) have missing art (was the art/ folder included?)." : "");
             SeedHistory();
 
+            // Opened straight out of a backups\ folder (File > Open or a drop, not Restore): Save must go to the
+            // set file, not into backups\ — and until it does, what's loaded isn't what's on disk.
+            if (ProjectBackup.ProjectFileForBackup(path) is { } setFile)
+            {
+                _projectPath = setFile;   // "" (an oddly named file) → Save asks where
+                if (setFile.Length > 0) _projectName = Path.GetFileNameWithoutExtension(setFile);
+                MarkUnsavedAgainstDisk();
+                OnPropertyChanged(nameof(ProjectSummary));
+                Status = setFile.Length > 0
+                    ? $"Opened a backup. Use Save to restore it over “{Path.GetFileName(setFile)}”."
+                    : "Opened a backup. Use Save as… to keep it.";
+            }
+
             // Written by a newer Cardinator: it loaded (we always read old AND unknown fields tolerantly),
             // but saving from here would quietly drop whatever this build doesn't understand.
             if (project.IsFromNewerVersion)
@@ -1268,6 +1302,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 Status += "  ⚠ Saved by a newer version — saving here may drop newer data.";
             }
             return true;
+        }
+        catch (NotAProjectException ex)
+        {
+            _loading = false;   // nothing was touched — the set that's loaded stays loaded
+            ConfirmDialog.Show(this, "Not a set",
+                ex.Message + "\n\nIt looks like a card or frame file, not a set saved by Cardinator, so it wasn't "
+                + "opened (saving would have overwritten it).", affirmative: "OK");
+            Status = ex.Message;
+            return false;
         }
         catch (Exception ex)
         {
@@ -1326,7 +1369,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _projectPath = realPath;
         _projectName = realName;
-        Dirty = true;
+        MarkUnsavedAgainstDisk();
         OnPropertyChanged(nameof(ProjectSummary));
         OnPropertyChanged(nameof(WindowTitle));
         Status = $"Loaded backup “{Path.GetFileName(dlg.FileName)}”. Use Save to restore it over “{Path.GetFileName(realPath)}”.";
@@ -1359,6 +1402,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (ok != ConfirmResult.Affirmative) return false;
             }
         }
+        CommitHistory();   // fold in edits still waiting on the undo debounce, so the saved point IS what's written
         try
         {
             // The file name IS the project's identity (there's no separate name field), so persist the
@@ -1368,7 +1412,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             // Localize art → relative paths → back up the previous good file → atomic write. That exact
             // order is the data-safety guarantee, so it lives in ProjectWriter where it can be tested.
-            int stranded = ProjectWriter.Write(path, Cards.ToList(), name, _artBaseDir, DefaultTemplateName, _setProfile);
+            int stranded = ProjectWriter.Write(path, Cards.ToList(), name, _artBaseDir, _defaultTemplate, _setProfile);
             _projectPath = path;
             SetProjectFolder(projFolder);
             _projectName = name;
@@ -1920,15 +1964,41 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var win = new FrameDesignWindow(t) { Owner = this, IsBuiltIn = TemplateService.IsBuiltIn(slug) };
             if (win.ShowDialog() == true)
             {
+                // Renamed in place: cards find their frame by name, so every card (and the set's house frame)
+                // that used the old name follows it — not just the selected one.
+                int renamed = 0;
+                if (win.RenamedFrom is { } oldName && win.AppliedTemplateName is { } newName && oldName != newName)
+                {
+                    renamed = RenameFrameReferences(oldName, newName);
+                    if (renamed > 0) { MarkDirty(); CommitHistory(); }
+                }
                 RefreshTemplates(win.AppliedTemplateName);
                 RenderPreview();
-                Status = $"Updated frame design for \"{win.AppliedTemplateName}\".";
+                Status = renamed > 0
+                    ? $"Renamed the frame to \"{win.AppliedTemplateName}\" and moved {renamed} card(s) to it. Other saved sets still use \"{win.RenamedFrom}\"."
+                    : $"Updated frame design for \"{win.AppliedTemplateName}\".";
             }
         }
         catch (Exception ex)
         {
             Status = "Frame design failed: " + ex.Message;
         }
+    }
+
+    /// <summary>Points every card face/half and the set's house frame that use frame <paramref name="from"/> at
+    /// <paramref name="to"/>. Returns how many references changed.</summary>
+    internal int RenameFrameReferences(string from, string to)
+    {
+        int n = 0;
+        void Fix(CardModel? c)
+        {
+            if (c == null) return;
+            if (c.TemplateName == from) { c.TemplateName = to; n++; }
+            if (c.HalfTemplateName == from) { c.HalfTemplateName = to; n++; }
+        }
+        foreach (var c in Cards) { Fix(c); Fix(c.BackFace); Fix(c.OtherHalf); }
+        if (_defaultTemplate == from) { _defaultTemplate = to; _metaDirty = true; n++; }
+        return n;
     }
 
     /// <summary>Reloads the template list from disk (e.g. after importing a new frame).</summary>
@@ -1951,7 +2021,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             var report = ArtMatcher.MatchIntoWithReport(Cards, dlg.FolderName, overwrite: false);
             _artBaseDir = dlg.FolderName;
-            if (report.Total > 0) { MarkDirty(); CommitHistory(); }
+            if (report.Total > 0) { _metaDirty = true; MarkDirty(); CommitHistory(); }
             RenderPreview();
             if (report.Total == 0)
             {

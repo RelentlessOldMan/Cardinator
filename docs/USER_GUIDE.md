@@ -246,7 +246,7 @@ further down the card, the name is centred in the title bar (when there's no man
 just big enough for its rules. A **vanilla** token (no rules, like a 1/1 Soldier) has **no text box** at all: the
 type line sits on the P/T box. **Add token** (under CARDS) starts one. Tokens are ordinary cards in your set, so
 **Export all** and **Print sheet** do them with everything else — make the tokens your set creates and print
-them in one go. Looking up a real token works too (e.g. *Goblin // Soldier*), and **Import → Scryfall search**
+them in one go. Looking up a real token works too (e.g. *Goblin // Soldier*), and **Scryfall search…** (BATCH)
 with `t:token` (add a name or type, e.g. `t:token t:spirit`) brings in a batch. Every frame has a token layout:
 built-in frames are redrawn for it, and picture frames (the alchemy samples, imported ones) are rearranged —
 their art window stretched down and their text box shortened — keeping their own borders and medallion
@@ -274,7 +274,7 @@ by card, or import a whole batch.
   - a plain **list of names**, one per line (each looked up on Scryfall);
   - `Name | C:\art\thing.png` per line (name + art);
   - a **CSV/TSV with a header row**, columns matched by friendly names in any order. See the
-    [example CSV](../examples/02-custom-set/cards.csv) and its [column reference](../examples/README.md).
+    [example CSV](../examples/02-custom-set/cards.csv) and the [column reference](#csv-columns) below.
   - If any lines can't be read they're counted in the status, and if some card names are **already in
     your project** you're asked whether to **skip the duplicates** or add them anyway.
 - **Import deck…** — paste a **Moxfield deck URL** (or the deck's exported text) and Cardinator pulls
@@ -291,7 +291,7 @@ by card, or import a whole batch.
   for a set of 9, `01/12` … `12/12` for 12, `001/120` … for 120 — so a whole set is numbered in one click.
 - **Set defaults…** — the set's **house defaults** (set code, rarity, copyright, artist, set-symbol image,
   and default frame). Every **new or imported** card inherits these for any field it doesn't already have, so
-  you set them once instead of per card. Tick **Also apply to existing cards** to fill blanks on the cards
+  you set them once instead of per card. Tick **Also apply to cards already in the set** to fill blanks on the cards
   you already have. Defaults are saved with the project.
 - **Set fields on all…** — a bulk editor: set the **set code, artist, rarity, copyright, frame** and
   a **custom set-symbol image** on every card at once (leave a field blank to keep each card's own). If you
@@ -301,13 +301,13 @@ by card, or import a whole batch.
 - **Share set + frames…** — zips the whole set (project + `art/` + a bundle for each custom frame the
   cards use) so you can hand it to someone who doesn't have your frames (save the project first).
 - **Move ↑ / ↓** — reorder the selected card in the list (this is also the print/collector order).
-- **Copy** — duplicate the selected card (the sidebar button next to Add/Delete).
+- **Duplicate** (**Ctrl+D**) — copy the selected card (the sidebar button next to Add token).
 - **Export all…** — renders every card to PNGs in a folder you choose. Runs in the background
   with a progress bar so the window stays responsive, even for 100 cards.
 - **Print sheet…** — lays cards out **9 per page (3×3) at real size (2.5″×3.5″, 300 DPI)** on
   Letter (or A4) pages with cut marks — one PNG per page, ready to print and cut. It first asks
-  **Yes / No / Cancel** whether to include **card backs** for double-sided printing: **Yes** writes
-  a mirrored back page after each front page (flip on the long edge), **No** writes fronts only.
+  whether to include **card backs** for double-sided printing: **Front + back** writes a mirrored back
+  page after each front page (flip on the long edge), **Fronts only** writes just the fronts.
 
 Editing is fully **undoable** (**Ctrl+Z** / **Ctrl+Y**, or the header Undo/Redo buttons), across the
 whole project. Use **New / Open / Save** in the top-right to manage projects.
@@ -320,14 +320,53 @@ setup: the folder is only created the first time you save. (Older single-file pr
 
 **Your work is protected three ways.** (1) Saves are **atomic** — a crash or full disk mid-save can never
 truncate a good file. (2) Every save first tucks the previous version into a **`backups/`** folder (the last
-15, timestamped); click **Restore…** (top-right) to roll back to an earlier one if a save or an update ever
+15, plus the first of each of the last 30 days, so a burst of saves can't flush older history; saving an
+unchanged set adds no copy); click **Restore…** (top-right) to roll back to an earlier one if a save or an update ever
 goes wrong. Restoring loads that older version with its art intact and keeps pointing at your real project
 file, so a single **Save** puts it back in place (and backs up the bad version first). (3) If a project file
 is ever unreadable, Cardinator preserves it as a `.corrupt-backup` instead of losing it. And every new
 version is built to **open files from every older version**.
 
+Opening a backup file directly (**Open** or a drop) works the same as **Restore…**: **Save** writes it back
+over the set's own file, never into `backups/`. And **Open** only opens sets — a card or frame `.json` is
+refused rather than opened as an empty set you might save over it.
+
 Double-faced cards are covered by all of this too: the **back face's art travels with the set** exactly like
 the front's, so a moved, zipped or shared folder still renders both sides.
+
+### CSV columns
+
+The first row names the columns, in any order, matched without caring about case, spaces or
+punctuation (`Mana Cost`, `mana_cost` and `manacost` are the same). Commas or tabs both work. Only
+`name` is required; a row with no cost, type or rules is looked up on Scryfall. Write a line break in
+rules or flavor as `\n`.
+
+| Column | Also accepted | What it holds |
+|---|---|---|
+| `name` | card, card name, title | The card's name |
+| `art` | image, art path, picture, artwork, file, img | Art file, relative to the CSV (or absolute) |
+| `mana` | mana cost, cost | `{2}{R}` |
+| `type` | type line, types | `Creature — Elf`; start it with **Token** or **Emblem** for a token |
+| `rules` | text, rules text, oracle, oracle text, ability, abilities | Rules text (`\n` = new line) |
+| `flavor` | flavour, flavor text | Flavor text |
+| `pt` | power toughness | `3/3` — or separate `power` (pow) and `toughness` (tough, tou) |
+| `loyalty` | loy | Planeswalker loyalty |
+| `defense` | defence, def | Battle defense |
+| `orientation` | | `landscape` to draw the card sideways |
+| `template` | frame, border, color, colour | Frame name (blank = the set's house frame) |
+| `set` | set code, expansion | Set code |
+| `collector` | collector number, number, num | Collector number |
+| `rarity` | | `C`, `U`, `R` or `M` |
+| `artist` | illustrator, illus | Artist credit |
+| `copyright` | copy | Copyright line |
+| `lookup` | scryfall, fetch | `yes` / `no`: force or skip the Scryfall lookup |
+
+Special layouts add their own columns (any one of them makes the row that kind of card):
+**flip** `flip_name`, `flip_type`, `flip_rules`, `flip_power`, `flip_toughness` / `flip_pt`;
+**split** `split_name`, `split_cost`, `split_type`, `split_rules`, `split_flavor`, `split_art`, `split_frame`;
+**meld** `meld_name`, `meld_half` (`top`/`bottom`), `meld_with`, `meld_cost`, `meld_type`, `meld_rules`,
+`meld_flavor`, `meld_pt` (or `meld_power`/`meld_toughness`), `meld_art`.
+[Example 02](../examples/02-custom-set/) explains how flip, split and meld rows work.
 
 ---
 

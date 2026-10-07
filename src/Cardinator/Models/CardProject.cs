@@ -42,6 +42,12 @@ public sealed class CardProject
     public static CardProject Load(string path)
     {
         var json = File.ReadAllText(path);
+        // A card .json, a template.json or any other JSON object would otherwise "load" as an empty set — and
+        // the next Save would overwrite that file with a project. A set always has a cards list.
+        var root = JsonSerializer.Deserialize<JsonElement>(json, JsonOpts);
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.EnumerateObject().Any(p => string.Equals(p.Name, "cards", StringComparison.OrdinalIgnoreCase)))
+            throw new NotAProjectException(path);
         var project = JsonSerializer.Deserialize<CardProject>(json, JsonOpts)
                ?? throw new InvalidDataException($"Could not parse project: {path}");
 
@@ -122,3 +128,8 @@ public sealed class CardProject
         }
     }
 }
+
+/// <summary>The file is valid JSON but not a Cardinator set (a card, a frame's template.json, …). Unlike a
+/// corrupt set it needs no rescue copy — it just mustn't be opened as one.</summary>
+public sealed class NotAProjectException(string path)
+    : IOException($"“{Path.GetFileName(path)}” isn't a Cardinator set.");

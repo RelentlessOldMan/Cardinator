@@ -56,9 +56,9 @@ public class ProjectBackupTests : IDisposable
     }
 
     [Fact]
-    public void Prune_KeepsOnlyMostRecentN()
+    public void Prune_KeepsTheMostRecentN_PlusTheDaysFirst()
     {
-        // Create 5 backups with increasing timestamps; keep 3.
+        // Create 5 backups on one day with increasing timestamps; keep 3.
         for (int i = 1; i <= 5; i++)
         {
             File.WriteAllText(_proj, "v" + i);
@@ -66,11 +66,63 @@ public class ProjectBackupTests : IDisposable
         }
 
         var remaining = ProjectBackup.ListBackups(_proj);
-        Assert.Equal(3, remaining.Count);
-        // Newest first: the last three timestamps survive.
+        // Newest first: the last three timestamps survive, and so does the day's first (the state before
+        // that day's saves); the ones in between go.
+        Assert.Equal(4, remaining.Count);
         Assert.Contains("120005", remaining[0]);
         Assert.Contains("120003", remaining[2]);
-        Assert.DoesNotContain(remaining, b => b.Contains("120001") || b.Contains("120002"));
+        Assert.Contains(remaining, b => b.Contains("120001"));
+        Assert.DoesNotContain(remaining, b => b.Contains("120002"));
+    }
+
+    [Fact]
+    public void SavingAnUnchangedSet_AddsNoBackup_SoItCantPushTheHistoryOut()
+    {
+        File.WriteAllText(_proj, "before the mistake");
+        var first = ProjectBackup.BackupExisting(_proj, "20260104-120000", keep: 3);
+        File.WriteAllText(_proj, "half the set deleted");
+        // Ctrl+S habit: many saves, nothing changing.
+        for (int i = 1; i <= 20; i++)
+            ProjectBackup.BackupExisting(_proj, $"20260104-1201{i:00}", keep: 3);
+
+        var remaining = ProjectBackup.ListBackups(_proj);
+        Assert.Equal(2, remaining.Count);   // one copy of each distinct version
+        Assert.Contains(remaining, b => File.ReadAllText(b) == "before the mistake");
+        Assert.Equal(first, remaining.Last());
+    }
+
+    [Fact]
+    public void ABurstOfRealSaves_KeepsTheFirstBackupOfEachDay()
+    {
+        // Day 1: the good version, then 20 edits. Day 2: 20 more. keep=5 recent.
+        File.WriteAllText(_proj, "good");
+        ProjectBackup.BackupExisting(_proj, "20260101-090000", keep: 5);
+        for (int i = 1; i <= 20; i++)
+        {
+            File.WriteAllText(_proj, "day1 edit " + i);
+            ProjectBackup.BackupExisting(_proj, $"20260101-1000{i:00}", keep: 5);
+        }
+        for (int i = 1; i <= 20; i++)
+        {
+            File.WriteAllText(_proj, "day2 edit " + i);
+            ProjectBackup.BackupExisting(_proj, $"20260102-1000{i:00}", keep: 5);
+        }
+
+        var texts = ProjectBackup.ListBackups(_proj).Select(File.ReadAllText).ToList();
+        Assert.Contains("good", texts);              // day 1's first
+        Assert.Contains("day2 edit 1", texts);       // day 2's first (in the app: the file as day 1 left it)
+        Assert.Equal(7, texts.Count);                // + the 5 most recent
+    }
+
+    [Theory]
+    [InlineData(@"MySet\backups\MySet.20261001-120000.cardinator", @"MySet\MySet.cardinator")]
+    [InlineData(@"MySet\backups\MySet.v2.20261001-120000-3.cardinator", @"MySet\MySet.v2.cardinator")]
+    [InlineData(@"MySet\backups\copied by hand.cardinator", "")]
+    [InlineData(@"MySet\MySet.cardinator", null)]
+    public void ABackupFile_KnowsWhichSetFileItBacksUp(string file, string? setFile)
+    {
+        var got = ProjectBackup.ProjectFileForBackup(Path.Combine(_dir, file));
+        Assert.Equal(setFile is null or "" ? setFile : Path.Combine(_dir, setFile), got);
     }
 
     [Fact]

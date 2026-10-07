@@ -94,10 +94,15 @@ src/Cardinator/
   HelpWindow.xaml(.cs)     Built-in cheat sheet (Help button / F1)
   FrameDesignWindow.xaml(.cs)  Frame designer: edit a template's style/knobs/colors with a live preview
   BulkEditWindow.xaml(.cs)     "Set fields on all…" bulk editor (set code/artist/rarity/frame/…)
-  InputDialog.xaml(.cs)    Small themed text prompt (used by Scryfall search)
+  SetDefaultsWindow.xaml(.cs)  "Set defaults…": the set's house metadata + default frame
+  DeckListWindow.xaml(.cs)     "Import deck…": Moxfield link (hidden WebView2) or a pasted list
+  ScryfallSearchWindow.xaml(.cs)  "Scryfall search…": search, pick results with thumbnails
+  ConfirmDialog.xaml(.cs)  Themed message box for the app's prompts
+  InputDialog.xaml(.cs)    Small themed text prompt (frame Save as new / Import)
   Models/
     CardModel.cs           One card's editable content (+ JSON load/save, Clone)
-    CardProject.cs         A saved project (.cardinator) = a list of cards
+    CardProject.cs         A saved project (.cardinator) = a list of cards + set metadata
+    SetProfile.cs          The set's house defaults (set code, rarity, copyright, artist, symbol)
     TemplateSpec.cs        Template layout: regions, fonts, colors (+ safe parsing)
   Services/
     ScryfallClient.cs      Fuzzy card lookup (User-Agent, rate limit, timeout handling)
@@ -121,9 +126,23 @@ src/Cardinator/
     SelfTest.cs            Headless entry points (render/lookup/batch/sheet/search/newtemplate/cardback/frames/permute/qa)
     TemplateImporter.cs    Create a custom template from a frame image (file/URL)
     TextUtil.cs            Shared slug / safe-filename helpers
-tests/Cardinator.Tests/    xUnit tests, incl. golden-image regression baselines
-docs/images, golden/       Rendered gallery + committed golden baselines
-docs/                      This documentation + rendered gallery images
+    CardDetailsFill.cs     Copies a looked-up card's details (and back face / other half) onto a card
+    CollectorNumbering.cs  "Number cards": NNN/total in list order
+    CustomFrameComposer.cs Builds a picture frame's frame.png from its source image + fit knobs
+    ImageIntake.cs         Pasted / downloaded images into the local art cache (size cap, atomic)
+    IoUtil.cs              Atomic writes; corrupt-file rescue copies
+    JsonCompat.cs          The one set of JSON options (the backward-compatibility rules)
+    ProjectWriter.cs       The single save path: localize art -> relative paths -> backup -> atomic write
+    ProjectBackup.cs       Rolling backups/ copies (recent + first of each day), Restore
+    SetFolder.cs           Makes a set folder self-contained (art/ copies)
+    SetPackager.cs         "Share set + frames…" zip
+    SetValidator.cs        "Check all cards" over the whole set
+    LiveChecks.cs          CHECKS = CardValidator + RenderInspector
+    RenderInspector.cs     Pixel checks on a rendered card (borders, overlaps)
+    MoxfieldClient.cs / MoxfieldFetcher.cs  Moxfield deck import (pure helpers / WebView2 fetch)
+    SampleAssets.cs / SampleTemplates.cs    Extract the bundled sample art / picture frames on first run
+tests/Cardinator.Tests/    xUnit tests; golden/ holds the golden-image regression baselines
+docs/                      This documentation + rendered images (docs/images)
 examples/                  Worked examples (inputs + outputs): real-cards/custom-art, custom set, full-art, custom frame, tokens, printing
 ```
 

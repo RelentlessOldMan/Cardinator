@@ -63,7 +63,7 @@ public partial class App : Application
 
         if (e.Args.Length > 1 && e.Args[0] == "--frames")
         {
-            int code = SelfTest.RunFrames(e.Args[1], e.Args.Skip(2).Contains("nosym"));
+            int code = SelfTest.RunFrames(e.Args[1], e.Args.Skip(2).Contains("nosym"), e.Args.Skip(2).Contains("builtin"));
             Shutdown(code);
             return;
         }
@@ -398,10 +398,10 @@ public partial class App : Application
            Lightning Bolt, bolt.png, Crimson Red
            Counterspell,   counter.png, Ocean Blue
            ```
-        2. Click **Import list / CSV…** (or drop the file on the window). Cardinator fills any blank fields
+        2. Click **Import file…** (or drop the file on the window). Cardinator fills any blank fields
            from Scryfall and matches art files by name.
-        3. Click **Look up missing** if you left fields blank, and **Match art folder…** to attach a folder
-           of images by filename.
+        3. Click **Fill blanks from Scryfall** if you left fields blank, and **Add art from folder…** to attach
+           a folder of images by filename.
         4. Use **Set fields on all…** to apply one frame (and/or set code, artist, rarity, copyright) to
            every card at once — blank fields are left unchanged, so you can re-frame a whole set in one step.
         5. **Export all…** writes every card to a PNG, or **Print sheet…** lays them out at real card size
@@ -497,9 +497,9 @@ public partial class App : Application
                   Render the built-in sample cards to PNGs.
               Cardinator.exe --lookup "<card name>" <outDir>
                   Fetch one card from Scryfall and render it.
-              Cardinator.exe --render <card.json> <out.png|.jpg> [scale=N] [dpi=N] [bleed=N] [q=N]
+              Cardinator.exe --render <card.json> <out.png|.jpg> [scale=N] [dpi=N] [bleed=N] [q=N] [nosym]
                   Render a saved card JSON. scale=supersample, dpi=stamp, bleed=print margin px,
-                  q=JPEG quality. .jpg output writes a JPEG.
+                  q=JPEG quality, nosym=the app's own pips. .jpg output writes a JPEG.
               Cardinator.exe --rendercards <cards-dir|card.json> <outDir> [templates=<dir>] [scale=N] [nosym]
                   Batch-render a folder of card JSONs to PNGs. templates=<dir> also loads custom
                   frames straight from a folder (no install needed). Each card -> <outDir>/<slug>.png.
@@ -507,8 +507,9 @@ public partial class App : Application
                   Create a custom template from your own frame image (local file or URL).
               Cardinator.exe --cardback <out.png> ["Wordmark"]
                   Render the decorative card back (for double-sided printing).
-              Cardinator.exe --frames <outDir> [nosym]
+              Cardinator.exe --frames <outDir> [nosym] [builtin]
                   Render one sample card on every installed frame (a style showcase).
+                  builtin=only the frames that ship with the app.
               Cardinator.exe --permute <card.json> <outDir>
                   Render one card across 32 composable-frame knob combinations.
               Cardinator.exe --uishot <outDir>

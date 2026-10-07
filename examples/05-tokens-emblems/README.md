@@ -5,13 +5,13 @@
 frame's **token layout**: the art runs much further down the card, the name is centred, and the text box is
 just big enough for its rules — a **vanilla** token (no rules) has no text box at all. Leave the mana blank.
 
-Nine tokens fill exactly one 3×3 print sheet, so a set's tokens print in one go.
+The nine cards fill exactly one 3×3 print sheet, so a set's tokens print in one go.
 
 ## What's here
 
 ```
 05-tokens-emblems/
-  cards.csv          <- nine tokens and an emblem, across nine frames
+  cards.csv          <- eight tokens and an emblem, across nine frames
   art/               <- our own artwork (generated for this example)
   output/            <- the rendered result + the print sheet (checked in)
 ```
@@ -40,7 +40,7 @@ Construct,art/construct.jpg,,Token Artifact Creature — Construct,This token ge
 
 ## Run it
 
-In the app: **Import list / CSV…** → `cards.csv`, then **Export all…** or **Print sheet…**. Or click
+In the app: **Import file…** → `cards.csv`, then **Export all…** or **Print sheet…**. Or click
 **Add token** to start one by hand. From the command line:
 
 ```powershell
@@ -48,7 +48,7 @@ Cardinator.exe --batch examples/05-tokens-emblems/cards.csv examples/05-tokens-e
 Cardinator.exe --sheet examples/05-tokens-emblems/cards.csv examples/05-tokens-emblems/output examples/05-tokens-emblems
 ```
 
-Real tokens work too: look one up (e.g. *Goblin // Soldier*), or **Import → Scryfall search** with `t:token`
+Real tokens work too: look one up (e.g. *Goblin // Soldier*), or **Scryfall search…** (BATCH) with `t:token`
 (narrow it, e.g. `t:token t:spirit`).
 
 ## The output
@@ -66,4 +66,4 @@ Real tokens work too: look one up (e.g. *Goblin // Soldier*), or **Import → Sc
 
 **The print sheet** — all nine on one page:
 
-<p><img src="output/sheet.png" width="560" alt="All nine tokens on one 3x3 print sheet"></p>
+<p><img src="output/sheet_page_01.png" width="560" alt="All nine tokens on one 3x3 print sheet"></p>
