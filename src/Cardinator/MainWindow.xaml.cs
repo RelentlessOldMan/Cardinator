@@ -54,6 +54,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool _metaDirty;               // set-level edits the card history can't see (Set defaults, art folder)
     private DispatcherTimer _undoTimer = null!;
     private bool _restoring;
+    private bool _syncingTemplates;   // RefreshTemplates re-selecting in the picker: never re-frames the card
     private static readonly System.Text.Json.JsonSerializerOptions SnapOpts =
         new() { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
 
@@ -610,7 +611,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OnPropertyChanged();
             // Only push the frame onto the card for a genuine user change — not during restore/load or a
             // programmatic re-sync (which would spuriously dirty the card / churn undo history).
-            if (value != null && _selectedCard != null && !_restoring && !_loading
+            if (value != null && _selectedCard != null && !_restoring && !_loading && !_syncingTemplates
                 && !string.Equals(value.Name, _selectedCard.TemplateName, StringComparison.Ordinal))
                 _selectedCard.TemplateName = value.Name;
             RenderPreview();
@@ -1490,7 +1491,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         string baseDir;
         try
         {
-            var content = File.ReadAllText(filePath);
+            var content = ImportService.ReadListFile(filePath);
             baseDir = Path.GetDirectoryName(filePath) ?? "";
             parsed = ImportService.ParseWithReport(content, baseDir, DefaultTemplateName);
         }
@@ -1608,6 +1609,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             int art = 0;
             foreach (var c in chosen)
             {
+                if (c.BackFace is { ArtPath: var bp, ArtUrl: var bu } back && string.IsNullOrWhiteSpace(bp) && !string.IsNullOrWhiteSpace(bu))
+                    try { back.ArtPath = await ImageIntake.DownloadAsync(bu); } catch { /* skip */ }   // a double-faced card's back
                 if (!string.IsNullOrWhiteSpace(c.ArtPath) || string.IsNullOrWhiteSpace(c.ArtUrl)) continue;
                 try { c.ArtPath = await ImageIntake.DownloadAsync(c.ArtUrl); art++; } catch { /* skip */ }
             }
@@ -1715,6 +1718,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = "Save the project first — Share set bundles the saved set folder.";
             return;
         }
+        // The zip is made from the saved files, so unsaved changes would be left out of it.
+        if (Dirty)
+        {
+            if (ConfirmDialog.Show(this, "Save before sharing",
+                    "This set has unsaved changes. Share set packs the saved set, so save it first?",
+                    affirmative: "Save and share", cancel: "Cancel") != ConfirmResult.Affirmative)
+                return;
+            if (!SaveProject(forceDialog: false)) return;
+        }
         var dlg = new SaveFileDialog
         {
             Title = "Share set + frames",
@@ -1725,8 +1737,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (dlg.ShowDialog() != true) return;
         try
         {
-            var names = Cards.SelectMany(TemplateService.FramesUsed).Distinct().ToList();
-            int frames = SetPackager.ExportSetWithFrames(_projectPath, names, AppPaths.TemplatesDir, dlg.FileName);
+            int frames = SetPackager.ExportSetWithFrames(_projectPath, ShareFrameFolders(), dlg.FileName);
             _lastExportDir = Path.GetDirectoryName(dlg.FileName);
             Status = $"Shared set to {Path.GetFileName(dlg.FileName)} ({Cards.Count} cards, {frames} custom frame(s) included).";
         }
@@ -1735,6 +1746,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = "Couldn't share set: " + ex.Message;
         }
     }
+
+    /// <summary>The folders of the frames the set's cards use, found from the loaded frames (a frame renamed in place
+    /// keeps its old folder name), else guessed from the name.</summary>
+    internal List<string> ShareFrameFolders() => Cards.SelectMany(TemplateService.FramesUsed).Distinct()
+        .Where(n => !string.IsNullOrWhiteSpace(n))
+        .Select(n => Templates.FirstOrDefault(t => t.Name == n) is { FramePath: { Length: > 0 } fp }
+            ? Path.GetDirectoryName(fp) ?? "" : Path.Combine(AppPaths.TemplatesDir, TextUtil.Slug(n)))
+        .Where(d => d.Length > 0).ToList();
 
     private async void OnExportSheet(object sender, RoutedEventArgs e)
     {
@@ -1857,7 +1876,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 name = await TemplateImporter.CreateFromUrlAsync("", url, fullArt.Value);
                 Status = $"Imported frame as template \"{name}\". Tune its regions in CardinatorData/templates.";
             }
+            bool reframes = _selectedCard != null && _selectedCard.TemplateName != name;
             RefreshTemplates(name);
+            if (reframes && _selectedCard != null && _selectedCard.TemplateName == name)
+                Status += $" Put it on “{_selectedCard.Name}” (Ctrl+Z to undo).";
         }
         catch (Exception ex)
         {
@@ -2002,12 +2024,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     /// <summary>Reloads the template list from disk (e.g. after importing a new frame).</summary>
-    private void RefreshTemplates(string? selectName = null)
+    /// <param name="applyName">A frame to put on the selected card (one just imported or designed); null keeps the
+    /// card's own frame — even when that frame was just deleted, so the card is flagged instead of quietly moved.</param>
+    private void RefreshTemplates(string? applyName = null)
     {
-        var wanted = selectName ?? _selectedTemplate?.Name;
+        var wanted = _selectedCard?.TemplateName is { Length: > 0 } own ? own : _selectedTemplate?.Name;
         Templates.Clear();
         foreach (var t in _templates.LoadAll()) Templates.Add(t);
-        SelectedTemplate = Templates.FirstOrDefault(t => t.Name == wanted) ?? Templates.FirstOrDefault();
+        _syncingTemplates = true;
+        try { SelectedTemplate = Templates.FirstOrDefault(t => t.Name == wanted) ?? Templates.FirstOrDefault(); }
+        finally { _syncingTemplates = false; }
+        if (applyName != null && Templates.FirstOrDefault(t => t.Name == applyName) is { } applied)
+            SelectedTemplate = applied;   // a user action: re-frames the card as one undo step
         RefreshHalfFrameBox();
     }
 
@@ -2242,7 +2270,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (dlg.ShowDialog() != true) return;
         try
         {
-            var bmp = _renderer.RenderToBitmap(_selectedCard, template, supersample: 2);
+            var bmp = CardExporter.AtCardSize(_renderer.RenderToBitmap(_selectedCard, template, supersample: 2));
             CardExporter.Save(bmp, dlg.FileName);   // PNG or JPEG by extension
             _lastExportDir = Path.GetDirectoryName(dlg.FileName);   // so "Open output folder" opens here
 
@@ -2250,7 +2278,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (_selectedCard.BackFace is { } back)
             {
                 var backPath = BackFacePath(dlg.FileName);
-                CardExporter.Save(_renderer.RenderToBitmap(back, TemplateFor(back) ?? template, supersample: 2), backPath);
+                CardExporter.Save(CardExporter.AtCardSize(_renderer.RenderToBitmap(back, TemplateFor(back) ?? template, supersample: 2)), backPath);
                 Status = $"Exported {Path.GetFileName(dlg.FileName)} + {Path.GetFileName(backPath)} (front & back).";
             }
             else

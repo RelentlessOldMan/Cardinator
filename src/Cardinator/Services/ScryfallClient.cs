@@ -19,7 +19,11 @@ public sealed class ScryfallClient
     /// <summary>Descriptive User-Agent per Scryfall's API guidelines; reused by the other HTTP clients.</summary>
     public const string UserAgent = "Cardinator/1.0 (+https://github.com/RelentlessOldMan/Cardinator)";
 
-    private static readonly HttpClient Http = CreateClient();
+    private static readonly HttpClient RealHttp = CreateClient();
+    private static HttpClient Http => TestHttp ?? RealHttp;
+
+    /// <summary>Tests only: answers every request instead of the network.</summary>
+    internal static HttpClient? TestHttp;
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static DateTime _lastCall = DateTime.MinValue;
 
@@ -180,10 +184,12 @@ public sealed class ScryfallClient
     /// Looks up many cards in as few requests as possible via Scryfall's /cards/collection endpoint
     /// (up to 75 per request), instead of one call per card. Returns the mapped faces for each card that
     /// matched (double-faced cards yield multiple faces). Cards Scryfall can't find are simply omitted —
-    /// the caller can fall back to a fuzzy single lookup for those.
+    /// the caller can fall back to a fuzzy single lookup for those. A request that fails (network blip,
+    /// bad response) costs only ITS chunk: the chunks already fetched are kept, the rest still run, and the
+    /// failure is added to <paramref name="failures"/>.
     /// </summary>
     public async Task<List<List<CardModel>>> LookupCollectionAsync(
-        IReadOnlyList<CardRef> refs, CancellationToken ct = default)
+        IReadOnlyList<CardRef> refs, CancellationToken ct = default, List<string>? failures = null)
     {
         var results = new List<List<CardModel>>();
         for (int start = 0; start < refs.Count; start += 75)
@@ -197,17 +203,23 @@ public sealed class ScryfallClient
                     : new Dictionary<string, string> { ["name"] = r.Name ?? "" }).ToList();
             var body = JsonSerializer.Serialize(new { identifiers });
 
-            var json = await PostJsonAsync($"{Base}/cards/collection", body, ct);
-            if (json is null) continue;
-
+            var mapped = new List<List<CardModel>>();
             try
             {
+                var json = await PostJsonAsync($"{Base}/cards/collection", body, ct);
+                if (json is null) continue;
                 using var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
                     foreach (var el in data.EnumerateArray())
-                        results.Add(ScryfallMapper.MapElement(el));
+                        mapped.Add(ScryfallMapper.MapElement(el));
             }
-            catch (JsonException) { throw new ScryfallException("Scryfall returned an unexpected response."); }
+            catch (Exception ex) when (ex is ScryfallException or JsonException)
+            {
+                failures?.Add($"cards {start + 1}–{start + chunk.Count}: "
+                    + (ex is JsonException ? "Scryfall returned an unexpected response." : ex.Message));
+                continue;
+            }
+            results.AddRange(mapped);
         }
         return results;
     }

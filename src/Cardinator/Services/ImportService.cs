@@ -122,45 +122,91 @@ public static class ImportService
     public static ImportResult ParseWithReport(string content, string? artBaseDir, string defaultTemplate)
     {
         content = (content ?? "").TrimStart('﻿');   // strip a UTF-8 BOM so line 0 isn't polluted
-        var rawLines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
-        var lines = rawLines
-            .Where(l => l.Trim().Length > 0
-                        && !l.TrimStart().StartsWith('#')
-                        && !l.TrimStart().StartsWith("//"))   // deck-list comment lines
-            .ToList();
+        content = content.Replace("\r\n", "\n").Replace("\r", "\n");
+        static bool Meaningful(string l) => l.Trim().Length > 0
+                                            && !l.TrimStart().StartsWith('#')
+                                            && !l.TrimStart().StartsWith("//");   // deck-list comment lines
+        var lines = content.Split('\n').Where(Meaningful).ToList();
         if (lines.Count == 0) return new(new(), 0);
 
-        var delimiter = DetectDelimiter(lines[0]);
-        if (delimiter != '\0' && LooksLikeHeader(lines[0], delimiter))
-            return ParseDelimited(lines, delimiter, artBaseDir, defaultTemplate);
+        var delimiter = HeaderDelimiter(lines[0]);
+        if (delimiter != '\0')
+        {
+            // A CSV record can span lines: a quoted field may hold line breaks (multi-line rules from Excel).
+            var records = SplitRecords(content).Where(Meaningful).ToList();
+            return ParseDelimited(records, delimiter, artBaseDir, defaultTemplate);
+        }
 
         return ParsePlain(lines, artBaseDir, defaultTemplate);
     }
 
-    private static char DetectDelimiter(string line)
+    /// <summary>The delimiter of a header row — tab, semicolon (Excel in comma-decimal locales) or comma —
+    /// whichever splits it into the most known column names; '\0' when the line isn't a header.</summary>
+    private static char HeaderDelimiter(string line)
     {
-        if (line.Contains('\t')) return '\t';
-        if (line.Contains(',')) return ',';
-        return '\0';
+        char best = '\0';
+        int bestHits = 0;
+        foreach (var d in new[] { '\t', ';', ',' })
+        {
+            if (!line.Contains(d)) continue;
+            int hits = SplitLine(line, d).Count(f => Aliases.ContainsKey(Normalize(f)));
+            if (hits > bestHits) { best = d; bestHits = hits; }
+        }
+        return best;
     }
 
-    private static bool LooksLikeHeader(string line, char delimiter)
-        => SplitLine(line, delimiter).Any(f => Aliases.ContainsKey(Normalize(f)));
+    /// <summary>Splits text into CSV records: at line breaks, except inside a double-quoted field.</summary>
+    private static List<string> SplitRecords(string content)
+    {
+        var records = new List<string>();
+        var cur = new System.Text.StringBuilder();
+        bool inQuotes = false;
+        foreach (char ch in content)
+        {
+            if (ch == '"') inQuotes = !inQuotes;   // a "" escape inside a field toggles twice: no net change
+            if (ch == '\n' && !inQuotes) { records.Add(cur.ToString()); cur.Clear(); }
+            else cur.Append(ch);
+        }
+        records.Add(cur.ToString());
+        return records;
+    }
+
+    /// <summary>Reads a list file as text: UTF-8 (with or without a BOM, or UTF-16 with one), and otherwise
+    /// Windows-1252 — what Excel's plain "CSV" save writes, where é, ’ and — aren't valid UTF-8.</summary>
+    public static string ReadListFile(string path)
+    {
+        var bytes = File.ReadAllBytes(path);
+        bool bom = bytes.Length >= 2 && ((bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF))
+                   || bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+        if (bom) return File.ReadAllText(path);   // the BOM says which
+        try { return new System.Text.UTF8Encoding(false, throwOnInvalidBytes: true).GetString(bytes); }
+        catch (System.Text.DecoderFallbackException)
+        {
+            return System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252)!.GetString(bytes);
+        }
+    }
 
     // --- plain list ---------------------------------------------------------
 
     // Deck-list helpers: a leading quantity ("4 " / "2x "), a trailing "(SET) 123" printing hint, and
-    // common section headers. Set codes are required to be uppercase so real names ending in "(...)"
-    // (e.g. reminder-style names) aren't mistaken for a hint.
+    // common section headers.
     private static readonly Regex QtyPrefix = new(@"^(\d{1,3})\s*[xX]?\s+(.+)$", RegexOptions.Compiled);
-    // Printing hint "(SET) 123": uppercase set code, optional collector that may be alphanumeric with a
-    // hyphen (foils/variants like "273p", and The List / PLST numbers like "M20-14"). Anchored at end so
-    // real names ending in "(...)" aren't mistaken for a hint.
-    private static readonly Regex SetHint = new(@"\s*\(([A-Z0-9]{2,6})\)\s*([0-9A-Za-z★\-]+)?\s*$", RegexOptions.Compiled);
+    // Printing hint "(SET) 123": a 2–6 character set code in either case (some exports write "(cmr)"; it's
+    // upper-cased when read), optional collector that may be alphanumeric with a hyphen (foils/variants like
+    // "273p", and The List / PLST numbers like "M20-14"). Anchored at end; names that end in "(...)" have
+    // spaces in the brackets, so they aren't mistaken for a hint.
+    private static readonly Regex SetHint = new(@"\s*\(([A-Za-z0-9]{2,6})\)\s*([0-9A-Za-z★\-]+)?\s*$", RegexOptions.Compiled);
     // Trailing foil/etched marker some deck sites (e.g. Moxfield) append, e.g. "... (LTC) 273 *F*".
     private static readonly Regex FoilMarker = new(@"\s*\*[A-Za-z]\*\s*$", RegexOptions.Compiled);
-    private static readonly HashSet<string> SectionHeaders =
-        new(StringComparer.OrdinalIgnoreCase) { "deck", "sideboard", "commander", "maybeboard", "companion" };
+    // Deck sites head their sections "Sideboard", "Sideboard:", "Creatures (25)"… — never card names.
+    private static readonly HashSet<string> SectionHeaders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "deck", "main", "mainboard", "main deck", "sideboard", "commander", "commanders", "maybeboard", "companion",
+        "considering", "tokens", "creature", "creatures", "instant", "instants", "sorcery", "sorceries",
+        "artifact", "artifacts", "enchantment", "enchantments", "planeswalker", "planeswalkers",
+        "land", "lands", "battle", "battles", "spells", "other",
+    };
+    private static readonly Regex SectionSuffix = new(@"\s*(\(\d+\))?\s*:?\s*$", RegexOptions.Compiled);
 
     private static ImportResult ParsePlain(List<string> lines, string? artBaseDir, string defaultTemplate)
     {
@@ -169,7 +215,7 @@ public static class ImportService
         foreach (var raw in lines)
         {
             string line = raw.Trim();
-            if (SectionHeaders.Contains(line)) continue;                 // "Deck" / "Sideboard" headers
+            if (SectionHeaders.Contains(SectionSuffix.Replace(line, ""))) continue;   // "Deck" / "Sideboard:" / "Lands (36)"
             if (line.StartsWith("SB:", StringComparison.OrdinalIgnoreCase)) line = line[3..].Trim();
 
             // Allow "Name | art" or "Name <TAB> art".
@@ -195,7 +241,7 @@ public static class ImportService
             var h = SetHint.Match(line);
             if (h.Success)
             {
-                setCode = h.Groups[1].Value;
+                setCode = h.Groups[1].Value.ToUpperInvariant();
                 collector = h.Groups[2].Success ? h.Groups[2].Value : "";
                 line = line[..h.Index].Trim();
             }
@@ -296,7 +342,7 @@ public static class ImportService
             {
                 Name = Get("splitname"), ManaCost = Get("splitcost"), TypeLine = Get("splittype"),
                 RulesText = Unescape(Get("splitrules")), FlavorText = Unescape(Get("splitflavor")),
-                ArtPath = Get("splitart"), TemplateName = card.TemplateName,
+                ArtPath = ResolveArt(Get("splitart"), artBaseDir), TemplateName = card.TemplateName,
             };
             if (card.OtherHalf == null
                 && split.Name.Length + split.ManaCost.Length + split.TypeLine.Length + split.RulesText.Length + split.ArtPath.Length > 0)

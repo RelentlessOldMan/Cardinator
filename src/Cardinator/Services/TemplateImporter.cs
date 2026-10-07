@@ -65,19 +65,16 @@ public static class TemplateImporter
 
     public static async Task<string> CreateFromUrlAsync(string name, string url, bool fullArt = false, CancellationToken ct = default)
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        http.DefaultRequestHeaders.Add("User-Agent", "Cardinator/1.0");
-        using var resp = await http.GetAsync(url, ct);
-        resp.EnsureSuccessStatusCode();
-
-        var mediaType = resp.Content.Headers.ContentType?.MediaType;
-        bool isImage = (mediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ?? false)
-                       || ImageIntake.LooksLikeImagePath(url);
-        if (!isImage) throw new InvalidOperationException("That link didn't return an image file.");
+        // The art downloader's checks (an image, not an HTML page; a size cap; a timeout), then the
+        // downloaded copy is read and dropped — the frame keeps its own copy.
+        var tmp = await ImageIntake.DownloadAsync(url, ct);
+        byte[] bytes;
+        try { bytes = await File.ReadAllBytesAsync(tmp, ct); }
+        finally { try { File.Delete(tmp); } catch { /* best-effort */ } }
 
         var chosenName = string.IsNullOrWhiteSpace(name)
             ? Path.GetFileNameWithoutExtension(url.Split('?')[0]) : name;
-        return CreateFromFrame(chosenName, await resp.Content.ReadAsByteArrayAsync(ct), fullArt);
+        return CreateFromFrame(chosenName, bytes, fullArt);
     }
 
     // --- template bundles (frame.png + template.json together) -----------------
@@ -202,21 +199,30 @@ public static class TemplateImporter
         var tmp = destPath + ".tmp";
         if (File.Exists(tmp)) File.Delete(tmp);
         using (var zip = ZipFile.Open(tmp, ZipArchiveMode.Create))
-        {
-            zip.CreateEntryFromFile(specPath, "template.json");
-            zip.CreateEntryFromFile(framePath, "frame.png");
-            // Its hand-made flip / sideways layouts travel with it, so a shared frame keeps them.
-            foreach (var v in new[] { TemplateService.FlipVariant, TemplateService.LandscapeVariant })
-            {
-                var vs = Path.Combine(templateDir, v, "template.json");
-                var vf = Path.Combine(templateDir, v, "frame.png");
-                if (!File.Exists(vs) || !File.Exists(vf)) continue;
-                zip.CreateEntryFromFile(vs, v + "/template.json");
-                zip.CreateEntryFromFile(vf, v + "/frame.png");
-            }
-        }
+            AddBundleEntries(zip, templateDir, "");
         if (File.Exists(destPath)) File.Delete(destPath);
         File.Move(tmp, destPath);
+    }
+
+    /// <summary>Adds a frame's bundle files to a zip under <paramref name="prefix"/> ("" or "frames/x/"): template.json,
+    /// frame.png and its hand-made flip / sideways layouts, so a shared frame keeps them. False (nothing added) when
+    /// the folder has no template.json or frame.png.</summary>
+    internal static bool AddBundleEntries(ZipArchive zip, string templateDir, string prefix)
+    {
+        var specPath = Path.Combine(templateDir, "template.json");
+        var framePath = Path.Combine(templateDir, "frame.png");
+        if (!File.Exists(specPath) || !File.Exists(framePath)) return false;
+        zip.CreateEntryFromFile(specPath, prefix + "template.json");
+        zip.CreateEntryFromFile(framePath, prefix + "frame.png");
+        foreach (var v in new[] { TemplateService.FlipVariant, TemplateService.LandscapeVariant })
+        {
+            var vs = Path.Combine(templateDir, v, "template.json");
+            var vf = Path.Combine(templateDir, v, "frame.png");
+            if (!File.Exists(vs) || !File.Exists(vf)) continue;
+            zip.CreateEntryFromFile(vs, prefix + v + "/template.json");
+            zip.CreateEntryFromFile(vf, prefix + v + "/frame.png");
+        }
+        return true;
     }
 
     /// <summary>Unpacks a bundle's optional flip/ and landscape/ layouts beside the imported frame. Best-effort:

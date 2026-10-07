@@ -430,7 +430,7 @@ public partial class App : Application
     {
         try
         {
-            var content = File.ReadAllText(csvPath);
+            var content = ImportService.ReadListFile(csvPath);
             var templates = new TemplateService().LoadAll();
             var imported = ImportService.Parse(content, artDir, templates[0].Name);
             System.Threading.Tasks.Task.Run(() => BatchService.FillFromScryfallAsync(imported, downloadArt: false))

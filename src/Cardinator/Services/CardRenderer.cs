@@ -22,7 +22,7 @@ public sealed class CardRenderer
     private static SolidColorBrush MakeFrozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
     // Decoded-art cache so live preview doesn't re-read/decode the image on every keystroke.
-    private readonly Dictionary<string, (long stamp, BitmapImage img)> _artCache = new();
+    private readonly Dictionary<string, (long stamp, BitmapSource img)> _artCache = new();
     private const int ArtCacheMax = 12;
 
     public CardRenderer(SymbolService symbols) => _symbols = symbols;
@@ -139,13 +139,7 @@ public sealed class CardRenderer
                 DrawBigLandSymbol(dc, card, spec);
             else
             {
-                // Creatures nest a P/T box in the bottom-right — reserve that space so rules text wraps around
-                // it instead of being hidden underneath.
-                Rect? avoid = ArtText(spec) ? null
-                    : card.HasDefense ? DefenseRect(spec)
-                    : card.HasPowerToughness ? PtRect(spec)
-                    : null;
-                DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, avoid,
+                DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, RulesAvoid(card, spec),
                     ArtText(spec) ? null : BottomOrnament(template, spec));
             }
 
@@ -1220,7 +1214,7 @@ public sealed class CardRenderer
         var rect = ToRect(win);
         dc.DrawRectangle(CardBacking, null, rect);   // dark backing so any uncovered area never flashes white
 
-        BitmapImage? img = null;
+        BitmapSource? img = null;
         if (!string.IsNullOrWhiteSpace(card.ArtPath))
         {
             try { img = LoadArt(Path.GetFullPath(card.ArtPath)); } catch { img = null; }
@@ -1265,7 +1259,7 @@ public sealed class CardRenderer
     }
 
     /// <summary>Loads (and caches) the decoded art image, keyed by path + file stamp.</summary>
-    private BitmapImage? LoadArt(string path)
+    private BitmapSource? LoadArt(string path)
     {
         if (!File.Exists(path)) return null;
         long stamp;
@@ -1274,19 +1268,10 @@ public sealed class CardRenderer
 
         if (_artCache.TryGetValue(path, out var e) && e.stamp == stamp) return e.img;
 
-        BitmapImage img;
-        try
-        {
-            // Read bytes first so the file isn't locked and a decode error can't hold a handle.
-            var bytes = File.ReadAllBytes(path);
-            img = new BitmapImage();
-            img.BeginInit();
-            img.CacheOption = BitmapCacheOption.OnLoad;
-            img.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-            img.StreamSource = new MemoryStream(bytes);
-            img.EndInit();
-            img.Freeze();
-        }
+        BitmapSource img;
+        // Read bytes first so the file isn't locked and a decode error can't hold a handle; phone photos
+        // come out upright (EXIF orientation applied).
+        try { img = ImageIntake.LoadOriented(File.ReadAllBytes(path)); }
         catch { return null; }
 
         if (_artCache.Count >= ArtCacheMax) _artCache.Clear();   // simple bound
@@ -1536,6 +1521,12 @@ public sealed class CardRenderer
         spec.ArtWindow != null && spec.ArtWindow.W >= spec.CanvasWidth * 0.92 && spec.ArtWindow.H >= spec.CanvasHeight * 0.92;
 
     /// <summary>Styles where the art fills the whole card and text sits on top of it.</summary>
+    /// <summary>The box plain rules text wraps around: creatures nest a P/T box (a battle its defense) in the
+    /// bottom-right, so the text ends before it instead of hiding underneath — on full-art frames too, whose box
+    /// sits inside the text area.</summary>
+    internal static Rect? RulesAvoid(CardModel card, TemplateSpec spec) =>
+        card.HasDefense ? DefenseRect(spec) : card.HasPowerToughness ? PtRect(spec) : null;
+
     private static bool ArtText(TemplateSpec spec) => spec.FullArt || IsBorderless(spec) || IsOverlay(spec) || IsFullBleedWindow(spec);
 
     private static bool IsComposable(TemplateSpec spec) =>
@@ -1778,9 +1769,11 @@ public sealed class CardRenderer
         // descent space below the glyphs and would make the symbol look bottom-aligned).
         double symTopOffset = probe.Baseline - fontSize * 0.34 - symSize / 2;
 
-        // Lines whose vertical band overlaps a reserved box (the P/T box) wrap before it.
+        // Lines whose vertical band overlaps a reserved box (the P/T box) wrap before it — when it's actually
+        // in the right part of the text column (a box beside or left of it would leave no room at all).
         double RightAt(double lineTop) =>
             avoid is Rect a && lineTop + lineHeight > a.Top && lineTop < a.Bottom
+                && a.Left < box.Right && a.Left - 8 > box.X + box.Width / 3
                 ? Math.Min(box.Right, a.Left - 8)
                 : box.Right;
 

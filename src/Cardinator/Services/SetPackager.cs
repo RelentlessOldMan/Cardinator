@@ -19,6 +19,13 @@ public static class SetPackager
     /// </summary>
     public static int ExportSetWithFrames(
         string projectFilePath, IEnumerable<string> referencedTemplateNames, string templatesDir, string destZipPath)
+        => ExportSetWithFrames(projectFilePath,
+            referencedTemplateNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => Path.Combine(templatesDir, TextUtil.Slug(n))),
+            destZipPath);
+
+    /// <summary>As above, given the folders of the frames the cards use (a frame renamed in place keeps its old
+    /// folder name, so a folder can't be guessed from the frame's name).</summary>
+    public static int ExportSetWithFrames(string projectFilePath, IEnumerable<string> frameFolders, string destZipPath)
     {
         var projFolder = Path.GetDirectoryName(Path.GetFullPath(projectFilePath))
                          ?? throw new InvalidOperationException("Project file has no folder.");
@@ -39,24 +46,15 @@ public static class SetPackager
                     foreach (var f in Directory.EnumerateFiles(artDir, "*", SearchOption.AllDirectories))
                         zip.CreateEntryFromFile(f, ToEntry(Path.GetRelativePath(projFolder, f)));
 
-                // A bundle for each referenced CUSTOM frame.
+                // A bundle for each referenced CUSTOM frame (with its flip / sideways layouts).
                 frames = 0;
                 var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var name in referencedTemplateNames)
+                foreach (var dir in frameFolders)
                 {
-                    if (string.IsNullOrWhiteSpace(name)) continue;
-                    var slug = TextUtil.Slug(name);
-                    if (!seen.Add(slug)) continue;                 // one bundle per distinct frame
-                    if (TemplateService.IsBuiltIn(slug)) continue; // recipient already has shipped frames
-
-                    var dir = Path.Combine(templatesDir, slug);
-                    var tj = Path.Combine(dir, "template.json");
-                    var fp = Path.Combine(dir, "frame.png");
-                    if (!File.Exists(tj) || !File.Exists(fp)) continue;
-
-                    zip.CreateEntryFromFile(tj, $"frames/{slug}/template.json");
-                    zip.CreateEntryFromFile(fp, $"frames/{slug}/frame.png");
-                    frames++;
+                    var slug = Path.GetFileName(Path.TrimEndingDirectorySeparator(dir));
+                    if (string.IsNullOrEmpty(slug) || !seen.Add(slug)) continue;   // one bundle per distinct frame
+                    if (TemplateService.IsBuiltIn(slug)) continue;                 // recipient already has shipped frames
+                    if (TemplateImporter.AddBundleEntries(zip, dir, $"frames/{slug}/")) frames++;
                 }
             }
 

@@ -57,7 +57,8 @@ the live preview that updates as you type.*
    puts yours back). *(No internet? Just type the fields yourself.)* **Ctrl+L** still does a quick
    look-up of the selected card by its own name, and takes its name and art.
 6. **Export PNG…** saves a print-quality **1500×2100** image — pick **PNG or JPEG** in the save
-   dialog. Exports default to your set's `out` folder (or wherever you last saved one), and **Open
+   dialog. It's tagged **600 DPI**, so it prints at real card size (2.5″×3.5″).
+   Phone photos used as art come out the right way up. Exports default to your set's `out` folder (or wherever you last saved one), and **Open
    output folder** opens that same place. Or click **Copy image** to drop the finished card straight
    onto your clipboard for pasting into Discord/chat. For print services that need a **bleed margin**
    or a specific **DPI**, use the `--render` command-line options (see the
@@ -271,7 +272,9 @@ Cardinator always works on a **project** — the list of cards down the left sid
 by card, or import a whole batch.
 
 - **Import file…** — load a file of cards. It accepts:
-  - a plain **list of names**, one per line (each looked up on Scryfall);
+  - a plain **list of names**, one per line (each looked up on Scryfall) — a deck list works too:
+    quantities (`4 Lightning Bolt`), printing hints (`Sol Ring (CMR) 472`, any case) and section
+    headings (`Sideboard:`, `Creatures (25)`) are understood;
   - `Name | C:\art\thing.png` per line (name + art);
   - a **CSV/TSV with a header row**, columns matched by friendly names in any order. See the
     [example CSV](../examples/02-custom-set/cards.csv) and the [column reference](#csv-columns) below.
@@ -299,11 +302,12 @@ by card, or import a whole batch.
 - **Check all cards** — runs the CHECKS across the whole set and lists every card that needs attention
   (missing art/frame, bad symbol, duplicate/stale number, broken special layout…), then jumps to the first.
 - **Share set + frames…** — zips the whole set (project + `art/` + a bundle for each custom frame the
-  cards use) so you can hand it to someone who doesn't have your frames (save the project first).
+  cards use, with its flip and sideways layouts) so you can hand it to someone who doesn't have your
+  frames. The set must have been saved once; any unsaved changes, it offers to save first.
 - **Move ↑ / ↓** — reorder the selected card in the list (this is also the print/collector order).
 - **Duplicate** (**Ctrl+D**) — copy the selected card (the sidebar button next to Add token).
-- **Export all…** — renders every card to PNGs in a folder you choose. Runs in the background
-  with a progress bar so the window stays responsive, even for 100 cards.
+- **Export all…** — renders every card to PNGs (600 DPI, real card size) in a folder you choose. Runs
+  in the background with a progress bar so the window stays responsive, even for 100 cards.
 - **Print sheet…** — lays cards out **9 per page (3×3) at real size (2.5″×3.5″, 300 DPI)** on
   Letter (or A4) pages with cut marks — one PNG per page, ready to print and cut. It first asks
   whether to include **card backs** for double-sided printing: **Front + back** writes a mirrored back
@@ -337,9 +341,10 @@ the front's, so a moved, zipped or shared folder still renders both sides.
 ### CSV columns
 
 The first row names the columns, in any order, matched without caring about case, spaces or
-punctuation (`Mana Cost`, `mana_cost` and `manacost` are the same). Commas or tabs both work. Only
-`name` is required; a row with no cost, type or rules is looked up on Scryfall. Write a line break in
-rules or flavor as `\n`.
+punctuation (`Mana Cost`, `mana_cost` and `manacost` are the same). Commas, semicolons (what Excel
+writes in many European languages) or tabs all work, and a file saved by Excel's plain **CSV** option
+keeps its accents and curly quotes. Only `name` is required; a row with no cost, type or rules is looked
+up on Scryfall. Write a line break in rules or flavor as `\n`, or inside a quoted field (as Excel does).
 
 | Column | Also accepted | What it holds |
 |---|---|---|

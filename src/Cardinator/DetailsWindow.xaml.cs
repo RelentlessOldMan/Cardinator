@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -20,6 +21,9 @@ public partial class DetailsWindow : Window
     private readonly CardModel _snapshot;   // state on open, so Cancel can discard this session's edits
     private readonly ScryfallClient _scryfall;
     private static bool _useArt;            // "Also use its art", remembered while the app runs
+    // Cancelled when the dialog closes, so a lookup still running can't write into the card afterwards
+    // (after Cancel restored it, or after the main window already took the edits as one undo step).
+    private readonly CancellationTokenSource _closing = new();
 
     /// <param name="halfLayout">For a two-part card's other half: the parent card's layout ("flip" / "split").</param>
     public DetailsWindow(CardModel card, ScryfallClient? scryfall = null, string halfLayout = "")
@@ -60,6 +64,12 @@ public partial class DetailsWindow : Window
 
     private void OnDone(object sender, RoutedEventArgs e) => Close();   // keep edits (they're already live)
 
+    protected override void OnClosed(EventArgs e)
+    {
+        _closing.Cancel();
+        base.OnClosed(e);
+    }
+
     private void OnBrowseArt(object sender, RoutedEventArgs e)
     {
         var dlg = new Microsoft.Win32.OpenFileDialog
@@ -94,7 +104,9 @@ public partial class DetailsWindow : Window
         SearchStatus.Text = $"Looking up “{query}” on Scryfall…";
         try
         {
-            var faces = await _scryfall.LookupFacesAsync(query);
+            var ct = _closing.Token;
+            var faces = await _scryfall.LookupFacesAsync(query, ct);
+            ct.ThrowIfCancellationRequested();
             if (faces.Count == 0) { SearchStatus.Text = $"No card found for “{query}”."; return; }
 
             var f = faces[0];
@@ -107,7 +119,8 @@ public partial class DetailsWindow : Window
             // Same for a flip card's other half: only onto a plain card that has neither.
             bool canTakeABack = !_card.IsBackFace && !_card.IsOtherHalf && !_card.IsDoubleFaced && _card.OtherHalf == null;
             if (canTakeABack) CardDetailsFill.AttachFaces(_card, faces);
-            bool melded = canTakeABack && await CardDetailsFill.AttachMeldAsync(_scryfall, _card, f);
+            bool melded = canTakeABack && await CardDetailsFill.AttachMeldAsync(_scryfall, _card, f, ct);
+            ct.ThrowIfCancellationRequested();
             if (melded)
                 extra = $" Its back is the {_card.MeldHalf} half of the melded card “{_card.BackFace!.Name}”"
                         + (_card.MeldWith.Length > 0 ? $" (the other half goes on “{_card.MeldWith}”)." : ".");
@@ -128,6 +141,7 @@ public partial class DetailsWindow : Window
             }
             SearchStatus.Text = $"Filled details from “{f.Name}”. {kept}{extra}";
         }
+        catch (OperationCanceledException) when (_closing.IsCancellationRequested) { /* the dialog closed */ }
         catch (ScryfallException ex)
         {
             SearchStatus.Text = ex.Message;
@@ -151,18 +165,23 @@ public partial class DetailsWindow : Window
         {
             try
             {
-                _card.ArtPath = await ArtDownloader(face.ArtUrl);
+                var path = await ArtDownloader(face.ArtUrl);
+                _closing.Token.ThrowIfCancellationRequested();
+                _card.ArtPath = path;
                 _card.ArtScale = 1.0;
                 _card.ArtOffsetX = 0;
                 _card.ArtOffsetY = 0;
                 ok = true;
             }
-            catch { /* keep the card's own art */ }
+            catch (Exception ex) when (ex is not OperationCanceledException) { /* keep the card's own art */ }
         }
         foreach (var part in new[] { _card.BackFace, _card.OtherHalf })
         {
             if (part == null || !string.IsNullOrWhiteSpace(part.ArtPath) || string.IsNullOrWhiteSpace(part.ArtUrl)) continue;
-            try { part.ArtPath = await ArtDownloader(part.ArtUrl); } catch { }
+            string path;
+            try { path = await ArtDownloader(part.ArtUrl); } catch { continue; }
+            _closing.Token.ThrowIfCancellationRequested();
+            part.ArtPath = path;
         }
         if (_card.IsSplit) CardDetailsFill.SplitSharedArt(_card);
         return ok;

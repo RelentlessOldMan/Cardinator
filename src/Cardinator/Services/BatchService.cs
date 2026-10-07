@@ -85,9 +85,10 @@ public static class BatchService
         }).ToList();
         log.Add($"refs: {refs.Count(r => r.Set != null)} by set+cn, {refs.Count(r => r.Name != null)} by name");
 
-        List<List<CardModel>> matches;
-        try { matches = await client.LookupCollectionAsync(refs, ct); }
-        catch (ScryfallException ex) { matches = new(); log.Add($"batch collection FAILED: {ex.Message}"); }
+        // A failed chunk only loses its own cards (they fall through to the single lookups below).
+        var chunkFailures = new List<string>();
+        var matches = await client.LookupCollectionAsync(refs, ct, chunkFailures);
+        foreach (var f in chunkFailures) log.Add($"batch collection chunk FAILED: {f}");
         log.Add($"batch returned {matches.Count} card(s)");
         percent?.Report(0.4);
 
@@ -233,7 +234,7 @@ public static class BatchService
                 Template TemplateFor(CardModel c) =>
                     (c.TemplateName is { Length: > 0 } n && byName.TryGetValue(n, out var t)) ? t : fallback;
 
-                var bmp = renderer.RenderToBitmap(card, TemplateFor(card), supersample: 2);
+                var bmp = CardExporter.AtCardSize(renderer.RenderToBitmap(card, TemplateFor(card), supersample: 2));
                 var path = Path.Combine(outDir, $"{i + 1:000}_{TextUtil.Slug(card.Name)}.png");
                 CardExporter.SavePng(bmp, path);
                 exported++;
@@ -241,7 +242,7 @@ public static class BatchService
                 // Double-faced: write the back alongside as "NNN_slug-back.png".
                 if (card.BackFace is { } back)
                 {
-                    var backBmp = renderer.RenderToBitmap(back, TemplateFor(back), supersample: 2);
+                    var backBmp = CardExporter.AtCardSize(renderer.RenderToBitmap(back, TemplateFor(back), supersample: 2));
                     CardExporter.SavePng(backBmp, Path.Combine(outDir, $"{i + 1:000}_{TextUtil.Slug(card.Name)}-back.png"));
                 }
                 progress?.Report($"Exported {i + 1}/{cards.Count}: {Path.GetFileName(path)}");

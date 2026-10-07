@@ -38,6 +38,28 @@ public sealed class TemplateService
     private static readonly Dictionary<string, Template> LandscapeVariants = new();
     private static readonly Dictionary<string, Template> FlipVariants = new();
     private static readonly Dictionary<string, Template> TokenVariants = new();
+    // Every Frame Design tweak makes a new content hash, so the derived-frame caches are bounded: in memory
+    // (each holds a full-size frame bitmap) and on disk (CardinatorData/cache/<kind>).
+    internal const int VariantCacheMax = 32;
+    internal const int VariantDiskKeep = 96;
+
+    /// <summary>Caches a derived frame (under <see cref="VariantLock"/>): the memory cache is emptied when full, and
+    /// the oldest frame files on disk beyond <see cref="VariantDiskKeep"/> — that no cached frame uses — deleted.</summary>
+    internal static void Remember(Dictionary<string, Template> cache, string key, Template variant)
+    {
+        if (cache.Count >= VariantCacheMax) cache.Clear();
+        cache[key] = variant;
+        try
+        {
+            var dir = Path.GetDirectoryName(variant.FramePath);
+            if (string.IsNullOrEmpty(dir)) return;
+            var live = cache.Values.Select(v => v.FramePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var f in new DirectoryInfo(dir).GetFiles("*.png")
+                         .OrderByDescending(f => f.LastWriteTimeUtc).Skip(VariantDiskKeep))
+                if (!live.Contains(f.FullName)) SafeDelete(f.FullName);
+        }
+        catch { /* best-effort */ }
+    }
 
     // Frames by name, for the few places that pick a frame by name mid-render (a split card's other half with a
     // frame of its own): the installed ones, replaced by each LoadAll so a deleted frame drops out, and frames
@@ -141,7 +163,7 @@ public sealed class TemplateService
                 }
 
                 var variant = new Template { Name = template.Name, Spec = spec, FramePath = framePath, FrameImage = frame };
-                FlipVariants[key] = variant;
+                Remember(FlipVariants, key, variant);
                 return variant;
             }
             catch { return null; }
@@ -211,7 +233,7 @@ public sealed class TemplateService
                 var variant = new Template { Name = template.Name, Spec = spec, FramePath = framePath, FrameImage = frame };
                 // Searching the shorter box would reject the medallion as too big for it; it is the same one.
                 if (spec.TextBox.H > 0) CardRenderer.KnowOrnament(frame, ornament);
-                TokenVariants[key] = variant;
+                Remember(TokenVariants, key, variant);
                 return variant;
             }
             catch { return null; }
@@ -331,7 +353,7 @@ public sealed class TemplateService
                 }
 
                 var variant = new Template { Name = template.Name, Spec = spec, FramePath = framePath, FrameImage = frame };
-                LandscapeVariants[key] = variant;
+                Remember(LandscapeVariants, key, variant);
                 return variant;
             }
             catch { return null; }

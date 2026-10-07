@@ -287,7 +287,7 @@ public partial class FrameDesignWindow : Window
         num.TextChanged += (_, _) =>
         {
             if (_fitSync) return;
-            if (double.TryParse(num.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out var v))
+            if (TryParseNumber(num.Text, out var v))
             {
                 _fitSync = true;
                 slider.Value = Math.Clamp(v, slider.Minimum, slider.Maximum);
@@ -894,6 +894,14 @@ public partial class FrameDesignWindow : Window
         PreviewHost.ReleaseMouseCapture();
     }
 
-    private static double ParseD(string s, double fallback) =>
-        double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : fallback;
+    private static double ParseD(string s, double fallback) => TryParseNumber(s, out var v) ? v : fallback;
+
+    /// <summary>Reads a typed number with either decimal mark: "0.5" and "0,5" are both a half (a comma used to
+    /// be taken as a thousands separator, so "0,5" became 5).</summary>
+    internal static bool TryParseNumber(string? s, out double v)
+    {
+        var t = (s ?? "").Trim();
+        if (!t.Contains('.')) t = t.Replace(',', '.');
+        return double.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out v) && double.IsFinite(v);
+    }
 }

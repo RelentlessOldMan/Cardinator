@@ -747,6 +747,88 @@ public class WindowSmokeTests
             Assert.Equal("My Frame v2", typeof(Cardinator.MainWindow).GetField("_defaultTemplate", flags)!.GetValue(main));
         });
 
+    private sealed class FakeHandler(Func<System.Net.Http.HttpRequestMessage, System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage>> answer)
+        : System.Net.Http.HttpMessageHandler
+    {
+        protected override System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage> SendAsync(
+            System.Net.Http.HttpRequestMessage request, CancellationToken ct) => answer(request);
+    }
+
+    [Fact]
+    public void DetailsWindow_Cancel_StopsALookupStillRunning_FromFillingTheCard()
+        => OnAppThread(() =>
+        {
+            var reply = new System.Threading.Tasks.TaskCompletionSource();
+            ScryfallClient.TestHttp = new System.Net.Http.HttpClient(new FakeHandler(async _ =>
+            {
+                await reply.Task;   // Scryfall answers only after the user pressed Cancel
+                return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new System.Net.Http.StringContent(
+                        """{ "object": "card", "name": "Lightning Bolt", "layout": "normal", "mana_cost": "{R}", "type_line": "Instant", "oracle_text": "Deal 3." }""",
+                        System.Text.Encoding.UTF8, "application/json"),
+                };
+            }));
+            try
+            {
+                var card = new CardModel { Name = "Bolt", ManaCost = "{9}", TypeLine = "Sorcery" };
+                var w = new Cardinator.DetailsWindow(card, new ScryfallClient());
+                var search = (System.Threading.Tasks.Task)typeof(Cardinator.DetailsWindow)
+                    .GetMethod("SearchAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .Invoke(w, null)!;
+                Invoke(w, "OnCancel", w, new RoutedEventArgs());
+                reply.SetResult();
+
+                var frame = new System.Windows.Threading.DispatcherFrame();
+                var d = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+                search.ContinueWith(_ => d.BeginInvoke(() => frame.Continue = false));
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+
+                Assert.Equal(("{9}", "Sorcery"), (card.ManaCost, card.TypeLine));   // as it was before the dialog
+            }
+            finally { ScryfallClient.TestHttp = null; }
+        });
+
+    [Fact]
+    public void MainWindow_DeletingAFrame_LeavesTheSelectedCardOnIt_SoItsFlagged()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            main.Cards.Clear();
+            var card = new CardModel { Name = "A", TypeLine = "Instant", TemplateName = "A Frame That Was Deleted" };
+            main.Cards.Add(card);
+            main.SelectedCard = card;
+            Invoke(main, "RefreshTemplates", new object?[] { null });   // what Delete frame does after removing it
+            Assert.Equal("A Frame That Was Deleted", card.TemplateName);
+        });
+
+    [Fact]
+    public void MainWindow_ImportingAFrame_PutsItOnTheSelectedCard()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            main.Cards.Clear();
+            var other = main.Templates[1].Name;
+            var card = new CardModel { Name = "A", TypeLine = "Instant", TemplateName = main.Templates[0].Name };
+            main.Cards.Add(card);
+            main.SelectedCard = card;
+            Invoke(main, "RefreshTemplates", other);
+            Assert.Equal(other, card.TemplateName);
+        });
+
+    [Fact]
+    public void MainWindow_ShareSet_FindsAFrameRenamedInPlace_InItsOldFolder()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            main.Cards.Clear();
+            var src = main.Templates[0];
+            var folder = Path.Combine(Path.GetTempPath(), "old-name");
+            main.Templates.Add(new Template { Name = "New Name", Spec = src.Spec, FramePath = Path.Combine(folder, "frame.png"), FrameImage = src.FrameImage });
+            main.Cards.Add(new CardModel { Name = "A", TypeLine = "Instant", TemplateName = "New Name" });
+            Assert.Equal(new[] { folder }, main.ShareFrameFolders());
+        });
+
     private static void Invoke(object target, string method, params object?[] args)
         => target.GetType().GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .Invoke(target, args);
