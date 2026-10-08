@@ -1,5 +1,9 @@
 using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Text;
 using System.Windows;
+using System.Windows.Threading;
 using System.Windows.Media.Imaging;
 using Cardinator.Models;
 using Cardinator.Services;
@@ -8,7 +12,9 @@ namespace Cardinator.Tests;
 
 /// <summary>
 /// The loose ends left after both reviews (1.6.17): a back face with no frame on a print sheet, a frame bundle
-/// dropped onto the window, and a picture frame that can't be read for a moment. Each test fails with its fix taken out. In the STA-window collection because one
+/// dropped onto the window, and a picture frame that can't be read for a moment. 1.6.19: a frame set aside by mistake
+/// before that comes back, and Fill blanks gives a new back face the set's defaults. Each test fails with its fix
+/// taken out. In the STA-window collection because one
 /// builds a <see cref="Cardinator.MainWindow"/>.
 /// </summary>
 [Collection("STAWindows")]
@@ -135,6 +141,141 @@ public class LooseEndsTests
         Assert.True(TemplateService.IsPassingReadFailure(new IOException("The file is in use by another process.")));
         Assert.False(TemplateService.IsPassingReadFailure(new NotSupportedException("No imaging component suitable")));
         Assert.False(TemplateService.IsPassingReadFailure(new FileFormatException()));
+    }
+
+    // --- a picture frame set aside by mistake comes back (1.6.19) --------------------------------------
+
+    private const string SetAsideName = "frame.png.corrupt-20261007-170419";   // as an earlier version named it
+
+    /// <summary>A picture-frame folder: its spec, and the user's picture (not yet written anywhere).</summary>
+    private static (string root, string dir, TemplateSpec spec, byte[] picture) PictureFrame(string tag)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cardinator-{tag}-{Guid.NewGuid():N}");
+        var dir = Path.Combine(root, "mine");
+        Directory.CreateDirectory(dir);
+        var spec = new TemplateSpec { Name = "Mine", CustomFrame = true };
+        spec.Save(Path.Combine(dir, "template.json"));
+        return (root, dir, spec, TestHelpers.PngBytes(75, 105, 0xFF8A2BE2));
+    }
+
+    private static IReadOnlyList<Template> Load(string root)
+    {
+        IReadOnlyList<Template> loaded = [];
+        TestHelpers.RunSta(() => loaded = new TemplateService().LoadFrom(root));
+        return loaded;
+    }
+
+    [Fact]
+    public void AFrameSetAsideByMistake_ComesBack_InPlaceOfItsPlaceholder()
+    {
+        var (root, dir, spec, picture) = PictureFrame("restore");
+        try
+        {
+            var framePath = Path.Combine(dir, "frame.png");
+            File.WriteAllBytes(Path.Combine(dir, SetAsideName), picture);                // set aside over a passing error…
+            TestHelpers.RunSta(() => FrameGenerator.Generate(spec, framePath));          // …and the placeholder drawn instead
+
+            Assert.Contains(Load(root), t => t.Name == "Mine");
+            Assert.Equal(picture, File.ReadAllBytes(framePath));
+            Assert.False(File.Exists(Path.Combine(dir, SetAsideName)));
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [Fact]
+    public void AFrameSetAsideByMistake_ComesBack_WhenNothingTookItsPlace()
+    {
+        var (root, dir, _, picture) = PictureFrame("restore-missing");
+        try
+        {
+            File.WriteAllBytes(Path.Combine(dir, SetAsideName), picture);
+            Assert.Contains(Load(root), t => t.Name == "Mine");
+            Assert.Equal(picture, File.ReadAllBytes(Path.Combine(dir, "frame.png")));
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [Fact]
+    public void ASetAsideFrame_NeverReplacesAFrameTheUserPutThereSince()
+    {
+        var (root, dir, _, picture) = PictureFrame("restore-mine");
+        try
+        {
+            var theirNewFrame = TestHelpers.PngBytes(75, 105, 0xFF20B2AA);
+            File.WriteAllBytes(Path.Combine(dir, SetAsideName), picture);
+            File.WriteAllBytes(Path.Combine(dir, "frame.png"), theirNewFrame);
+
+            Load(root);
+            Assert.Equal(theirNewFrame, File.ReadAllBytes(Path.Combine(dir, "frame.png")));
+            Assert.Equal(picture, File.ReadAllBytes(Path.Combine(dir, SetAsideName)));
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [Fact]
+    public void AReallyCorruptSetAsideFile_StaysSetAside()
+    {
+        var (root, dir, spec, _) = PictureFrame("restore-corrupt");
+        try
+        {
+            var framePath = Path.Combine(dir, "frame.png");
+            var garbage = new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G', 1, 2, 3, 4 };
+            File.WriteAllBytes(Path.Combine(dir, SetAsideName), garbage);
+            TestHelpers.RunSta(() => FrameGenerator.Generate(spec, framePath));
+            var placeholder = File.ReadAllBytes(framePath);
+
+            Load(root);
+            Assert.Equal(placeholder, File.ReadAllBytes(framePath));
+            Assert.Equal(garbage, File.ReadAllBytes(Path.Combine(dir, SetAsideName)));
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    // --- Fill blanks: a back face it adds gets the set's defaults (1.6.19) ---------------------------
+
+    [Fact]
+    public void FillBlanks_GivesTheBackFaceItAddsTheSetsDefaults()
+        => OnAppThread(() =>
+        {
+            ScryfallClient.TestHttp = new HttpClient(new FakeHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""
+                { "object": "list", "not_found": [], "data": [ { "object": "card", "name": "Delver of Secrets // Insectile Aberration",
+                  "layout": "transform", "set": "isd", "collector_number": "51", "rarity": "common", "card_faces": [
+                    { "name": "Delver of Secrets", "mana_cost": "{U}", "type_line": "Creature — Human Wizard", "oracle_text": "Transform it.", "power": "1", "toughness": "1" },
+                    { "name": "Insectile Aberration", "mana_cost": "", "type_line": "Creature — Human Insect", "oracle_text": "Flying", "power": "3", "toughness": "2" } ] } ] }
+                """, Encoding.UTF8, "application/json"),
+            })));
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
+            try
+            {
+                var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+                main.GetType().GetField("_setProfile", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .SetValue(main, new SetProfile { Copyright = "© My Custom Set" });
+                var card = new CardModel { Name = "Delver of Secrets", TemplateName = main.Templates[0].Name };   // name only: needs filling
+                main.Cards.Add(card);
+
+                main.GetType().GetMethod("OnLookupMissing", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .Invoke(main, new object?[] { null, null });
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                while (main.Busy && sw.ElapsedMilliseconds < 15000)
+                {
+                    var frame = new DispatcherFrame();
+                    Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false));
+                    Dispatcher.PushFrame(frame);
+                    Thread.Sleep(10);
+                }
+
+                Assert.False(main.Busy, "the fill didn't finish");
+                Assert.Equal("Insectile Aberration", card.BackFace?.Name);
+                Assert.Equal("© My Custom Set", card.BackFace!.Copyright);
+            }
+            finally { ScryfallClient.TestHttp = null; }
+        });
+
+    private sealed class FakeHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> answer) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => answer(request);
     }
 
     private static void OnAppThread(Action action)
