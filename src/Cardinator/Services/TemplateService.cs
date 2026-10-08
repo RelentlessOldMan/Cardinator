@@ -575,6 +575,7 @@ public sealed class TemplateService
     /// <summary>Loads the frame image, (re)generating it if missing, stale (spec changed), or unreadable.</summary>
     private static BitmapImage? TryLoadFrame(TemplateSpec spec, string framePath)
     {
+        if (spec.CustomFrame && !CustomFrameComposer.HasSource(spec)) RestoreSetAsideFrame(spec, framePath);
         for (int attempt = 0; attempt < 2; attempt++)
         {
             try { EnsureFrame(spec, framePath); }
@@ -650,6 +651,51 @@ public sealed class TemplateService
             return File.GetLastWriteTimeUtc(framePath) > File.GetLastWriteTimeUtc(hashPath).AddSeconds(2);
         }
         catch { return true; }   // can't tell: keeping a picture is safe, drawing over it isn't
+    }
+
+    /// <summary>
+    /// Puts back a picture frame that was set aside (<c>frame.png.corrupt-…</c>) but reads fine now. Before 1.6.17 a
+    /// moment of low memory or a locked file was taken for a corrupt frame: the picture was set aside and a generated
+    /// placeholder drawn in its place, for good. Only ever replaces a missing frame or that exact placeholder (the
+    /// frame this spec generates, byte for byte) — a frame the user has put there since is never touched — and only
+    /// with a set-aside file that decodes; one that's really corrupt stays set aside. Newest first. Best-effort.
+    /// </summary>
+    internal static void RestoreSetAsideFrame(TemplateSpec spec, string framePath)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(framePath);
+            if (dir == null || !Directory.Exists(dir)) return;
+            var setAside = Directory.GetFiles(dir, Path.GetFileName(framePath) + ".corrupt-*")
+                .OrderByDescending(f => f, StringComparer.Ordinal).ToList();
+            var readable = setAside.FirstOrDefault(f =>
+            {
+                try { LoadBitmap(f); return true; }
+                catch { return false; }   // still unreadable: a real corrupt file, left where it is
+            });
+            if (readable == null) return;
+            if (File.Exists(framePath))
+            {
+                if (!IsGeneratedPlaceholder(spec, framePath)) return;
+                File.Delete(framePath);   // only ever the placeholder, which can be made again
+            }
+            File.Move(readable, framePath);
+            SafeDelete(framePath + ".hash");
+        }
+        catch { /* leave everything as it is */ }
+    }
+
+    /// <summary>True if <paramref name="framePath"/> is exactly the placeholder frame <paramref name="spec"/> generates.</summary>
+    private static bool IsGeneratedPlaceholder(TemplateSpec spec, string framePath)
+    {
+        var tmp = Path.Combine(Path.GetTempPath(), $"cardinator-placeholder-{Guid.NewGuid():N}.png");
+        try
+        {
+            FrameGenerator.Generate(spec, tmp);
+            return File.ReadAllBytes(tmp).AsSpan().SequenceEqual(File.ReadAllBytes(framePath));
+        }
+        catch { return false; }   // can't tell: keep what's there
+        finally { SafeDelete(tmp); }
     }
 
     /// <summary>True for a failure that comes and goes and isn't the image's fault: out of memory, or the file

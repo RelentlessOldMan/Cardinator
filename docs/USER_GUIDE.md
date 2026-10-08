@@ -437,5 +437,9 @@ close or open something else over unsaved work.
 - **A frame disappeared from the dropdown.** If a frame image can't be read (a bad copy, a sync
   conflict), Cardinator sets it aside as `frame.png.corrupt-<date>` in that template's folder and skips
   the frame rather than replacing your image with a generic one — the original bytes are still there.
+  A moment of low memory or a file briefly locked by a sync app or virus scanner no longer counts: that frame
+  is just skipped once. And if an older version set a good frame aside and drew a plain stand-in frame in its
+  place, Cardinator puts your picture back by itself the next time it starts — it only ever replaces that
+  stand-in, never a frame you put there since.
 - **I want a different frame.** Add your own — see [Making your own frames](TEMPLATES.md).
 - **Where did my export go?** Click **Open output folder**, or look in `CardinatorData/output`.
