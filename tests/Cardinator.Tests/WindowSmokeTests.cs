@@ -850,7 +850,8 @@ public class WindowSmokeTests
                         (ResourceDictionary)Application.LoadComponent(
                             new Uri("/Cardinator;component/Theme.xaml", UriKind.Relative)));
                 }
-                action();
+                try { action(); }
+                finally { TestHelpers.EndUiThread(); }
             }
             catch (Exception ex) { captured = ex; }
         })
