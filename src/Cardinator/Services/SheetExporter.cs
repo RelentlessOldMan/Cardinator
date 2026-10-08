@@ -50,7 +50,7 @@ public static class SheetExporter
 
         IEnumerable<BitmapSource> Iterate()
         {
-            var ctx = new Layout(templates, symbols, page);
+            var ctx = new Layout(templates, symbols, page, cards);
             int perPage = page.PerPage;
             int pageCount = (cards.Count + perPage - 1) / perPage;
 
@@ -85,7 +85,7 @@ public static class SheetExporter
 
         IEnumerable<BitmapSource> Iterate()
         {
-            var ctx = new Layout(templates, symbols, page);
+            var ctx = new Layout(templates, symbols, page, cards);
             int perPage = page.PerPage;
             int pageCount = (cards.Count + perPage - 1) / perPage;
 
@@ -138,14 +138,17 @@ public static class SheetExporter
         private readonly CardRenderer _renderer;
         private readonly Dictionary<string, Template> _byName;
         private readonly Template _fallback;
+        private readonly Dictionary<CardModel, CardModel> _frontOf = new(ReferenceEqualityComparer.Instance);
         private readonly PageSpec _page;
         private readonly double _gridW, _gridH, _marginX, _marginY;
 
-        public Layout(IReadOnlyList<Template> templates, SymbolService symbols, PageSpec page)
+        public Layout(IReadOnlyList<Template> templates, SymbolService symbols, PageSpec page, IEnumerable<CardModel> cards)
         {
             _renderer = new CardRenderer(symbols);
             _byName = templates.GroupBy(t => t.Name).ToDictionary(g => g.Key, g => g.First());   // first wins; never throws on dup names
             _fallback = templates[0];
+            // Which front each back face belongs to (the single-sided list has the backs as cards of their own).
+            foreach (var c in cards) if (c.BackFace is { } b) _frontOf.TryAdd(b, c);
             _page = page;
             _gridW = page.Cols * CardW;
             _gridH = page.Rows * CardH;
@@ -154,10 +157,14 @@ public static class SheetExporter
         }
 
         public BitmapSource RenderCard(CardModel card)
-        {
-            var template = (card.TemplateName is { Length: > 0 } n && _byName.TryGetValue(n, out var t)) ? t : _fallback;
-            return FitToSlot(_renderer.RenderToBitmap(card, template, supersample: 1));
-        }
+            => FitToSlot(_renderer.RenderToBitmap(card, TemplateFor(card), supersample: 1));
+
+        /// <summary>The card's own frame; a back face with no frame of its own wears its front's, as on the screen
+        /// and in the batch export; otherwise the first installed frame.</summary>
+        internal Template TemplateFor(CardModel card) =>
+            (card.TemplateName is { Length: > 0 } n && _byName.TryGetValue(n, out var t)) ? t
+            : string.IsNullOrWhiteSpace(card.TemplateName) && _frontOf.TryGetValue(card, out var front) ? TemplateFor(front)
+            : _fallback;
 
         /// <summary>Lays out one page from a per-slot image function, optionally mirroring columns (for backs,
         /// so a long-edge duplex print lines them up behind the fronts).</summary>

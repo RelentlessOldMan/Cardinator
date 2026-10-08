@@ -56,7 +56,7 @@
                 <TextBlock Text="Adding artwork" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Change art…"/> — browse for an image file.</TextBlock>
                 <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Paste"/> — a copied image, a copied image file, or an image URL from the clipboard.</TextBlock>
-                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Drag"/> an image file straight onto the window.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">• <Run FontWeight="SemiBold" Text="Drag"/> an image file straight onto the window. (Drop a .cardframe there to install a shared frame.)</TextBlock>
 
                 <TextBlock Text="Mana &amp; rules text" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
                 <TextBlock Style="{StaticResource Body}">Mana uses tokens like <Run FontFamily="Consolas" Text="{}{2}{R}{W}"/>, <Run FontFamily="Consolas" Text="{}{X}"/>, <Run FontFamily="Consolas" Text="{}{T}"/> (tap), hybrids <Run FontFamily="Consolas" Text="{}{R/W}"/>. Typing loosely (<Run FontFamily="Consolas" Text="2RW"/>) works too.</TextBlock>

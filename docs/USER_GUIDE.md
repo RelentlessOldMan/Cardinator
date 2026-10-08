@@ -406,7 +406,8 @@ Special layouts add their own columns (any one of them makes the row that kind o
 **Drop files onto the window:**
 - an **image** → sets the current card's art;
 - a **`.cardinator` / `.json`** → opens that project;
-- a **`.txt` / `.csv` / `.tsv`** → imports that card list.
+- a **`.txt` / `.csv` / `.tsv`** → imports that card list;
+- a **`.cardframe` / `.zip`** frame bundle → installs the frame(s), as **Import…** would.
 
 Press **F1** (or the **Help** button) any time for the built-in cheat sheet:
 

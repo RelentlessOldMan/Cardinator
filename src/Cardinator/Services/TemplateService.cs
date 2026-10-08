@@ -582,6 +582,11 @@ public sealed class TemplateService
             if (File.Exists(framePath))
             {
                 try { return LoadBitmap(framePath); }
+                // Low memory, or the file briefly locked (antivirus, a sync client, another copy of the app), says
+                // nothing about the picture: skip the frame this time and leave the file exactly as it is. Treating
+                // that as a corrupt file set every picture frame aside under memory pressure and drew placeholders
+                // over them for good.
+                catch (Exception ex) when (IsPassingReadFailure(ex)) { return null; }
                 catch
                 {
                     // A user-imported frame with no FrameSrc is IRREPLACEABLE — frame.png is the only copy of
@@ -646,6 +651,12 @@ public sealed class TemplateService
         }
         catch { return true; }   // can't tell: keeping a picture is safe, drawing over it isn't
     }
+
+    /// <summary>True for a failure that comes and goes and isn't the image's fault: out of memory, or the file
+    /// locked or not readable right now. A real decode failure (a truncated or garbage file) is not one of these.</summary>
+    internal static bool IsPassingReadFailure(Exception ex) =>
+        ex is OutOfMemoryException or UnauthorizedAccessException
+        || (ex is IOException && ex is not EndOfStreamException);
 
     /// <summary>Moves a file that couldn't be read out of the way (keeping its bytes) instead of deleting it,
     /// so an unreadable but irreplaceable user image survives for recovery. Best-effort: if it can't be

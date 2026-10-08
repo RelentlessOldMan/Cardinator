@@ -366,7 +366,7 @@ public class SplitCardTests
         var noHalf = Aftermath(tpl.Name); noHalf.OtherHalf!.Name = "";
         var (hx0, hy0, hx1, hy1) = DiffBox(full, r.RenderToBitmap(noHalf, tpl));
         Assert.True(hy0 > h / 2, $"the other half's name drew at y={hy0}, not in the bottom part");
-        Assert.True(hy1 - hy0 > hx1 - hx0, "the other half's name isn't running down the card");
+        Assert.True(hy1 - hy0 > hx1 - hx0, $"the other half's name isn't running down the card ({hx0},{hy0}..{hx1},{hy1})");
         Assert.True(hx0 > 750 * 0.8, $"the other half's name isn't along the card's right edge (x={hx0})");
     });
 
@@ -405,17 +405,25 @@ public class SplitCardTests
         return new FormatConvertedBitmap(img, PixelFormats.Bgra32, null, 0);
     }
 
+    /// <summary>The box around what changed between two renders. A row or column counts only when at least
+    /// <see cref="MinChanged"/> of its pixels changed, so a stray anti-aliased pixel elsewhere on the card can't
+    /// stretch the box (a one-pixel blip made the aftermath test flaky on CI); a drawn name changes far more.</summary>
     private static (int minX, int minY, int maxX, int maxY) DiffBox(BitmapSource a, BitmapSource b)
     {
         var pa = TestHelpers.Pixels(a); var pb = TestHelpers.Pixels(b);
-        int w = a.PixelWidth, minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
+        int w = a.PixelWidth, h = a.PixelHeight;
+        var cols = new int[w]; var rows = new int[h];
         for (int i = 0; i < pa.Length; i += 4)
         {
             if (Math.Abs(pa[i] - pb[i]) + Math.Abs(pa[i + 1] - pb[i + 1]) + Math.Abs(pa[i + 2] - pb[i + 2]) < 30) continue;
-            int p = i / 4, x = p % w, y = p / w;
-            minX = Math.Min(minX, x); maxX = Math.Max(maxX, x); minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
+            int p = i / 4;
+            cols[p % w]++; rows[p / w]++;
         }
-        Assert.True(maxX >= 0, "the two renders were identical");
+        int minX = Array.FindIndex(cols, c => c >= MinChanged), maxX = Array.FindLastIndex(cols, c => c >= MinChanged);
+        int minY = Array.FindIndex(rows, c => c >= MinChanged), maxY = Array.FindLastIndex(rows, c => c >= MinChanged);
+        Assert.True(maxX >= 0 && maxY >= 0, "the two renders were (all but) identical");
         return (minX, minY, maxX, maxY);
     }
+
+    private const int MinChanged = 3;
 }

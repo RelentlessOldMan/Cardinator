@@ -43,9 +43,10 @@ protected — editing one offers to save a copy instead, and **Delete…** only 
 
 ### Importing a frame
 Click **Import…** to add a frame: pick a **PNG**, a **.cardframe**, or a **.zip** bundle from your
-PC with the **Choose file…** button, or paste a web link. A `.cardframe`/`.zip` bundle keeps its
-tuned regions; a bare image gets default regions you can tune. Imported frames are copied into the
-app's data folder, so the original file can move or be deleted afterwards.
+PC with the **Choose file…** button, or paste a web link. (A `.cardframe`/`.zip` can also just be dropped
+onto the window.) A `.cardframe`/`.zip` bundle keeps its tuned regions; a bare image gets default regions
+you can tune. Imported frames are copied into the app's data folder, so the original file can move or be
+deleted afterwards.
 
 ## Frames at a glance
 | Gold Multicolor | Azure Modern | Full Art |
