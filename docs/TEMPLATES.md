@@ -332,8 +332,8 @@ The easiest way is a **template bundle** — a single `.cardframe` file that hol
 installs it:
 
 - **Export:** select a frame in the dropdown and click **Export…** → save a `.cardframe` file.
-- **Import:** the recipient clicks **Import…**, picks the `.cardframe`, and it installs in one step —
-  no fiddling with regions.
+- **Import:** the recipient clicks **Import…** and picks the `.cardframe` (or just drops it onto the window), and
+  it installs in one step — no fiddling with regions.
 
 (A `.cardframe` is just a zip of `frame.png` + `template.json`; `.zip` files with those two work too.)
 

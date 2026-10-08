@@ -1993,14 +1993,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 var path = prompt.Value;
                 // A bundle carries its own tuned regions/fonts/colors; a bare image gets default regions.
-                if (TemplateImporter.IsBundlePath(path))
-                {
-                    var names = TemplateImporter.ImportBundles(path);
-                    name = names[0];
-                    Status = names.Count == 1
-                        ? $"Imported template \"{name}\"."
-                        : $"Imported {names.Count} templates: {string.Join(", ", names.Select(n => $"\"{n}\""))}.";
-                }
+                if (TemplateImporter.IsBundlePath(path)) { ImportFrameBundle(path); return; }
                 else
                 {
                     var fullArt = AskFrameFullArt();
@@ -2020,15 +2013,33 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 name = await TemplateImporter.CreateFromUrlAsync("", url, fullArt.Value);
                 Status = $"Imported frame as template \"{name}\". Click Design… to fit its text regions to the picture.";
             }
-            bool reframes = _selectedCard != null && _selectedCard.TemplateName != name;
-            RefreshTemplates(name);
-            if (reframes && _selectedCard != null && _selectedCard.TemplateName == name)
-                Status += $" Put it on “{_selectedCard.Name}” (Ctrl+Z to undo).";
+            ShowImportedFrame(name);
         }
         catch (Exception ex)
         {
             Status = "Couldn't import: " + ex.Message;
         }
+    }
+
+    /// <summary>Installs a shared template bundle (.cardframe or .zip) and picks it — from Import frame… or a
+    /// bundle dropped onto the window. Throws if it can't be imported.</summary>
+    private void ImportFrameBundle(string path)
+    {
+        var names = TemplateImporter.ImportBundles(path);
+        var name = names[0];
+        Status = names.Count == 1
+            ? $"Imported template \"{name}\"."
+            : $"Imported {names.Count} templates: {string.Join(", ", names.Select(n => $"\"{n}\""))}.";
+        ShowImportedFrame(name);
+    }
+
+    /// <summary>Refreshes the frame list onto a just-imported frame, saying so if that put it on the card.</summary>
+    private void ShowImportedFrame(string name)
+    {
+        bool reframes = _selectedCard != null && _selectedCard.TemplateName != name;
+        RefreshTemplates(name);
+        if (reframes && _selectedCard != null && _selectedCard.TemplateName == name)
+            Status += $" Put it on “{_selectedCard.Name}” (Ctrl+Z to undo).";
     }
 
     /// <summary>Asks whether a bare imported frame image is a full-art frame (text on the art) or a standard
@@ -2677,32 +2688,47 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return;
             if (e.Data.GetData(System.Windows.DataFormats.FileDrop) is not string[] files || files.Length == 0)
                 return;
-
-            // A dropped project/list opens or imports; a dropped image becomes the current card's art.
-            var project = files.FirstOrDefault(f =>
-            {
-                var x = Path.GetExtension(f).ToLowerInvariant();
-                return x is ".cardinator" or ".json";
-            });
-            if (project != null) { if (ConfirmDiscardIfDirty()) LoadProjectFile(project); return; }
-
-            var list = files.FirstOrDefault(f =>
-            {
-                var x = Path.GetExtension(f).ToLowerInvariant();
-                return x is ".txt" or ".csv" or ".tsv";
-            });
-            if (list != null) { await ImportListFile(list); return; }
-
-            var image = files.FirstOrDefault(ImageIntake.LooksLikeImagePath);
-            if (image == null) { Status = "That file type isn't an image, project, or card list."; return; }
-            if (ActiveFace == null) { Status = "Select a card first, then drop art onto it."; return; }
-            PickSplitHalfAt(e.GetPosition(PreviewImageControl));   // dropped onto a split card's half: that half
-            SetArt(image);
+            await DropFiles(files, e.GetPosition(PreviewImageControl));
         }
         catch (Exception ex)
         {
             Status = "Couldn't handle that drop: " + ex.Message;
         }
+    }
+
+    /// <summary>What a drop does: a project opens, a card list imports, a frame bundle installs, and an image becomes
+    /// the art of the card (or the split card's half) it was dropped on. <paramref name="at"/> is on the preview.</summary>
+    private async Task DropFiles(string[] files, System.Windows.Point at)
+    {
+        // A dropped project/list opens or imports; a dropped image becomes the current card's art.
+        var project = files.FirstOrDefault(f =>
+        {
+            var x = Path.GetExtension(f).ToLowerInvariant();
+            return x is ".cardinator" or ".json";
+        });
+        if (project != null) { if (ConfirmDiscardIfDirty()) LoadProjectFile(project); return; }
+
+        var list = files.FirstOrDefault(f =>
+        {
+            var x = Path.GetExtension(f).ToLowerInvariant();
+            return x is ".txt" or ".csv" or ".tsv";
+        });
+        if (list != null) { await ImportListFile(list); return; }
+
+        // A shared frame (.cardframe, or a .zip of frames) installs, as Import frame… would.
+        var bundle = files.FirstOrDefault(TemplateImporter.IsBundlePath);
+        if (bundle != null)
+        {
+            try { ImportFrameBundle(bundle); }
+            catch (Exception ex) { Status = "Couldn't import the frame: " + ex.Message; }
+            return;
+        }
+
+        var image = files.FirstOrDefault(ImageIntake.LooksLikeImagePath);
+        if (image == null) { Status = "That file type isn't an image, frame, project, or card list."; return; }
+        if (ActiveFace == null) { Status = "Select a card first, then drop art onto it."; return; }
+        PickSplitHalfAt(at);   // dropped onto a split card's half: that half
+        SetArt(image);
     }
 
     private void OnCopyImage(object sender, RoutedEventArgs e)
