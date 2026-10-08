@@ -196,7 +196,11 @@ The suite (`dotnet test`) covers:
 - **Hardening** — malformed projects/templates, empty/duplicate template sets, invalid colors.
 - **Windows** — the dialog windows (`HelpWindow`, `DetailsWindow`) are constructed on an STA
   thread with the real `Theme.xaml` loaded, to catch runtime XAML/resource errors the compiler
-  misses (these can't be clicked in a headless environment).
+  misses (these can't be clicked in a headless environment). **A test that builds a window must end its
+  thread with `TestHelpers.EndUiThread()`** (the `OnAppThread` helpers do, in a `finally`): it closes the
+  thread's windows and shuts its Dispatcher down. Without both, every `MainWindow` (~200 MB) stays alive
+  for the whole run; the suite reached 14 GB, near a CI runner's 16 GB. `CiAndTestHygieneTests` checks a
+  window really is let go.
 
 ## Robustness notes
 

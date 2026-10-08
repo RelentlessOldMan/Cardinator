@@ -554,7 +554,8 @@ public class Review2TierATests
                 if (app.Resources.MergedDictionaries.Count == 0)
                     app.Resources.MergedDictionaries.Add((ResourceDictionary)Application.LoadComponent(
                         new Uri("/Cardinator;component/Theme.xaml", UriKind.Relative)));
-                action();
+                try { action(); }
+                finally { TestHelpers.EndUiThread(); }
             }
             catch (System.Reflection.TargetInvocationException ex) { captured = ex.InnerException ?? ex; }
             catch (Exception ex) { captured = ex; }

@@ -8,7 +8,8 @@ namespace Cardinator.Tests;
 
 /// <summary>
 /// Review 1, Tier 3 (1.6.16): the shipped sample frames reach users on an upgrade without ever overwriting a frame
-/// they changed. In the STA-window collection because it re-runs the one-per-session extraction.
+/// they changed. 1.6.18: a window test lets go of its window, so the suite stays small enough for a CI runner. In the
+/// STA-window collection because it re-runs the one-per-session extraction and builds a window.
 /// </summary>
 [Collection("STAWindows")]
 public class CiAndTestHygieneTests
@@ -47,6 +48,33 @@ public class CiAndTestHygieneTests
             Assert.Equal(Hash(shipped), Manifest(manifestPath)[Rel]);
         }
         finally { File.WriteAllBytes(file, shipped); }
+    }
+
+    [Fact]
+    public void AWindowTest_LetsGoOfItsWindow_WhenItEnds()
+    {
+        WeakReference? window = null;
+        Exception? failed = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var app = System.Windows.Application.Current ?? new System.Windows.Application();
+                if (app.Resources.MergedDictionaries.Count == 0)
+                    app.Resources.MergedDictionaries.Add((System.Windows.ResourceDictionary)System.Windows.Application.LoadComponent(
+                        new Uri("/Cardinator;component/Theme.xaml", UriKind.Relative)));
+                window = new WeakReference(new Cardinator.MainWindow { SuppressClosePrompt = true });
+            }
+            catch (Exception ex) { failed = ex; }
+            finally { TestHelpers.EndUiThread(); }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failed != null) throw failed;
+
+        for (int i = 0; i < 5 && window!.IsAlive; i++) { GC.Collect(); GC.WaitForPendingFinalizers(); }
+        Assert.False(window!.IsAlive, "the window outlived its test — every window test would keep ~200 MB for the whole run");
     }
 
     [Fact]
