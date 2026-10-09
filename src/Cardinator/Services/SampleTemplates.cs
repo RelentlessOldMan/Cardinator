@@ -8,7 +8,8 @@ namespace Cardinator.Services;
 /// CardinatorData/templates on first run, so they show up as built-in frames without any procedural
 /// drawing. A missing file is written; a file a newer version ships differently is refreshed — but only
 /// when it's still exactly what an earlier version wrote (recorded in <see cref="ManifestName"/>), so a frame
-/// the user changed is never overwritten. Idempotent and cheap after the first call.
+/// the user changed is never overwritten. A frame's picture and its layout go together, so that's decided per
+/// folder: if the user changed either file, neither is refreshed. Idempotent and cheap after the first call.
 /// </summary>
 public static class SampleTemplates
 {
@@ -71,6 +72,7 @@ public static class SampleTemplates
                 var manifestPath = System.IO.Path.Combine(AppPaths.TemplatesDir, ManifestName);
                 var manifest = ReadManifest(manifestPath);
                 bool manifestChanged = false;
+                var files = new List<(string dir, string dest, string key, byte[] bundled)>();
                 foreach (var res in asm.GetManifestResourceNames())
                 {
                     int i = res.IndexOf(Marker, System.StringComparison.Ordinal);
@@ -90,27 +92,44 @@ public static class SampleTemplates
                     var key = System.IO.Path.GetRelativePath(AppPaths.TemplatesDir, dest).Replace('\\', '/');
                     try
                     {
-                        byte[] bundled;
-                        using (var stream = asm.GetManifestResourceStream(res))
-                        {
-                            if (stream == null) continue;
-                            using var ms = new MemoryStream();
-                            stream.CopyTo(ms);
-                            bundled = ms.ToArray();
-                        }
+                        using var stream = asm.GetManifestResourceStream(res);
+                        if (stream == null) continue;
+                        using var ms = new MemoryStream();
+                        stream.CopyTo(ms);
+                        files.Add((dir, dest, key, ms.ToArray()));
+                    }
+                    catch { /* skip this one; a missing frame just won't appear in the list */ }
+                }
+
+                // What's on disk now, per file: null when missing; whether it's the bundled bytes; whether the user changed it
+                // (it differs from what this app last wrote there, or this app never recorded writing it).
+                var state = new Dictionary<string, (string? onDisk, bool current, bool userChanged)>();
+                foreach (var (_, dest, key, bundled) in files)
+                {
+                    string? onDisk = null;
+                    try { if (File.Exists(dest)) onDisk = Hash(File.ReadAllBytes(dest)); } catch { onDisk = "unreadable"; }
+                    bool current = onDisk == Hash(bundled);
+                    bool userChanged = onDisk != null && !current && (!manifest.TryGetValue(key, out var written) || written != onDisk);
+                    state[key] = (onDisk, current, userChanged);
+                }
+                var keptFolders = files.Where(f => state[f.key].userChanged).Select(f => f.dir)
+                                       .ToHashSet(System.StringComparer.OrdinalIgnoreCase);
+
+                foreach (var (dir, dest, key, bundled) in files)
+                {
+                    try
+                    {
                         var bundledHash = Hash(bundled);
-                        if (File.Exists(dest))
+                        var (onDisk, current, _) = state[key];
+                        if (current)
                         {
-                            var onDisk = Hash(File.ReadAllBytes(dest));
-                            if (onDisk == bundledHash)
-                            {
-                                // Up to date — remember it as ours, so a later version may refresh it.
-                                if (!manifest.TryGetValue(key, out var known) || known != onDisk) { manifest[key] = onDisk; manifestChanged = true; }
-                                continue;
-                            }
-                            // Different: refresh only what an earlier version wrote and nobody has touched since.
-                            if (!manifest.TryGetValue(key, out var written) || written != onDisk) continue;
+                            // Up to date — remember it as ours, so a later version may refresh it.
+                            if (!manifest.TryGetValue(key, out var known) || known != onDisk) { manifest[key] = onDisk!; manifestChanged = true; }
+                            continue;
                         }
+                        // Different: refresh only a folder whose files are all still what an earlier version wrote (a frame's
+                        // picture and layout go together). A missing file is always written back.
+                        if (onDisk != null && keptFolders.Contains(dir)) continue;
                         Directory.CreateDirectory(dir);
                         IoUtil.AtomicWriteBytes(dest, bundled);
                         manifest[key] = bundledHash;

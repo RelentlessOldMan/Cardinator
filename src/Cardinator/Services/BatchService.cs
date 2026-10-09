@@ -127,8 +127,14 @@ public static class BatchService
         {
             var c = group.First().Card;
             List<CardModel>? faces = null;
-            if (!Blank(c.SetCode) && !Blank(c.CollectorNumber))
-                bySetCn.TryGetValue(c.SetCode + "|" + c.CollectorNumber, out faces);
+            // A set + number that belongs to a different card (a typo'd or stale number) never replaces the card
+            // the list names: that printing is skipped and the card is looked up by its name instead.
+            if (!Blank(c.SetCode) && !Blank(c.CollectorNumber)
+                && bySetCn.TryGetValue(c.SetCode + "|" + c.CollectorNumber, out var printed))
+            {
+                if (Blank(c.Name) || NamesMatch(c.Name, printed)) faces = printed;
+                else log.Add($"  note: {Ident(c)} is \"{printed[0].Name}\" — looked it up by name instead.");
+            }
             if (faces == null && !Blank(c.SetCode)) bySetName.TryGetValue(c.SetCode + "|" + c.Name, out faces);
             if (faces == null) byName.TryGetValue(c.Name, out faces);
             // Last resort within the batch: a DFC whose imported name is "Front // Back" — match the front.
@@ -221,6 +227,23 @@ public static class BatchService
         progress?.Report($"Scryfall: {found} found, {notFound.Count} not found.");
         return new FillReport(found, filled, notFound);
     }
+
+    /// <summary>True when a list's card name is this card: its full name or either face's, ignoring case, accents and
+    /// punctuation ("Lorien Revealed" is "Lórien Revealed"; "Delver of Secrets" is "Delver of Secrets // Insectile Aberration").</summary>
+    internal static bool NamesMatch(string listed, IReadOnlyList<CardModel> faces)
+    {
+        var want = FoldName(listed);
+        var front = FoldName(listed.Split("//")[0]);
+        var names = faces.Select(f => f.Name).Where(n => !Blank(n)).ToList();
+        return names.Append(string.Join(" // ", names))
+                    .Select(FoldName)
+                    .Any(n => n.Length > 0 && (n == want || n == front));
+    }
+
+    private static string FoldName(string s) =>
+        new(s.Normalize(System.Text.NormalizationForm.FormD)
+             .Where(ch => char.IsLetterOrDigit(ch) && System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) != System.Globalization.UnicodeCategory.NonSpacingMark)
+             .Select(char.ToLowerInvariant).ToArray());
 
     /// <summary>The frame a card whose own frame isn't installed is drawn on: the set's house frame if it's
     /// installed, else the first frame. The same rule as the preview, so every export matches what's on screen.</summary>
