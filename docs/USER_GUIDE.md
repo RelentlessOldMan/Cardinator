@@ -341,8 +341,10 @@ file, so a single **Save** puts it back in place (and backs up the bad version f
 is ever unreadable, Cardinator preserves it as a `.corrupt-backup` instead of losing it. (4) While a set has
 unsaved changes, a **recovery copy** is kept every minute, and again if Windows logs off, shuts down or restarts
 for an update (none of which ask to save). If Cardinator never got to save, the next launch offers to open the
-recovered copy; **Save** then puts it back over your set. And every new version is built to **open files from
-every older version**.
+recovered copy; **Save** then puts it back over your set. Clicking **Later** is safe: working on the same set
+meanwhile never overwrites that copy, and it's offered again next time. A recovered copy you choose not to keep
+(**Discard**, or **Don't save** after opening it) goes to `CardinatorData/recovery/declined` rather than being
+deleted. And every new version is built to **open files from every older version**.
 
 Opening a backup file directly (**Open** or a drop) works the same as **Restore…**: **Save** writes it back
 over the set's own file, never into `backups/`. And **Open** only opens sets — a card or frame `.json` is
@@ -372,8 +374,8 @@ up on Scryfall. Costs can be typed loosely — `2RW`, `W/U` (hybrid), `G/P` (Phy
 | `defense` | defence, def | Battle defense |
 | `orientation` | | `landscape` to draw the card sideways |
 | `template` | frame, border, color, colour | Frame name (blank = the set's house frame) |
-| `set` | set code, expansion | Set code |
-| `collector` | collector number, number, num | Collector number |
+| `set` | set code, expansion, edition code — or edition, when it's a code (`m10`, not `Magic 2010`) | Set code |
+| `collector` | collector number, card number, number, num | Collector number |
 | `rarity` | | `C`, `U`, `R` or `M` |
 | `artist` | illustrator, illus | Artist credit |
 | `copyright` | copy | Copyright line |
@@ -440,6 +442,7 @@ close or open something else over unsaved work.
   A moment of low memory or a file briefly locked by a sync app or virus scanner no longer counts: that frame
   is just skipped once. And if an older version set a good frame aside and drew a plain stand-in frame in its
   place, Cardinator puts your picture back by itself the next time it starts — it only ever replaces that
-  stand-in, never a frame you put there since.
+  stand-in, never a frame you put there since. A set-aside picture it doesn't put back (because you've put a
+  frame there since) is renamed `frame.png.kept-<date>` and left alone; rename it to `frame.png` to use it.
 - **I want a different frame.** Add your own — see [Making your own frames](TEMPLATES.md).
 - **Where did my export go?** Click **Open output folder**, or look in `CardinatorData/output`.

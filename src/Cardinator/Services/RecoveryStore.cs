@@ -13,23 +13,30 @@ namespace Cardinator.Services;
 /// </summary>
 public static class RecoveryStore
 {
-    public sealed record Meta(string SetPath, string Name, DateTime SavedAt, int Pid);
+    /// <summary>Which set, when, and which session wrote it. <see cref="Session"/> is null in a copy written before
+    /// 1.6.20, which named its session by process id alone.</summary>
+    public sealed record Meta(string SetPath, string Name, DateTime SavedAt, int Pid, string? Session = null);
     public sealed record Entry(string File, Meta Meta);
+
+    /// <summary>This run of the app. Part of every recovery file's name, so a later session working on the same set
+    /// writes a file of its own and never overwrites a crashed session's copy that hasn't been dealt with yet —
+    /// and a process id Windows hands out again after a restart can't make an old copy look like ours.</summary>
+    private static readonly string Session = Guid.NewGuid().ToString("N")[..12];
 
     public static string Dir => Directory.CreateDirectory(Path.Combine(AppPaths.DataDir, "recovery")).FullName;
 
-    /// <summary>The recovery file for a set: one per set file, or per running app for a set never saved.</summary>
+    /// <summary>This session's recovery file for a set (one per set file; "untitled" for a set never saved).</summary>
     public static string FileFor(string setPath)
     {
         string key;
-        if (string.IsNullOrWhiteSpace(setPath)) key = $"untitled-{Environment.ProcessId}";
+        if (string.IsNullOrWhiteSpace(setPath)) key = "untitled";
         else
         {
             var full = Path.GetFullPath(setPath).ToUpperInvariant();
             var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(full)))[..10];
             key = TextUtil.SafeFileName(Path.GetFileNameWithoutExtension(setPath)) + "-" + hash;
         }
-        return Path.Combine(Dir, key + ".cardinator");
+        return Path.Combine(Dir, $"{key}-{Session}.cardinator");
     }
 
     /// <summary>Writes the cards as they are (art paths absolute, nothing copied anywhere) plus the meta file.</summary>
@@ -46,7 +53,7 @@ public static class RecoveryStore
         };
         project.Save(file);
         IoUtil.AtomicWriteText(file + ".meta",
-            JsonSerializer.Serialize(new Meta(setPath ?? "", name ?? "", DateTime.Now, Environment.ProcessId)));
+            JsonSerializer.Serialize(new Meta(setPath ?? "", name ?? "", DateTime.Now, Environment.ProcessId, Session)));
     }
 
     /// <summary>Removes a recovery file and its meta (best effort).</summary>
@@ -67,7 +74,7 @@ public static class RecoveryStore
             try
             {
                 var meta = JsonSerializer.Deserialize<Meta>(File.ReadAllText(f + ".meta"));
-                if (meta == null || IsRunning(meta.Pid)) continue;   // another open window's live copy
+                if (meta == null || IsRunning(meta)) continue;   // this or another open window's live copy
                 list.Add(new Entry(f, meta));
             }
             catch { /* no or unreadable meta: not ours to offer */ }
@@ -92,12 +99,17 @@ public static class RecoveryStore
         catch { /* leave it where it is: it'll be offered again */ }
     }
 
-    private static bool IsRunning(int pid)
+    private static bool IsRunning(Meta meta)
     {
-        if (pid == Environment.ProcessId) return true;
+        if (meta.Session != null)
+        {
+            if (meta.Session == Session) return true;
+            if (meta.Pid == Environment.ProcessId) return false;   // our process id, reused after a restart
+        }
+        else if (meta.Pid == Environment.ProcessId) return true;
         try
         {
-            using var p = System.Diagnostics.Process.GetProcessById(pid);
+            using var p = System.Diagnostics.Process.GetProcessById(meta.Pid);
             return !p.HasExited && p.ProcessName.StartsWith("Cardinator", StringComparison.OrdinalIgnoreCase);
         }
         catch { return false; }

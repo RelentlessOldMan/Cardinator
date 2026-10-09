@@ -222,14 +222,21 @@ public static class BatchService
         return new FillReport(found, filled, notFound);
     }
 
-    /// <summary>Renders every card to a PNG (at 2x) in outDir. Filenames are index_slug.png.</summary>
+    /// <summary>The frame a card whose own frame isn't installed is drawn on: the set's house frame if it's
+    /// installed, else the first frame. The same rule as the preview, so every export matches what's on screen.</summary>
+    internal static Template FallbackFrame(IReadOnlyList<Template> templates, string? houseFrame) =>
+        templates.FirstOrDefault(t => !string.IsNullOrEmpty(houseFrame) && t.Name == houseFrame) ?? templates[0];
+
+    /// <summary>Renders every card to a PNG (at 2x) in outDir. Filenames are index_slug.png. A card whose frame
+    /// isn't installed is drawn on <paramref name="houseFrame"/> (the set's), else the first frame — as on screen.</summary>
     public static BatchExportResult ExportAll(
         IReadOnlyList<CardModel> cards,
         IReadOnlyList<Template> templates,
         string outDir,
         SymbolService symbols,
         IProgress<string>? progress = null,
-        IProgress<double>? percent = null)
+        IProgress<double>? percent = null,
+        string? houseFrame = null)
     {
         if (templates.Count == 0)
             return new BatchExportResult(0, new List<string> { "No templates available to render with." });
@@ -240,7 +247,7 @@ public static class BatchService
         // Tolerate duplicate template names instead of throwing: the first wins, as in the app and on the sheet.
         var byName = new Dictionary<string, Template>();
         foreach (var t in templates) byName.TryAdd(t.Name, t);
-        var fallback = templates[0];
+        var fallback = FallbackFrame(templates, houseFrame);
 
         int exported = 0;
         var errors = new List<string>();
