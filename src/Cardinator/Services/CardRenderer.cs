@@ -135,13 +135,15 @@ public sealed class CardRenderer
             DrawSubtitle(dc, card, spec);
             DrawTypeLine(dc, card, spec);
 
+            // A medallion set into the text box's bottom edge: the text stops above it, whatever the card's layout.
+            var ornament = ArtText(spec) ? null : BottomOrnament(template, spec);
             if (card.IsPlaneswalker)
                 DrawBadgedRows(dc, ParseAbilities(card.RulesText), spec, loyaltyShields: true,
-                    avoid: string.IsNullOrWhiteSpace(card.Loyalty) ? null : LoyaltyRect(spec));
+                    avoid: string.IsNullOrWhiteSpace(card.Loyalty) ? null : LoyaltyRect(spec), ornament: ornament);
             else if (card.IsSaga)
-                DrawBadgedRows(dc, ParseChapters(card.RulesText), spec);
+                DrawBadgedRows(dc, ParseChapters(card.RulesText), spec, ornament: ornament);
             else if (card.IsClass)
-                DrawBadgedRows(dc, ParseClassLevels(card.RulesText), spec);
+                DrawBadgedRows(dc, ParseClassLevels(card.RulesText), spec, ornament: ornament);
             else if (card.HasBands)
                 DrawLevelUp(dc, card, spec, BottomOrnament(template, spec));   // leveler / Station / Case bands — any P/T box is in a band
             else if (ParseTopBand(card) is { } topBand)
@@ -154,7 +156,7 @@ public sealed class CardRenderer
             else
             {
                 DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, RulesAvoid(card, spec),
-                    ArtText(spec) ? null : BottomOrnament(template, spec));
+                    ornament);
             }
 
             if (card.IsPlaneswalker && !string.IsNullOrWhiteSpace(card.Loyalty))
@@ -2578,11 +2580,12 @@ public sealed class CardRenderer
         return rows;
     }
 
-    private void DrawBadgedRows(DrawingContext dc, List<(string? cost, string text)> rows, TemplateSpec spec, bool loyaltyShields = false, Rect? avoid = null)
+    private void DrawBadgedRows(DrawingContext dc, List<(string? cost, string text)> rows, TemplateSpec spec, bool loyaltyShields = false,
+        Rect? avoid = null, Rect? ornament = null)
     {
         if (rows.Count == 0) return;
 
-        var (best, box) = BestBadgedLayout(rows, spec, loyaltyShields, avoid);
+        var (best, box) = BestBadgedLayout(rows, spec, loyaltyShields, avoid, ornament);
         if (best == null) return;
 
         // Badges/loyalty shields share the P/T box's look by default: same frame-color fill, panel-border
@@ -2629,12 +2632,14 @@ public sealed class CardRenderer
     /// standard padding, with the font shrunk a point at a time until the rows fit. Separated from the
     /// drawing so QA/tests can inspect the chosen layout (see <see cref="InspectPlaneswalkerLayout"/>).</summary>
     private (PwLayout? best, Rect box) BestBadgedLayout(List<(string? cost, string text)> rows, TemplateSpec spec,
-        bool loyaltyShields, Rect? avoid)
+        bool loyaltyShields, Rect? avoid, Rect? ornament = null)
     {
         double pad = 18;
         var tb0 = spec.EffectiveTextBox;
         var box = new Rect(tb0.X + pad, tb0.Y + pad,
             Math.Max(0, tb0.W - 2 * pad), Math.Max(0, tb0.H - 2 * pad));
+        if (ornament is { } orn && orn.Top - 4 < box.Bottom && orn.Left < box.Right && orn.Right > box.Left)
+            box.Height = Math.Max(Math.Min(box.Height, 20), orn.Top - 4 - box.Y);
 
         // Always run at least once (floor never above the preferred size) so small-font templates still draw.
         PwLayout? best = null;
@@ -2651,11 +2656,11 @@ public sealed class CardRenderer
     /// <summary>QA hook: the rectangles a planeswalker's ability text lays out into, plus the starting-loyalty
     /// shield's rect. The shield is drawn ON TOP of the abilities, so text running underneath it is invisible
     /// rather than ugly — it just silently loses words, which is why this is asserted geometrically.</summary>
-    internal (List<Rect> TextRuns, Rect Loyalty) InspectPlaneswalkerLayout(CardModel card, TemplateSpec spec)
+    internal (List<Rect> TextRuns, Rect Loyalty) InspectPlaneswalkerLayout(CardModel card, TemplateSpec spec, Rect? ornament = null)
     {
         var loyalty = LoyaltyRect(spec);
         var avoid = string.IsNullOrWhiteSpace(card.Loyalty) ? (Rect?)null : loyalty;
-        var (best, _) = BestBadgedLayout(ParseAbilities(card.RulesText), spec, loyaltyShields: true, avoid);
+        var (best, _) = BestBadgedLayout(ParseAbilities(card.RulesText), spec, loyaltyShields: true, avoid, ornament);
         var runs = new List<Rect>();
         foreach (var p in best?.Placed ?? new List<Placed>())
             if (p.Text != null) runs.Add(new Rect(p.X, p.Y, p.Text.Width, p.Text.Height));
