@@ -63,7 +63,9 @@ and swap the `frame.png` for your own art. (Shown here with sample cards.)
 
 These are **custom-frame** templates (`customFrame: true`) — Cardinator keeps their `frame.png` as-is
 rather than generating one. They're the same kind of template you get when you import your own frame,
-so they double as worked examples of a hand-made frame + a tuned `template.json`.
+so they double as worked examples of a hand-made frame + a tuned `template.json`. When a new version of
+Cardinator ships an improved sample frame, your copy is updated only if you haven't changed its picture or its
+layout; if you've changed either one, both are left exactly as you have them.
 
 Each template picks a **style** with `frameStyle` (classic, clean, ornate, faded, borderless, overlay,
 wave, modern, composable) — the full list, with what each does, is under

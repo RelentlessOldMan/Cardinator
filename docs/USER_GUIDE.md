@@ -382,6 +382,10 @@ up on Scryfall. Costs can be typed loosely — `2RW`, `W/U` (hybrid), `G/P` (Phy
 | `lookup` | scryfall, fetch | `yes` / `no`: force or skip the Scryfall lookup |
 | `qty` | quantity, count, copies, amount | How many copies of the row (`4` or `4x`); blank = 1 |
 
+When a row has both a set and a collector number, Scryfall's card at that number is used only if it's the card
+the row names; a number that belongs to a different card (a typo, or another printing's number) is passed over and
+the card is looked up by its name, so you never get a different card than the one you listed.
+
 Special layouts add their own columns (any one of them makes the row that kind of card):
 **flip** `flip_name`, `flip_type`, `flip_rules`, `flip_power`, `flip_toughness` / `flip_pt`;
 **split** `split_name`, `split_cost`, `split_type`, `split_rules`, `split_flavor`, `split_art`, `split_frame`;
