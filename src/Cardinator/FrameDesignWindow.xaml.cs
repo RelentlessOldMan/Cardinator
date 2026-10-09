@@ -315,6 +315,8 @@ public partial class FrameDesignWindow : Window
 
         ReadControlsInto(_spec);
         _spec.Normalize();
+        if (_spec.Name != _savedName && !string.IsNullOrWhiteSpace(_spec.Name))
+            NameBox.Text = _spec.Name = TemplateImporter.UniqueFrameName(_spec.Name, _templateDir);   // never two of one name
 
         // A built-in renamed in place would be gone for good: its folder keeps the new name, and a built-in
         // only heals when its files go missing. So the renamed frame becomes a frame of its own instead.
@@ -367,6 +369,7 @@ public partial class FrameDesignWindow : Window
         try
         {
             var srcDir = _templateDir;
+            newName = TemplateImporter.UniqueFrameName(newName);   // never two frames of one name
             var newDir = TemplateImporter.UniqueTemplateDir(TextUtil.Slug(newName));
             _spec.Name = newName;
             WriteTemplate(newDir, srcDir);               // copies source/frame bytes from srcDir into newDir

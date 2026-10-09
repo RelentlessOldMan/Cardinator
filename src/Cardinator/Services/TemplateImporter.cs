@@ -20,7 +20,7 @@ public static class TemplateImporter
             throw new ArgumentException("The frame image was empty.", nameof(frameBytes));
         EnsureReadableImage(frameBytes);
 
-        var displayName = string.IsNullOrWhiteSpace(name) ? "Custom" : name.Trim();
+        var displayName = UniqueFrameName(string.IsNullOrWhiteSpace(name) ? "Custom" : name.Trim());
         var dir = UniqueTemplateDir(TextUtil.Slug(displayName));
         Directory.CreateDirectory(dir);
 
@@ -120,7 +120,13 @@ public static class TemplateImporter
     /// (frames/&lt;slug&gt;/…), brings them all in. Template bundles zipped inside it (.cardframe/.zip) are imported
     /// too. A single-template bundle imports exactly as <see cref="ImportBundle"/> does. Returns the template names;
     /// throws like <see cref="ImportBundle"/> when the zip holds no template at all.</summary>
-    public static List<string> ImportBundles(string bundlePath)
+    public static List<string> ImportBundles(string bundlePath) => ImportBundles(bundlePath, depth: 0);
+
+    /// <summary>How deep bundles inside bundles are opened. A zip that holds itself (they can be made) would
+    /// otherwise recurse until the stack overflows, which takes the whole app down.</summary>
+    private const int MaxBundleDepth = 2;
+
+    private static List<string> ImportBundles(string bundlePath, int depth)
     {
         var names = new List<string>();
         using (var zip = ZipFile.OpenRead(bundlePath))
@@ -144,13 +150,13 @@ public static class TemplateImporter
             }
 
             // Bundles zipped inside the zip (e.g. a few exported .cardframe files zipped together).
-            foreach (var inner in zip.Entries.Where(e => IsBundlePath(LeafName(e))).ToList())
+            foreach (var inner in depth >= MaxBundleDepth ? [] : zip.Entries.Where(e => IsBundlePath(LeafName(e))).ToList())
             {
                 var tmp = Path.Combine(Path.GetTempPath(), $"cardinator-{Guid.NewGuid():N}{Path.GetExtension(LeafName(inner))}");
                 try
                 {
                     File.WriteAllBytes(tmp, ReadEntryBytes(inner));
-                    names.AddRange(ImportBundles(tmp));
+                    names.AddRange(ImportBundles(tmp, depth + 1));
                 }
                 catch { /* skip a bundle inside that isn't one */ }
                 finally { try { File.Delete(tmp); } catch { } }
@@ -177,6 +183,7 @@ public static class TemplateImporter
         // Parse to validate + get the display name; force CustomFrame so the frame is kept verbatim.
         var spec = TemplateSpec.LoadFromJson(specJson);
         if (string.IsNullOrWhiteSpace(spec.Name)) spec.Name = fallbackName;
+        spec.Name = UniqueFrameName(spec.Name.Trim());   // never hides a frame that's already installed
         spec.CustomFrame = true;
 
         var dir = UniqueTemplateDir(TextUtil.Slug(spec.Name));
@@ -319,6 +326,43 @@ public static class TemplateImporter
         using var ms = new MemoryStream();
         s.CopyTo(ms);
         return ms.ToArray();
+    }
+
+    /// <summary>
+    /// <paramref name="name"/>, or "name (2)", "name (3)"… if a frame of that name is already installed. Cards find
+    /// their frame by name, so two frames with one name would quietly move every card on one of them to the other,
+    /// and leave the other out of reach. <paramref name="exceptDir"/> is the frame being renamed (its own name
+    /// doesn't count).
+    /// </summary>
+    public static string UniqueFrameName(string name, string? exceptDir = null)
+    {
+        var taken = InstalledFrameNames(exceptDir);
+        if (!taken.Contains(name)) return name;
+        for (int i = 2; ; i++)
+            if (!taken.Contains($"{name} ({i})")) return $"{name} ({i})";
+    }
+
+    /// <summary>The names of the installed frames (built-in ones too), ignoring case.</summary>
+    internal static HashSet<string> InstalledFrameNames(string? exceptDir = null)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var except = exceptDir == null ? null : Path.GetFullPath(exceptDir).TrimEnd(Path.DirectorySeparatorChar);
+        foreach (var spec in BuiltInTemplates.All())
+            if (except == null || !string.Equals(Path.GetFileName(except), TextUtil.Slug(spec.Name), StringComparison.OrdinalIgnoreCase))
+                names.Add(spec.Name);
+        if (!Directory.Exists(AppPaths.TemplatesDir)) return names;
+        foreach (var dir in Directory.EnumerateDirectories(AppPaths.TemplatesDir))
+        {
+            if (except != null && string.Equals(Path.GetFullPath(dir).TrimEnd(Path.DirectorySeparatorChar), except,
+                    StringComparison.OrdinalIgnoreCase)) continue;
+            try
+            {
+                var json = Path.Combine(dir, "template.json");
+                if (File.Exists(json) && TemplateSpec.Load(json).Name is { Length: > 0 } n) names.Add(n);
+            }
+            catch { /* an unreadable spec isn't a frame anyone can pick */ }
+        }
+        return names;
     }
 
     /// <summary>Picks a templates/&lt;slug&gt; folder, adding -2, -3… if that slug already exists.</summary>

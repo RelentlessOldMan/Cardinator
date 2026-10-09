@@ -334,6 +334,9 @@ installs it:
 - **Export:** select a frame in the dropdown and click **Export…** → save a `.cardframe` file.
 - **Import:** the recipient clicks **Import…** and picks the `.cardframe` (or just drops it onto the window), and
   it installs in one step — no fiddling with regions.
+- **A name you already have:** an imported frame never replaces or hides one of yours. If you already have a frame
+  called "Foo", the new one installs as "Foo (2)" and your cards stay on yours; switch a card to "Foo (2)" to use it.
+  Renaming a frame, or **Save as new…**, to a name that's taken works the same way.
 
 (A `.cardframe` is just a zip of `frame.png` + `template.json`; `.zip` files with those two work too.)
 

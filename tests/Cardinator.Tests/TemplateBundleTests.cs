@@ -37,7 +37,7 @@ public class TemplateBundleTests
             Assert.True(File.Exists(bundle));
 
             var importedName = TemplateImporter.ImportBundle(bundle);
-            Assert.Equal(name, importedName);
+            Assert.Equal($"{name} (2)", importedName);   // the source is still installed: never two of one name (1.6.20)
 
             // The import lands in a NEW folder (unique slug) since the source slug already exists.
             importedDir = Directory.EnumerateDirectories(AppPaths.TemplatesDir)
@@ -45,7 +45,7 @@ public class TemplateBundleTests
                 .First(d =>
                 {
                     var p = Path.Combine(d, "template.json");
-                    return File.Exists(p) && TemplateSpec.Load(p).Name == name;
+                    return File.Exists(p) && TemplateSpec.Load(p).Name == importedName;
                 });
 
             var imported = TemplateSpec.Load(Path.Combine(importedDir, "template.json"));

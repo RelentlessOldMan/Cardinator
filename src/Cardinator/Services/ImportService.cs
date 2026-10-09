@@ -68,8 +68,12 @@ public static class ImportService
         ["template"] = "template", ["frame"] = "template", ["border"] = "template",
         ["color"] = "template", ["colour"] = "template",
         ["artist"] = "artist", ["illustrator"] = "artist", ["illus"] = "artist",
-        ["set"] = "set", ["setcode"] = "set", ["expansion"] = "set",
+        ["set"] = "set", ["setcode"] = "set", ["expansion"] = "set", ["editioncode"] = "set",
+        // A deck site's "Edition": the set code on Moxfield ("m10"), the set's full name on Deckbox ("Magic 2010",
+        // with the code in "Edition Code") — so it's only taken as the set when it looks like a code.
+        ["edition"] = "edition",
         ["collector"] = "collector", ["collectornumber"] = "collector", ["number"] = "collector", ["num"] = "collector",
+        ["cardnumber"] = "collector",
         ["rarity"] = "rarity",
         ["copyright"] = "copyright", ["copy"] = "copyright",
         ["lookup"] = "lookup", ["scryfall"] = "lookup", ["fetch"] = "lookup",
@@ -331,7 +335,7 @@ public static class ImportService
                 Defense = Get("defense"),
                 Orientation = Get("orientation"),
                 Artist = Get("artist"),
-                SetCode = Get("set"),
+                SetCode = Get("set") is { Length: > 0 } set ? set : LooksLikeSetCode(Get("edition")) ? Get("edition") : "",
                 CollectorNumber = Get("collector"),
                 Rarity = Get("rarity"),
                 Copyright = Get("copyright"),
@@ -528,6 +532,9 @@ public static class ImportService
 
     private static string Normalize(string header)
         => new(header.Trim().ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    /// <summary>True for a set code ("m10", "PLST", "2XM"): 2–6 letters and digits, nothing else.</summary>
+    private static bool LooksLikeSetCode(string s) => s.Length is >= 2 and <= 6 && s.All(char.IsAsciiLetterOrDigit);
 
     private static string Unescape(string s) => s.Replace("\\n", "\n");
 

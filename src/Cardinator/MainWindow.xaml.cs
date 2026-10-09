@@ -55,6 +55,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private DispatcherTimer _undoTimer = null!;
     private DispatcherTimer _recoveryTimer = null!;
     private string? _recoveryWritten;      // the recovery copy THIS session wrote (see RecoveryStore)
+    private bool _recoveryIsRecovered;     // …or the crashed session's copy it opened: let go, it's kept aside
     private bool _restoring;
     private bool _syncingTemplates;   // RefreshTemplates re-selecting in the picker: never re-frames the card
     private static readonly System.Text.Json.JsonSerializerOptions SnapOpts =
@@ -828,7 +829,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _savedHistIdx = _histIdx;
         _metaDirty = false;
         Dirty = false;
-        ClearRecovery();
+        ClearRecovery(saved: true);
     }
 
     // --- recovery copies (unsaved work that never reaches a Save) --------------
@@ -841,19 +842,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         try
         {
             var file = RecoveryStore.FileFor(_projectPath);
-            if (_recoveryWritten != null && _recoveryWritten != file) RecoveryStore.Delete(_recoveryWritten);
+            if (_recoveryWritten != null && _recoveryWritten != file) ClearRecovery();
             RecoveryStore.Write(file, _projectPath, _projectName, Cards, _artBaseDir, _defaultTemplate, _setProfile);
             _recoveryWritten = file;
         }
         catch { /* a recovery copy must never get in the way */ }
     }
 
-    /// <summary>Removes this session's recovery copy (the set was saved, or the user chose not to keep the changes).</summary>
-    internal void ClearRecovery()
+    /// <summary>Removes this session's recovery copy (the set was saved, or the user chose not to keep the changes).
+    /// A crashed session's copy that was opened is kept aside in <c>recovery\declined</c> instead, unless it was saved:
+    /// "Don't save" by mistake must not be the end of that work, just as "Discard" at startup isn't.</summary>
+    internal void ClearRecovery(bool saved = false)
     {
         if (_recoveryWritten == null) return;
-        RecoveryStore.Delete(_recoveryWritten);
+        if (_recoveryIsRecovered && !saved) RecoveryStore.Decline(_recoveryWritten);
+        else RecoveryStore.Delete(_recoveryWritten);
         _recoveryWritten = null;
+        _recoveryIsRecovered = false;
     }
 
     /// <summary>At startup: offers the newest recovery copy a previous session left behind.</summary>
@@ -882,7 +887,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!string.IsNullOrWhiteSpace(entry.Meta.Name)) _projectName = entry.Meta.Name;
         SetProjectFolder(setPath.Length > 0 ? Path.GetDirectoryName(Path.GetFullPath(setPath)) : null);
         MarkUnsavedAgainstDisk();
-        _recoveryWritten = entry.File;   // removed once it's saved
+        _recoveryWritten = entry.File;   // removed once it's saved; kept aside if it's let go
+        _recoveryIsRecovered = true;
         OnPropertyChanged(nameof(ProjectSummary));
         OnPropertyChanged(nameof(WindowTitle));
         Status = $"Recovered unsaved changes ({Cards.Count} card(s)). Save to keep them.";
@@ -1798,6 +1804,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Deep-clone so edits made during the export can't tear reads on the render thread.
         var cardsSnapshot = Cards.Select(c => c.Clone()).ToList();
         var templatesSnapshot = Templates.ToList();
+        var houseFrame = _defaultTemplate;
         var symbols = _symbols;
         var folder = dlg.FolderName;
 
@@ -1817,7 +1824,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             // Rendering needs an STA thread; run it off the UI thread so the window stays responsive.
             var result = await RunStaAsync(() =>
-                BatchService.ExportAll(cardsSnapshot, templatesSnapshot, folder, symbols, strProgress, pctProgress));
+                BatchService.ExportAll(cardsSnapshot, templatesSnapshot, folder, symbols, strProgress, pctProgress, houseFrame));
 
             _lastExportDir = folder;   // so "Open output folder" follows an Export-all
             Status = $"Exported {result.Exported}/{cardsSnapshot.Count} to {folder}."
@@ -1900,6 +1907,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Deep-clone so edits during the (background) compose can't tear reads on the render thread.
         var cardsSnapshot = Cards.Select(c => c.Clone()).ToList();
         var templatesSnapshot = Templates.ToList();
+        var houseFrame = _defaultTemplate;
         var symbols = _symbols;
         var folder = dlg.FolderName;
 
@@ -1916,9 +1924,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var paths = await RunStaAsync(() =>
             {
                 var pages = doubleSided
-                    ? SheetExporter.ComposeDoubleSided(cardsSnapshot, templatesSnapshot, symbols, PageSpec.Letter, BackRenderer.Render(supersample: 1), strProgress)
+                    ? SheetExporter.ComposeDoubleSided(cardsSnapshot, templatesSnapshot, symbols, PageSpec.Letter, BackRenderer.Render(supersample: 1), strProgress, houseFrame)
                     // Single-sided: expand DFC cards so both faces get a printable slot.
-                    : SheetExporter.Compose(BatchService.ExpandFaces(cardsSnapshot), templatesSnapshot, symbols, PageSpec.Letter, strProgress);
+                    : SheetExporter.Compose(BatchService.ExpandFaces(cardsSnapshot), templatesSnapshot, symbols, PageSpec.Letter, strProgress, houseFrame);
                 return SheetExporter.Save(pages, folder);
             });
             ExportProgress = 100;

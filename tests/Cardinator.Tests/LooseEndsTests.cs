@@ -207,7 +207,7 @@ public class LooseEndsTests
 
             Load(root);
             Assert.Equal(theirNewFrame, File.ReadAllBytes(Path.Combine(dir, "frame.png")));
-            Assert.Equal(picture, File.ReadAllBytes(Path.Combine(dir, SetAsideName)));
+            Assert.Equal(picture, File.ReadAllBytes(Path.Combine(dir, SetAsideName.Replace(".corrupt-", ".kept-"))));   // 1.6.20: kept
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }

@@ -546,8 +546,13 @@ public sealed class TemplateService
                     return;
                 }
             }
-            // No source: keep the baked frame.png as-is; only make a placeholder if it's gone entirely.
-            if (!File.Exists(framePath)) FrameGenerator.Generate(spec, framePath);
+            // No source: keep the baked frame.png as-is; only make a placeholder if it's gone entirely — and tag it
+            // as one, so a picture set aside by mistake can later take its place (RestoreSetAsideFrame).
+            if (!File.Exists(framePath))
+            {
+                FrameGenerator.Generate(spec, framePath);
+                try { File.WriteAllText(framePath + PlaceholderTag, Sha(File.ReadAllBytes(framePath))); } catch { /* best effort */ }
+            }
             return;
         }
 
@@ -653,12 +658,23 @@ public sealed class TemplateService
         catch { return true; }   // can't tell: keeping a picture is safe, drawing over it isn't
     }
 
+    /// <summary>Next to a picture frame's frame.png when that file is a generated placeholder: the placeholder's
+    /// SHA-256, so it's recognised as one even after the frame's regions are edited or the generator changes.</summary>
+    internal const string PlaceholderTag = ".placeholder";
+
     /// <summary>
     /// Puts back a picture frame that was set aside (<c>frame.png.corrupt-…</c>) but reads fine now. Before 1.6.17 a
     /// moment of low memory or a locked file was taken for a corrupt frame: the picture was set aside and a generated
-    /// placeholder drawn in its place, for good. Only ever replaces a missing frame or that exact placeholder (the
-    /// frame this spec generates, byte for byte) — a frame the user has put there since is never touched — and only
-    /// with a set-aside file that decodes; one that's really corrupt stays set aside. Newest first. Best-effort.
+    /// placeholder drawn in its place, for good.
+    /// <list type="bullet">
+    /// <item>Only ever replaces a missing frame or a placeholder — a frame the user has put there since is never
+    /// touched.</item>
+    /// <item>Only with a set-aside file that decodes and isn't itself a placeholder (newest first); one that's really
+    /// corrupt stays set aside.</item>
+    /// <item>Decides once: every readable set-aside file it doesn't put back is renamed <c>frame.png.kept-…</c>, so
+    /// it's never looked at again on a later load (each look can mean drawing the whole frame to compare).</item>
+    /// </list>
+    /// Best-effort; never throws.
     /// </summary>
     internal static void RestoreSetAsideFrame(TemplateSpec spec, string framePath)
     {
@@ -668,35 +684,62 @@ public sealed class TemplateService
             if (dir == null || !Directory.Exists(dir)) return;
             var setAside = Directory.GetFiles(dir, Path.GetFileName(framePath) + ".corrupt-*")
                 .OrderByDescending(f => f, StringComparer.Ordinal).ToList();
-            var readable = setAside.FirstOrDefault(f =>
+            if (setAside.Count == 0) return;
+            var readable = setAside.Where(f =>
             {
                 try { LoadBitmap(f); return true; }
                 catch { return false; }   // still unreadable: a real corrupt file, left where it is
-            });
-            if (readable == null) return;
-            if (File.Exists(framePath))
+            }).ToList();
+            if (readable.Count == 0) return;
+
+            byte[]? generated = null;   // drawn at most once, and only when the tag can't tell
+            bool IsPlaceholder(string file)
             {
-                if (!IsGeneratedPlaceholder(spec, framePath)) return;
-                File.Delete(framePath);   // only ever the placeholder, which can be made again
+                var bytes = File.ReadAllBytes(file);
+                try { if (File.ReadAllText(framePath + PlaceholderTag).Trim() == Sha(bytes)) return true; }
+                catch { /* no tag: a placeholder drawn before 1.6.20 */ }
+                generated ??= GeneratePlaceholder(spec) ?? [];
+                return generated.Length > 0 && bytes.AsSpan().SequenceEqual(generated);
             }
-            File.Move(readable, framePath);
-            SafeDelete(framePath + ".hash");
+
+            var picture = readable.FirstOrDefault(f => !IsPlaceholder(f));
+            if (picture != null && (!File.Exists(framePath) || IsPlaceholder(framePath)))
+            {
+                if (File.Exists(framePath)) File.Delete(framePath);   // only ever the placeholder, which can be made again
+                File.Move(picture, framePath);
+                SafeDelete(framePath + ".hash");
+                SafeDelete(framePath + PlaceholderTag);
+            }
+            foreach (var f in readable) if (File.Exists(f)) KeepAside(f);
         }
         catch { /* leave everything as it is */ }
     }
 
-    /// <summary>True if <paramref name="framePath"/> is exactly the placeholder frame <paramref name="spec"/> generates.</summary>
-    private static bool IsGeneratedPlaceholder(TemplateSpec spec, string framePath)
+    /// <summary>The placeholder frame <paramref name="spec"/> generates, or null if it can't be drawn.</summary>
+    private static byte[]? GeneratePlaceholder(TemplateSpec spec)
     {
         var tmp = Path.Combine(Path.GetTempPath(), $"cardinator-placeholder-{Guid.NewGuid():N}.png");
         try
         {
             FrameGenerator.Generate(spec, tmp);
-            return File.ReadAllBytes(tmp).AsSpan().SequenceEqual(File.ReadAllBytes(framePath));
+            return File.ReadAllBytes(tmp);
         }
-        catch { return false; }   // can't tell: keep what's there
+        catch { return null; }   // can't tell: keep what's there
         finally { SafeDelete(tmp); }
     }
+
+    /// <summary>Renames a set-aside file restore has decided about (<c>.corrupt-</c> → <c>.kept-</c>): kept, never retried.</summary>
+    private static void KeepAside(string file)
+    {
+        var name = Path.GetFileName(file);
+        var at = name.LastIndexOf(".corrupt-", StringComparison.Ordinal);
+        var kept = Path.Combine(Path.GetDirectoryName(file)!, name[..at] + ".kept-" + name[(at + ".corrupt-".Length)..]);
+        var dest = kept;
+        for (int i = 2; File.Exists(dest); i++) dest = $"{kept}-{i}";
+        File.Move(file, dest);
+    }
+
+    private static string Sha(byte[] bytes) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
 
     /// <summary>True for a failure that comes and goes and isn't the image's fault: out of memory, or the file
     /// locked or not readable right now. A real decode failure (a truncated or garbage file) is not one of these.</summary>
