@@ -264,6 +264,11 @@ public sealed class TemplateSpec
     [JsonIgnore]
     public bool IsLandscape => CanvasWidth > CanvasHeight;
 
+    /// <summary>True when the art fills the whole card (Full Art, Showcase, Cinematic): the type line and text sit on
+    /// the art, so they can move without the art window changing.</summary>
+    [JsonIgnore]
+    public bool ArtFillsCard => ArtWindow.X <= 1 && ArtWindow.Y <= 1 && ArtWindow.Right >= CanvasWidth - 1 && ArtWindow.Bottom >= CanvasHeight - 1;
+
     /// <summary>
     /// The same template laid out LANDSCAPE: canvas width and height swap, and every region is re-placed so
     /// the frame keeps its look (style, colors, fonts, margins) on a sideways card. That lets every portrait
@@ -404,6 +409,17 @@ public sealed class TemplateSpec
     /// </summary>
     /// <param name="reserve">Extra height the box needs beyond its lines (a medallion set into its bottom edge,
     /// which the text stops above).</param>
+    /// <summary>This layout with the type line and text box raised by <paramref name="extra"/> and the box that much
+    /// taller — for a card whose text won't fit the box at a readable size, on a frame whose art fills the card
+    /// (<see cref="ArtFillsCard"/>), where the band behind the text just covers more of the art.</summary>
+    public TemplateSpec ToTaller(double extra)
+    {
+        var s = Clone();
+        s.TypeBar = new Region { X = TypeBar.X, Y = TypeBar.Y - extra, W = TypeBar.W, H = TypeBar.H };
+        s.TextBox = new Region { X = TextBox.X, Y = TextBox.Y - extra, W = TextBox.W, H = TextBox.H + extra };
+        return s;
+    }
+
     public TemplateSpec ToToken(int textLines, double reserve = 0)
     {
         if (IsTokenLayout || IsFlipLayout) return this;

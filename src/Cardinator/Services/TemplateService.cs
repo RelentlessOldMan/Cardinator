@@ -38,6 +38,7 @@ public sealed class TemplateService
     private static readonly Dictionary<string, Template> LandscapeVariants = new();
     private static readonly Dictionary<string, Template> FlipVariants = new();
     private static readonly Dictionary<string, Template> TokenVariants = new();
+    private static readonly Dictionary<string, Template> TallVariants = new();
     // Every Frame Design tweak makes a new content hash, so the derived-frame caches are bounded: in memory
     // (each holds a full-size frame bitmap) and on disk (CardinatorData/cache/<kind>).
     internal const int VariantCacheMax = 32;
@@ -132,7 +133,13 @@ public sealed class TemplateService
             return TokenOf(template, TokenTextLines(card, template.Spec)) ?? template;
         }
 
-        if (template.Spec.IsLandscape || !card.WantsLandscape) return template;
+        if (template.Spec.IsLandscape || !card.WantsLandscape)
+        {
+            // Long text on a frame whose art fills the card (Cinematic's box is short): the type line and text rise
+            // into the art just far enough, rather than the text shrinking to a squint.
+            double extra = ExtraTextRoom(card, template.Spec);
+            return extra > 0 ? TallerOf(template, extra) ?? template : template;
+        }
         if (template.Variants.TryGetValue(LandscapeVariant, out var side)) return side;
         if (template.Spec.CustomFrame) return template;
         return LandscapeOf(template) ?? template;
@@ -331,6 +338,66 @@ public sealed class TemplateService
     /// cached by content hash in <c>CardinatorData/cache/landscape</c> — never inside the template's own
     /// folder, so a shared template bundle contains only what the user made. Null if it can't be built
     /// (the caller then falls back to portrait rather than failing the render).</summary>
+    /// <summary>How much taller a card's text box should be on a drawn frame whose art fills the card, for text that
+    /// won't fit at a readable size: 0 when it fits with a little shrinking, else the shortfall in steps of
+    /// <see cref="TallStep"/>, the type line rising no higher than <see cref="TallTypeLineTop"/> of the card. A rough
+    /// count (as for tokens) — the renderer still fits the text to the box it gets. 0 on a picture frame (its picture
+    /// can't be redrawn) and on special layouts.</summary>
+    internal static double ExtraTextRoom(CardModel card, TemplateSpec spec)
+    {
+        if (spec.CustomFrame || !spec.ArtFillsCard || spec.IsTokenLayout || spec.IsFlipLayout || spec.IsLandscape) return 0;
+        if (card.IsSplit || card.IsAdventure || card.HasBands) return 0;
+        int lines = TokenTextLines(card, spec);
+        int paragraphs = (card.RulesText ?? "").Split('\n').Count(p => p.Trim().Length > 0);
+        double lineH = spec.RulesFont.Size * 1.34;
+        double need = 36 + lines * lineH + System.Math.Max(0, paragraphs - 1) * lineH * 0.35;
+        if (need <= spec.TextBox.H * TallSlack) return 0;
+        double room = System.Math.Max(0, spec.TypeBar.Y - spec.CanvasHeight * TallTypeLineTop);
+        double extra = System.Math.Min(room, System.Math.Ceiling((need - spec.TextBox.H) / TallStep) * TallStep);
+        return extra >= TallStep ? extra : 0;
+    }
+
+    /// <summary>Text this much taller than its box only shrinks a little, so the box stays as it is.</summary>
+    internal const double TallSlack = 1.2;
+    internal const double TallStep = 24;
+    internal const double TallTypeLineTop = 0.52;
+
+    /// <summary>The frame laid out with a taller text box (<see cref="TemplateSpec.ToTaller"/>), drawn and cached in
+    /// <c>CardinatorData/cache/tall</c> like the other derived layouts. Null if it can't be built.</summary>
+    public static Template? TallerOf(Template template, double extra)
+    {
+        var spec = template.Spec.ToTaller(extra);
+        var key = spec.ContentHash();
+        lock (VariantLock)
+        {
+            if (TallVariants.TryGetValue(key, out var hit)) return hit;
+            try
+            {
+                var dir = Path.Combine(AppPaths.DataDir, "cache", "tall");
+                Directory.CreateDirectory(dir);
+                var framePath = Path.Combine(dir, key[..20] + ".png");
+
+                BitmapImage frame;
+                try
+                {
+                    if (!File.Exists(framePath)) GenerateAtomically(spec, framePath);
+                    frame = CustomFrameComposer.LoadBitmap(framePath);
+                }
+                catch
+                {
+                    SafeDelete(framePath);
+                    GenerateAtomically(spec, framePath);
+                    frame = CustomFrameComposer.LoadBitmap(framePath);
+                }
+
+                var variant = new Template { Name = template.Name, Spec = spec, FramePath = framePath, FrameImage = frame };
+                Remember(TallVariants, key, variant);
+                return variant;
+            }
+            catch { return null; }
+        }
+    }
+
     public static Template? LandscapeOf(Template template)
     {
         var spec = template.Spec.ToLandscape();
