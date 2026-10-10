@@ -55,6 +55,29 @@ public static class ScryfallMapper
         bool hasFaces = root.TryGetProperty("card_faces", out var faces)
                         && faces.ValueKind == JsonValueKind.Array
                         && faces.GetArrayLength() >= 1;
+        var mapped = MapLayout(root, layout, setCode, collector, rarity, hasFaces, faces);
+        if (IsSpecialPrinting(root))
+            foreach (var m in mapped) m.SpecialPrinting = true;
+        return mapped;
+    }
+
+    /// <summary>A printing that isn't a regular one: a crossover (Universes Beyond), a promo, digital-only, or from a
+    /// joke, memorabilia or Alchemy set. Scryfall's default printing for a name is sometimes one of these (Lightning
+    /// Bolt's is a Marvel card).</summary>
+    internal static bool IsSpecialPrinting(JsonElement root)
+    {
+        bool True(string p) => root.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.True;
+        if (True("promo") || True("digital")) return true;
+        if (Str(root, "security_stamp").Equals("triangle", StringComparison.OrdinalIgnoreCase)) return true;
+        if (root.TryGetProperty("promo_types", out var pt) && pt.ValueKind == JsonValueKind.Array
+            && pt.EnumerateArray().Any(t => t.ValueKind == JsonValueKind.String && t.GetString() == "universesbeyond"))
+            return true;
+        return Str(root, "set_type").ToLowerInvariant() is "funny" or "memorabilia" or "promo" or "alchemy";
+    }
+
+    private static List<CardModel> MapLayout(JsonElement root, string layout, string setCode, string collector, string rarity,
+        bool hasFaces, JsonElement faces)
+    {
 
         // Adventure: one physical card (the creature) with the spell shown in a sub-box.
         if (hasFaces && layout.Equals("adventure", StringComparison.OrdinalIgnoreCase)

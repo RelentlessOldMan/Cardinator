@@ -196,6 +196,11 @@ public sealed class CardModel : INotifyPropertyChanged
     [JsonIgnore]
     public string MeldResultUrl { get; set; } = "";
 
+    /// <summary>Transient: this came from a Scryfall printing that isn't a regular one — a crossover (Universes Beyond),
+    /// a promo, a digital-only or a joke-set card. A lookup by name alone then looks for a regular printing. Not saved.</summary>
+    [JsonIgnore]
+    public bool SpecialPrinting { get; set; }
+
     private static bool IsMeldHalfValue(string? h) => (h ?? "").Trim().ToLowerInvariant() is "top" or "bottom";
 
     /// <summary>A meld part's front: a double-faced card whose back is half of a melded card.</summary>
