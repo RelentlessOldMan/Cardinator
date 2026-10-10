@@ -100,10 +100,12 @@
   "creditFont": {
     "family": "Segoe UI",
     "size": 13,
-    "color": "#2A2A24",
+    "color": "#F2F0E8",
     "bold": false,
     "italic": true,
-    "align": "left"
+    "align": "left",
+    "shadow": true,
+    "shadowColor": "#000000"
   },
   "manaSymbolSize": 35,
   "rulesSymbolSize": 26
