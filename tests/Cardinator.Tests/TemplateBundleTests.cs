@@ -36,12 +36,13 @@ public class TemplateBundleTests
             TemplateImporter.ExportBundle(srcDir, bundle);
             Assert.True(File.Exists(bundle));
 
+            // Imported where the source isn't installed (another machine) — with it installed, the same frame is just
+            // the one already there (1.6.26).
+            Directory.Delete(srcDir, true);
             var importedName = TemplateImporter.ImportBundle(bundle);
-            Assert.Equal($"{name} (2)", importedName);   // the source is still installed: never two of one name (1.6.20)
+            Assert.Equal(name, importedName);
 
-            // The import lands in a NEW folder (unique slug) since the source slug already exists.
             importedDir = Directory.EnumerateDirectories(AppPaths.TemplatesDir)
-                .Where(d => !string.Equals(d, srcDir, StringComparison.OrdinalIgnoreCase))
                 .First(d =>
                 {
                     var p = Path.Combine(d, "template.json");
