@@ -348,8 +348,9 @@ installs it:
 
 **Several frames in one zip:** a `.zip` can hold any number of frames, each in its own folder with its own
 `frame.png` + `template.json` (and its `flip/` / `landscape/` versions), or a few `.cardframe` files zipped together.
-**Import…** brings them all in at once and the status line names them. That includes the zip **Share set + frames**
-makes: importing it as a frame installs every frame in its `frames/` folder.
+**Import…** brings them all in at once and the status line names them. (A **Share set + frames** zip is better
+**opened** than imported: that opens the set too.) Importing a frame you already have — the same name, picture and
+settings — reuses yours rather than adding a copy.
 
 Prefer files on disk? A template is also self-contained in its folder — zip up
 `CardinatorData/templates/<name>/` and share it; the recipient drops it into their own

@@ -1341,11 +1341,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var dlg = new OpenFileDialog
         {
             Title = "Open project",
-            Filter = "Cardinator project (*.cardinator;*.json)|*.cardinator;*.json|All files|*.*",
+            Filter = "Cardinator project or shared set (*.cardinator;*.json;*.zip)|*.cardinator;*.json;*.zip|All files|*.*",
             InitialDirectory = AppPaths.SamplesDir,
         };
         if (dlg.ShowDialog() != true) return;
-        LoadProjectFile(dlg.FileName);
+        if (Path.GetExtension(dlg.FileName).Equals(".zip", StringComparison.OrdinalIgnoreCase)) OpenSharedSet(dlg.FileName);
+        else LoadProjectFile(dlg.FileName);
+    }
+
+    /// <summary>Opens a set someone shared (a "Share set + frames" zip): unpacks it into a folder of its own beside
+    /// the other sets, installs its frames, and opens it — no unzipping by hand, and nothing saved into a temp folder.</summary>
+    internal bool OpenSharedSet(string zipPath)
+    {
+        string projectPath;
+        try { projectPath = SetPackager.UnpackSharedSet(zipPath, AppPaths.SamplesDir); }
+        catch (Exception ex) { Status = "Couldn't open that shared set: " + ex.Message; return false; }
+        RefreshTemplates();
+        if (!LoadProjectFile(projectPath)) return false;
+        Status += $"  Unpacked to {Path.GetDirectoryName(projectPath)}.";
+        return true;
     }
 
     /// <summary>Loads a project file into the window. Returns false (leaving the current project untouched)
@@ -2708,6 +2722,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// the art of the card (or the split card's half) it was dropped on. <paramref name="at"/> is on the preview.</summary>
     private async Task DropFiles(string[] files, System.Windows.Point at)
     {
+        // Mid-import or mid-export, a drop would swap the cards out from under the running job.
+        if (Busy) { Status = "Still working — wait for the current job to finish."; return; }
         // A dropped project/list opens or imports; a dropped image becomes the current card's art.
         var project = files.FirstOrDefault(f =>
         {
@@ -2723,8 +2739,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         });
         if (list != null) { await ImportListFile(list); return; }
 
-        // A shared frame (.cardframe, or a .zip of frames) installs, as Import frame… would.
+        // A shared set opens; a shared frame (.cardframe, or a .zip of frames) installs, as Import frame… would.
         var bundle = files.FirstOrDefault(TemplateImporter.IsBundlePath);
+        if (bundle != null && SetPackager.IsSharedSet(bundle))
+        {
+            if (ConfirmDiscardIfDirty()) OpenSharedSet(bundle);
+            return;
+        }
         if (bundle != null)
         {
             try { ImportFrameBundle(bundle); }

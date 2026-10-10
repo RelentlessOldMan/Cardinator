@@ -313,6 +313,11 @@ by card, or import a whole batch.
 - **Share set + frames…** — zips the whole set (project + `art/` + a bundle for each custom frame the
   cards use, with its flip and sideways layouts) so you can hand it to someone who doesn't have your
   frames. The set must have been saved once; any unsaved changes, it offers to save first.
+  **Got one?** Don't unzip it — **Open** it (or drop it on the window). Cardinator unpacks the set and its art into
+  a folder of its own next to your other sets (`My Set`, or `My Set (2)` if you already have one — yours is never
+  touched), installs its frames, and opens it; the status line says where it went. A frame you already have,
+  exactly the same, isn't installed twice. If you have a *different* frame with the same name, yours is kept and
+  theirs comes in as "Name (2)" — and the set's cards use theirs.
 - **Move ↑ / ↓** — reorder the selected card in the list (this is also the print/collector order).
 - **Duplicate** (**Ctrl+D**) — copy the selected card (the sidebar button next to Add token).
 - **Export all…** — renders every card to PNGs (600 DPI, real card size) in a folder you choose. Runs
@@ -415,7 +420,10 @@ Special layouts add their own columns (any one of them makes the row that kind o
 - an **image** → sets the current card's art;
 - a **`.cardinator` / `.json`** → opens that project;
 - a **`.txt` / `.csv` / `.tsv`** → imports that card list;
+- a **Share set + frames** `.zip` → opens that set (unpacked into a folder of its own, its frames installed);
 - a **`.cardframe` / `.zip`** frame bundle → installs the frame(s), as **Import…** would.
+
+While Cardinator is busy (an import, an export), a drop is turned away until it's done.
 
 Press **F1** (or the **Help** button) any time for the built-in cheat sheet:
 

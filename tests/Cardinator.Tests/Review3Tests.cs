@@ -193,12 +193,12 @@ public class Review3Tests
 
     // --- two frames with one name ------------------------------------------------------------------------
 
-    private static string Bundle(string root, string name)
+    private static string Bundle(string root, string name, uint colour = 0xFF2850A0)
     {
         var src = Path.Combine(root, "src-" + Guid.NewGuid().ToString("N")[..6]);
         Directory.CreateDirectory(src);
         new TemplateSpec { Name = name, CustomFrame = true }.Save(Path.Combine(src, "template.json"));
-        File.WriteAllBytes(Path.Combine(src, "frame.png"), TestHelpers.PngBytes(75, 105));
+        File.WriteAllBytes(Path.Combine(src, "frame.png"), TestHelpers.PngBytes(75, 105, colour));
         var bundle = Path.Combine(root, $"{Guid.NewGuid():N}.cardframe");
         TemplateImporter.ExportBundle(src, bundle);
         return bundle;
@@ -220,7 +220,7 @@ public class Review3Tests
         {
             Directory.CreateDirectory(root);
             Assert.Equal(name, TemplateImporter.ImportBundle(Bundle(root, name)));
-            Assert.Equal($"{name} (2)", TemplateImporter.ImportBundle(Bundle(root, name)));
+            Assert.Equal($"{name} (2)", TemplateImporter.ImportBundle(Bundle(root, name, 0xFFAA2222)));   // a different frame (1.6.26: the same one is reused)
             Assert.Equal($"{name} (3)", TemplateImporter.CreateFromFrame(name, TestHelpers.PngBytes(75, 105)));
 
             IReadOnlyList<Template> loaded = [];

@@ -112,7 +112,7 @@ public static class TemplateImporter
             ?? throw new InvalidOperationException("That bundle has no template.json — it isn't a Cardinator template.");
         var frameEntry = FindEntry(zip, "frame.png")
             ?? throw new InvalidOperationException("That bundle has no frame.png — it isn't a Cardinator template.");
-        return ImportOne(zip, specEntry, frameEntry, EntryFolder(specEntry), Path.GetFileNameWithoutExtension(bundlePath));
+        return ImportOne(zip, specEntry, frameEntry, EntryFolder(specEntry), Path.GetFileNameWithoutExtension(bundlePath)).Installed;
     }
 
     /// <summary>Imports EVERY template in a zip: each folder holding a template.json + frame.png (with its own flip/
@@ -120,15 +120,20 @@ public static class TemplateImporter
     /// (frames/&lt;slug&gt;/…), brings them all in. Template bundles zipped inside it (.cardframe/.zip) are imported
     /// too. A single-template bundle imports exactly as <see cref="ImportBundle"/> does. Returns the template names;
     /// throws like <see cref="ImportBundle"/> when the zip holds no template at all.</summary>
-    public static List<string> ImportBundles(string bundlePath) => ImportBundles(bundlePath, depth: 0);
+    public static List<string> ImportBundles(string bundlePath) => ImportBundlesMapped(bundlePath).Select(m => m.Installed).ToList();
+
+    /// <summary>As <see cref="ImportBundles(string)"/>, pairing each frame's name in the bundle with the name it has
+    /// here: the same, unless a different frame of that name was already installed ("Name (2)"). A shared set uses
+    /// this to point its cards at the frames they came with.</summary>
+    internal static List<(string Original, string Installed)> ImportBundlesMapped(string bundlePath) => ImportBundles(bundlePath, depth: 0);
 
     /// <summary>How deep bundles inside bundles are opened. A zip that holds itself (they can be made) would
     /// otherwise recurse until the stack overflows, which takes the whole app down.</summary>
     private const int MaxBundleDepth = 2;
 
-    private static List<string> ImportBundles(string bundlePath, int depth)
+    private static List<(string Original, string Installed)> ImportBundles(string bundlePath, int depth)
     {
-        var names = new List<string>();
+        var names = new List<(string Original, string Installed)>();
         using (var zip = ZipFile.OpenRead(bundlePath))
         {
             var specs = zip.Entries
@@ -172,8 +177,10 @@ public static class TemplateImporter
         return names;
     }
 
-    /// <summary>Imports one template from a zip: its frame, its spec and the flip/landscape layouts in its folder.</summary>
-    private static string ImportOne(ZipArchive zip, ZipArchiveEntry specEntry, ZipArchiveEntry frameEntry, string folder, string fallbackName)
+    /// <summary>Imports one template from a zip: its frame, its spec and the flip/landscape layouts in its folder. The
+    /// same frame imported again (a re-dropped .cardframe, an updated shared set) is the one already installed, not a
+    /// copy called "Name (2)".</summary>
+    private static (string Original, string Installed) ImportOne(ZipArchive zip, ZipArchiveEntry specEntry, ZipArchiveEntry frameEntry, string folder, string fallbackName)
     {
         var specJson = ReadEntryText(specEntry);
         var frameBytes = ReadEntryBytes(frameEntry);
@@ -183,8 +190,11 @@ public static class TemplateImporter
         // Parse to validate + get the display name; force CustomFrame so the frame is kept verbatim.
         var spec = TemplateSpec.LoadFromJson(specJson);
         if (string.IsNullOrWhiteSpace(spec.Name)) spec.Name = fallbackName;
-        spec.Name = UniqueFrameName(spec.Name.Trim());   // never hides a frame that's already installed
+        spec.Name = spec.Name.Trim();
         spec.CustomFrame = true;
+        var original = spec.Name;
+        if (IdenticalInstalled(spec, frameBytes) is { } same) return (original, same);
+        spec.Name = UniqueFrameName(spec.Name);   // never hides a different frame that's already installed
 
         var dir = UniqueTemplateDir(TextUtil.Slug(spec.Name));
         Directory.CreateDirectory(dir);
@@ -192,7 +202,32 @@ public static class TemplateImporter
         IoUtil.AtomicWriteBytes(Path.Combine(dir, "frame.png"), frameBytes);
         spec.Save(Path.Combine(dir, "template.json"));
         ImportVariants(zip, dir, folder);
-        return spec.Name;
+        return (original, spec.Name);
+    }
+
+    /// <summary>The name of an installed frame that is this one — the same name, the same picture and the same
+    /// settings — or null.</summary>
+    private static string? IdenticalInstalled(TemplateSpec spec, byte[] frameBytes)
+    {
+        try
+        {
+            foreach (var dir in Directory.EnumerateDirectories(AppPaths.TemplatesDir))
+            {
+                var specPath = Path.Combine(dir, "template.json");
+                var framePath = Path.Combine(dir, "frame.png");
+                if (!File.Exists(specPath) || !File.Exists(framePath)) continue;
+                TemplateSpec installed;
+                try { installed = TemplateSpec.LoadFromJson(File.ReadAllText(specPath)); } catch { continue; }
+                if (!string.Equals(installed.Name?.Trim(), spec.Name, StringComparison.OrdinalIgnoreCase)) continue;
+                if (new FileInfo(framePath).Length != frameBytes.Length || !File.ReadAllBytes(framePath).AsSpan().SequenceEqual(frameBytes)) continue;
+                var mine = spec.Clone();
+                mine.Name = installed.Name!;
+                installed.CustomFrame = true;
+                if (mine.ContentHash() == installed.ContentHash()) return installed.Name;
+            }
+        }
+        catch { /* can't tell: install it as new */ }
+        return null;
     }
 
     private static string Normalized(ZipArchiveEntry e) => e.FullName.Replace('\\', '/').TrimStart('/');
