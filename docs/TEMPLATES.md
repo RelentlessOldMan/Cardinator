@@ -45,6 +45,10 @@ The last two: **Azure Modern** (an M15-style
 base) and **Ironwrought Showcase** (a `composable` frame — full-bleed art with connected two-tone
 panels and a regal crown).
 
+On the frames whose art fills the whole card (**Full Art**, **Showcase**, **Cinematic**, **Ironwrought Showcase**) the
+text sits low on the art in a short box. A card with a lot of text doesn't shrink it to a squint: its type line and
+text box rise into the art just far enough to fit, on that card only.
+
 ### Alchemy sample frames
 
 Cardinator also ships three richer, **image-based** sample frames — an original alchemy-themed set
