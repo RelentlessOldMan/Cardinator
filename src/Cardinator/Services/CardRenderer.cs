@@ -152,7 +152,7 @@ public sealed class CardRenderer
             else if (card.IsAdventure)
                 DrawAdventure(dc, card, spec);
             else if (card.ShowBigLandSymbol)
-                DrawBigLandSymbol(dc, card, spec);
+                DrawBigLandSymbol(dc, card, spec, ornament);
             else
             {
                 DrawTextBox(dc, card.RulesText, card.FlavorText, spec.EffectiveTextBox, spec.RulesFont, spec.FlavorFont, spec.RulesSymbolSize, RulesAvoid(card, spec),
@@ -886,7 +886,7 @@ public sealed class CardRenderer
     /// <summary>Draws a basic land's big centered mana symbol(s) in the text-box region (e.g. a large {G}
     /// for a Forest). One, two, or three symbols; arranged in a row (default) or combined into a single
     /// disc split vertically/horizontally, as a yin-yang (2), or as pie wedges — per card.LandSymbolStyle.</summary>
-    private void DrawBigLandSymbol(DrawingContext dc, CardModel card, TemplateSpec spec)
+    private void DrawBigLandSymbol(DrawingContext dc, CardModel card, TemplateSpec spec, Rect? ornament = null)
     {
         var toks = card.BigLandSymbols;
         if (toks.Count == 0) return;
@@ -894,6 +894,9 @@ public sealed class CardRenderer
         var region = spec.EffectiveTextBox;
         if (region == null) return;
         var box = new Rect(region.X, region.Y, region.W, region.H);
+        // A medallion set into the box's bottom edge: the symbol sits in the room above it, as rules text does.
+        if (ornament is { } orn && orn.Top - 4 < box.Bottom && orn.Left < box.Right && orn.Right > box.Left)
+            box.Height = Math.Max(Math.Min(box.Height, 20), orn.Top - 4 - box.Y);
 
         string style = (card.LandSymbolStyle ?? "").Trim().ToLowerInvariant();
         if (style is "" or "row" || toks.Count == 1)
@@ -1526,6 +1529,49 @@ public sealed class CardRenderer
         dc.DrawGeometry(fill, edge, gem);
     }
 
+    /// <summary>The ink for the numbers on ability badges, loyalty and defense shields: white, unless the badge fill
+    /// is so pale that white all but vanishes (Parchment, Sealed Gate).</summary>
+    internal static Brush BadgeInk(TemplateSpec spec) => Ink(ReadableInk(Colors.White, MetalFillLum(spec), MinBadgeContrast, spec));
+
+    /// <summary>The ink for the P/T numbers on a framed card's metal P/T box: the template's P/T colour, unless it
+    /// barely shows on that box (Midnight's near-black on near-black).</summary>
+    internal static Color PtInk(TemplateSpec spec) =>
+        ReadableInk(TemplateSpec.ParseColor(spec.PtFont.Color), MetalFillLum(spec), MinPtContrast, spec);
+
+    /// <summary>Below these contrast ratios the preferred ink is swapped. Set so only frames whose numbers were
+    /// unreadable change: white badges on the gold frames (1.8) and Alchemist's Steel's P/T (2.8) stay.</summary>
+    internal const double MinBadgeContrast = 1.7, MinPtContrast = 2.5;
+
+    /// <summary>The preferred ink if it reads on a fill of this luminance; otherwise white or a dark ink (the
+    /// template's P/T colour when that's dark, else near-black), whichever reads better.</summary>
+    private static Color ReadableInk(Color preferred, double fillLum, double minContrast, TemplateSpec spec)
+    {
+        if (Contrast(RelLum(preferred), fillLum) >= minContrast) return preferred;
+        var pt = TemplateSpec.ParseColor(spec.PtFont.Color);
+        var dark = RelLum(pt) < 0.1 ? pt : Color.FromRgb(0x1E, 0x1E, 0x1E);
+        return Contrast(1, fillLum) >= Contrast(RelLum(dark), fillLum) ? Colors.White : dark;
+    }
+
+    /// <summary>The average luminance of the frame-metal fill shared by the P/T box, badges and shields (Frame2,
+    /// lightened, down to Frame).</summary>
+    private static double MetalFillLum(TemplateSpec spec) =>
+        (RelLum(LightenC(TemplateSpec.ParseColor(spec.Colors.Frame2), 0.10)) + RelLum(TemplateSpec.ParseColor(spec.Colors.Frame))) / 2;
+
+    private static double RelLum(Color c)
+    {
+        static double Lin(byte v) { double s = v / 255.0; return s <= 0.04045 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4); }
+        return 0.2126 * Lin(c.R) + 0.7152 * Lin(c.G) + 0.0722 * Lin(c.B);
+    }
+
+    private static double Contrast(double a, double b) => (Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05);
+
+    private static Brush Ink(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
     private static Color LightenC(Color c, double a)
     {
         byte L(byte v) => (byte)Math.Clamp(v + (255 - v) * a, 0, 255);
@@ -1595,7 +1641,23 @@ public sealed class CardRenderer
     {
         var rect = PtRect(spec);
         var inner = DrawPtStylePlate(dc, rect, spec);
-        DrawCentered(dc, $"{card.Power}/{card.Toughness}", inner, NumeralFont(spec.PtFont));
+        DrawCentered(dc, $"{card.Power}/{card.Toughness}", inner, PtPlateFont(spec));
+    }
+
+    /// <summary>The font for numbers on a P/T-style plate. On the frame-metal plate (not an art card's dark plate,
+    /// nor a composable frame's panel-coloured centre) the template's P/T ink can all but vanish (Midnight's
+    /// near-black on near-black); then it takes an ink that reads.</summary>
+    private static FontSpec PtPlateFont(TemplateSpec spec, double sizeScale = 1)
+    {
+        var f = NumeralFont(spec.PtFont);
+        var color = f.Color;
+        if (!ArtText(spec) && !IsComposable(spec) && PtInk(spec) is var ink && ink != TemplateSpec.ParseColor(f.Color))
+            color = $"#{ink.R:X2}{ink.G:X2}{ink.B:X2}";
+        return new FontSpec
+        {
+            Family = f.Family, Size = f.Size * sizeScale, Bold = f.Bold, Italic = f.Italic, Align = f.Align,
+            Color = color, Shadow = f.Shadow, ShadowColor = f.ShadowColor,
+        };
     }
 
     /// <summary>Draws the P/T-box plate style (beveled band + recessed center, or the simple fill+bevel
@@ -2363,13 +2425,7 @@ public sealed class CardRenderer
             if (pt is { } r)
             {
                 var inner = DrawPtStylePlate(dc, r, spec);
-                var f = NumeralFont(spec.PtFont);
-                f = new FontSpec
-                {
-                    Family = f.Family, Size = f.Size * 0.85, Bold = f.Bold, Italic = f.Italic, Align = f.Align,
-                    Color = f.Color, Shadow = f.Shadow, ShadowColor = f.ShadowColor,
-                };
-                DrawCentered(dc, band.Pt, inner, f);
+                DrawCentered(dc, band.Pt, inner, PtPlateFont(spec, 0.85));
             }
         }
     }
@@ -2646,7 +2702,7 @@ public sealed class CardRenderer
         double minSize = Math.Min(11, spec.RulesFont.Size);
         for (double size = Math.Max(minSize, spec.RulesFont.Size); size >= minSize; size -= 1)
         {
-            best = LayoutPw(rows, box, spec.RulesFont, size, spec.RulesSymbolSize * (size / spec.RulesFont.Size), loyaltyShields, avoid);
+            best = LayoutPw(rows, box, spec.RulesFont, size, spec.RulesSymbolSize * (size / spec.RulesFont.Size), loyaltyShields, avoid, BadgeInk(spec));
             if (best.Height <= box.Height) break;
         }
         if (best != null && best.Height > box.Height + 1) _textOverflows++;
@@ -2668,7 +2724,8 @@ public sealed class CardRenderer
         return (runs, loyalty);
     }
 
-    private PwLayout LayoutPw(List<(string? cost, string text)> rows, Rect box, FontSpec font, double fontSize, double symSize, bool loyaltyShields = false, Rect? avoid = null)
+    private PwLayout LayoutPw(List<(string? cost, string text)> rows, Rect box, FontSpec font, double fontSize, double symSize, bool loyaltyShields = false,
+        Rect? avoid = null, Brush? badgeInk = null)
     {
         var L = new PwLayout();
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
@@ -2692,7 +2749,7 @@ public sealed class CardRenderer
             FormattedText? costFt = null;
             if (cost != null)
             {
-                costFt = MakeText(cost, badgeFont, fontSize * 0.95, Brushes.White);
+                costFt = MakeText(cost, badgeFont, fontSize * 0.95, badgeInk ?? Brushes.White);
                 badgeW = loyaltyShields ? Math.Max(costFt.Width + fontSize * 0.9, badgeH * 1.05) : costFt.Width + fontSize * 0.9;
             }
 
@@ -2742,7 +2799,7 @@ public sealed class CardRenderer
         // Center the number on its true ink bounds within the shield's flat body (above the point), so it
         // sits optically centered rather than floating high off the font's line-box padding.
         double sh = box.Height * 0.30;   // matches LoyaltyShape's point-height fraction
-        var ft = MakeText(card.Loyalty, NumeralFont(new FontSpec { Family = spec.PtFont.Family, Bold = true }), spec.PtFont.Size, Brushes.White);
+        var ft = MakeText(card.Loyalty, NumeralFont(new FontSpec { Family = spec.PtFont.Family, Bold = true }), spec.PtFont.Size, BadgeInk(spec));
         var bounds = ft.BuildGeometry(new Point(0, 0)).Bounds;
         double x = box.X + box.Width / 2 - (bounds.X + bounds.Width / 2);
         double y = box.Y + (box.Height - sh) / 2 + box.Height * 0.07 - (bounds.Y + bounds.Height / 2);
@@ -2780,7 +2837,7 @@ public sealed class CardRenderer
 
         // Centre the number on its ink bounds in the shield's broad upper body (above the taper).
         var ft = MakeText(card.Defense, NumeralFont(new FontSpec { Family = spec.PtFont.Family, Bold = true }),
-            spec.PtFont.Size, Brushes.White);
+            spec.PtFont.Size, BadgeInk(spec));
         var b = ft.BuildGeometry(new Point(0, 0)).Bounds;
         double x = box.X + box.Width / 2 - (b.X + b.Width / 2);
         double y = box.Y + box.Height * 0.44 - (b.Y + b.Height / 2);
