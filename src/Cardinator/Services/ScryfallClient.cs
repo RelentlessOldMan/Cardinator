@@ -66,8 +66,37 @@ public sealed class ScryfallClient
         var json = await GetAsync(url, ct);
         if (json is null) return Array.Empty<CardModel>();
 
-        try { return ScryfallMapper.MapFaces(json); }
+        List<CardModel> faces;
+        try { faces = ScryfallMapper.MapFaces(json); }
         catch (JsonException) { throw new ScryfallException("Scryfall returned an unexpected response."); }
+        return await PreferRegularPrintingAsync(faces, ct);
+    }
+
+    /// <summary>A card found by name alone comes as Scryfall's default printing, which is sometimes a special one (Lightning
+    /// Bolt's is a Marvel crossover). Then this looks for the same card's regular paper printings and returns Scryfall's
+    /// pick of those; a card with none (one only ever printed as a crossover), or a failed search, keeps what it had.</summary>
+    public async Task<List<CardModel>> PreferRegularPrintingAsync(IReadOnlyList<CardModel> faces, CancellationToken ct = default)
+    {
+        if (faces.Count == 0 || !faces[0].SpecialPrinting || string.IsNullOrWhiteSpace(faces[0].Name)) return faces.ToList();
+        var name = faces[0].Name.Trim();
+        var query = $"!\"{name.Replace("\"", "")}\" game:paper -is:ub -is:promo not:funny";
+        try
+        {
+            var json = await GetAsync($"{Base}/cards/search?unique=cards&q={Uri.EscapeDataString(query)}", ct);
+            if (json is null) return faces.ToList();   // 404: no regular printing
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+                foreach (var el in data.EnumerateArray())
+                {
+                    // An exact-name search also finds a card with a face of that name ("Emeritus of Conflict // Lightning
+                    // Bolt"): only the same card counts.
+                    var mapped = ScryfallMapper.MapElement(el);
+                    if (mapped.Count > 0 && mapped[0].Name.Equals(name, StringComparison.OrdinalIgnoreCase) && !mapped[0].SpecialPrinting)
+                        return mapped;
+                }
+        }
+        catch (Exception ex) when (ex is ScryfallException or JsonException) { /* keep the printing we have */ }
+        return faces.ToList();
     }
 
     /// <summary>Fetches one card by its Scryfall API address (e.g. a meld part's melded card from

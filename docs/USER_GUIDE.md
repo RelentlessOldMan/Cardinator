@@ -280,7 +280,9 @@ by card, or import a whole batch.
   - a plain **list of names**, one per line (each looked up on Scryfall) — a deck list works too:
     quantities (`4 Lightning Bolt`), printing hints (`Sol Ring (CMR) 472`; a lowercase code like `(cmr)` counts
     only with a number after it, so `Goblin King (alt)` keeps its name) and section
-    headings (`Sideboard:`, `Creatures (25)`) are understood;
+    headings (`Sideboard:`, `Creatures (25)`) are understood. A card given by name alone gets a regular printing's
+    details and art — not a crossover (Marvel, Final Fantasy…), promo or digital-only printing, even when that's the
+    one Scryfall shows first — unless that's the only kind it has. To get a particular printing, give its hint;
   - `Name | C:\art\thing.png` per line (name + art);
   - a **CSV/TSV with a header row**, columns matched by friendly names in any order. See the
     [example CSV](../examples/02-custom-set/cards.csv) and the [column reference](#csv-columns) below.

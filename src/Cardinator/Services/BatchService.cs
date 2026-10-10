@@ -123,8 +123,9 @@ public static class BatchService
         }
 
         var unresolved = new List<IGrouping<string, ImportedCard>>();
-        foreach (var group in groups)
+        for (int gi = 0; gi < groups.Count; gi++)
         {
+            var group = groups[gi];
             var c = group.First().Card;
             List<CardModel>? faces = null;
             // A set + number that belongs to a different card (a typo'd or stale number) never replaces the card
@@ -140,6 +141,13 @@ public static class BatchService
             // Last resort within the batch: a DFC whose imported name is "Front // Back" — match the front.
             if (faces == null && c.Name.Contains("//"))
                 byName.TryGetValue(c.Name.Split("//")[0].Trim(), out faces);
+            // Asked for by name alone and given a special printing (a crossover, a promo): a regular printing instead.
+            if (faces != null && refs[gi].Set == null && faces[0].SpecialPrinting)
+            {
+                var regular = await client.PreferRegularPrintingAsync(faces, ct);
+                if (!regular[0].SpecialPrinting) log.Add($"  note: {Ident(c)} came as a special printing ({faces[0].SetCode}) — used {regular[0].SetCode} {regular[0].CollectorNumber}.");
+                faces = regular;
+            }
             if (faces != null) { ApplyFaces(group, faces); log.Add($"batch OK  {Ident(c)} -> {faces[0].Name}"); }
             else unresolved.Add(group);
         }
