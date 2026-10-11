@@ -56,7 +56,9 @@
 
             <!-- ===== Sidebar: cards + batch ===== -->
             <Border Grid.Column="0" Background="{StaticResource Panel}" CornerRadius="10" Padding="12">
-                <DockPanel>
+                <!-- When the window is short (or the display scaled up), the BATCH buttons scroll rather than squeezing
+                     the card list below one row (OnSidebarSizeChanged keeps the list at least a few rows tall). -->
+                <DockPanel x:Name="Sidebar" SizeChanged="OnSidebarSizeChanged">
                     <TextBlock DockPanel.Dock="Top" Text="CARDS" Style="{StaticResource SectionLabel}"/>
                     <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="0,0,0,6">
                         <Button Content="Add" Click="OnAddCard" Margin="0,0,4,0" Padding="4,0" IsEnabled="{Binding NotBusy}"/>
@@ -70,7 +72,9 @@
                         <Button Content="Move ↓" Click="OnMoveDown" Margin="4,0,0,0" IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) down"/>
                     </UniformGrid>
 
-                    <StackPanel DockPanel.Dock="Bottom">
+                    <ScrollViewer x:Name="BatchScroll" DockPanel.Dock="Bottom" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                    <StackPanel>
                         <Border Height="1" Background="{StaticResource Line}" Margin="0,10"/>
                         <TextBlock Text="BATCH" Style="{StaticResource SectionLabel}"/>
                         <Button Content="Import file…" Click="OnImport" Margin="0,0,0,6" IsEnabled="{Binding NotBusy}"
@@ -96,6 +100,7 @@
                         <Button Content="Share set + frames…" Click="OnExportSetBundle" IsEnabled="{Binding CanExport}"
                                 ToolTip="Zip the whole set (project + art + its custom frames) to send to someone else"/>
                     </StackPanel>
+                    </ScrollViewer>
 
                     <Border Background="{StaticResource Bg}" CornerRadius="8" Padding="4">
                         <ListBox x:Name="CardList" ItemsSource="{Binding Cards}" SelectedItem="{Binding SelectedCard}"
@@ -105,8 +110,10 @@
             </Border>
 
             <!-- ===== Editor (simple flow) ===== -->
-            <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="10" Padding="18" Margin="14,0">
-                <StackPanel IsEnabled="{Binding CanEditSelected}">
+            <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="10" Padding="18,18,6,18" Margin="14,0">
+                <!-- Scrolls when the window is too short for it all, so CHECKS and Export are never cut off. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                <StackPanel IsEnabled="{Binding CanEditSelected}" Margin="0,0,12,0">
                     <TextBlock Text="CARD NAME" Style="{StaticResource SectionLabel}"/>
                     <!-- Just the name — this is YOUR card's title. To pull real stats from Scryfall (even for a
                          card with a different name), use the search inside Edit details…. -->
@@ -224,6 +231,7 @@
                         <Button Content="Open output folder" Click="OnOpenOutput" Margin="4,0,0,0"/>
                     </UniformGrid>
                 </StackPanel>
+                </ScrollViewer>
             </Border>
 
             <!-- ===== Preview ===== -->
@@ -242,6 +250,10 @@
                            MouseLeftButtonUp="OnPreviewMouseUp" MouseWheel="OnPreviewWheel"
                            GotKeyboardFocus="OnPreviewFocusChanged" LostKeyboardFocus="OnPreviewFocusChanged"
                            ToolTip="Drag to pan · scroll to zoom (Ctrl = fine) · click then arrow keys to nudge, +/- to zoom, 0 to reset"/>
+                    <!-- While the art is dragged or zoomed: the card as a live drawing (art + everything else drawn once), laid
+                         exactly over the preview, so a move costs no repaint (RenderPreviewLive). -->
+                    <Image x:Name="LiveArtImage" Stretch="Uniform" IsHitTestVisible="False" Visibility="Collapsed"
+                           RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True"/>
                 </Grid>
             </Border>
         </Grid>

@@ -491,6 +491,10 @@ public partial class FrameDesignWindow : Window
             }
 
         _spec.Save(Path.Combine(destDir, "template.json"));
+
+        // Saved over a built-in: it's the user's frame now, which a newer version must not bring "up to date".
+        if (TemplateService.IsBuiltIn(Path.GetFileName(Path.GetFullPath(destDir).TrimEnd(Path.DirectorySeparatorChar))))
+            try { File.WriteAllText(Path.Combine(destDir, TemplateService.UserEditedTag), DateTime.Now.ToString("O")); } catch { }
     }
 
     private string? _onDisk;   // this frame's template.json as opened (or last applied here)

@@ -295,6 +295,12 @@ These drive the fix backlog.
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
   mutation-checked.
+- ✅ **Frames brought up to date, a fast art drag (1.6.33)** — a built-in frame an older version copied into the data
+  folder is replaced by today's (its old files kept in `replaced-frames`), unless someone saved their own changes over
+  it; dragging, zooming or nudging the art draws only the art under a once-drawn overlay, on the graphics card, at most
+  once per screen refresh, then renders the card in full on release; Remove meld makes the card normal again;
+  Design… previews the card being worked on; the card list and the editor column scroll instead of being cut off.
+  `PreviewFixesTests`; the reported September Gold Multicolor reproduced and fixed.
 - ✅ **Shared deck format (1.6.32)** — `--moxfield … format=magicdecks` writes the deck format agreed with the
   MagicDecks and MagicSimulator tools (commanders tagged `*CMDR*`, a blank line, merged `N Name` lines, no set codes
   or sideboard, a companion as a comment), and the list import reads it (the tag is dropped from names, as Moxfield's

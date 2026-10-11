@@ -254,11 +254,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (card == null || card.OtherHalf != null) return;
         if (card.IsMeld)
         {
-            card.MeldHalf = "";   // the back stays, as an ordinary double-faced card's back
-            if (card.DfcStyle == "meld") card.DfcStyle = "sunmoon";
+            // Back to a normal card: the melded card was this card's back, so it goes too. Leaving it behind as an
+            // ordinary back face made a double-faced card nobody asked for (and greyed out Make flip / split card).
+            if (ConfirmDialog.Show(this, "Remove meld",
+                    $"Make this a normal card again? Its back, the melded card “{card.BackFace!.Name}”, is removed (Undo brings it back)."
+                    + (_meldPartner != null ? $" “{_meldPartner.Name}” keeps its own copy." : ""),
+                    affirmative: "Remove", cancel: "Cancel") != ConfirmResult.Affirmative)
+                return;
+            card.BackFace = null;
+            card.MeldHalf = "";
+            if (card.DfcStyle == "meld") card.DfcStyle = "";
+            _viewingBack = false;
             _viewingMelded = false;
             _meldPartner = null;
-            Status = "It's no longer a meld card — its back is now an ordinary back face.";
+            SyncFramePicker();
+            Status = "It's a normal card again.";
         }
         else
         {
@@ -760,9 +770,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (e.PropertyName == nameof(CardModel.BackFace)) SyncBackFaceSubscription(_selectedCard);
         if (e.PropertyName == nameof(CardModel.OtherHalf)) SyncOtherHalfSubscription(_selectedCard);
         if (ReferenceEquals(sender, _subscribedBack) && !_restoring) SyncMeldBack(e.PropertyName);
+        if (e.PropertyName is not (nameof(CardModel.ArtOffsetX) or nameof(CardModel.ArtOffsetY) or nameof(CardModel.ArtScale)))
+            _artDrag = null;   // the live drag's overlay shows the card as it was
         MarkDirty();
         _renderTimer.Stop();
-        _renderTimer.Start();   // debounce rapid edits (typing, slider drags)
+        if (!_isPanning) _renderTimer.Start();   // debounce rapid edits (typing, slider drags); a drag renders on release
         QueueUndoCommit();
     }
 
@@ -1219,6 +1231,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// <see cref="RenderInspector"/> for the CHECKS panel (M5). Skipped during live drag to stay smooth.</param>
     private void RenderPreview(bool inspect)
     {
+        EndLiveArt();   // a full render shows everything as it is now
         var card = PreviewSide;
         if (card == null) { PreviewImage = null; UpdateValidation(null); return; }
         var template = TemplateFor(card);
@@ -2247,7 +2260,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             t = TemplateService.Reload(t) ?? t;
             var dir = Path.GetDirectoryName(t.FramePath);
             var slug = string.IsNullOrEmpty(dir) ? "" : Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar));
-            var win = new FrameDesignWindow(t) { Owner = this, IsBuiltIn = TemplateService.IsBuiltIn(slug) };
+            var win = new FrameDesignWindow(t, PreviewSide) { Owner = this, IsBuiltIn = TemplateService.IsBuiltIn(slug) };   // previews the card you're working on
             if (win.ShowDialog() == true)
             {
                 // Renamed in place: cards find their frame by name, so every card (and the set's house frame)
@@ -2590,8 +2603,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private bool _isPanning;
     private System.Windows.Point _panStart;
-    private readonly System.Diagnostics.Stopwatch _liveClock = System.Diagnostics.Stopwatch.StartNew();
-    private long _lastLiveRenderMs = long.MinValue;
+    private CardRenderer.ArtDrag? _artDrag;   // the live drag/zoom: everything but the art, drawn once
+    private bool _liveQueued;
 
     private void OnPreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -2646,7 +2659,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var (ax, ay) = PanDelta(dx, dy);
         card.ArtOffsetX = Clamp(card.ArtOffsetX + ax, -0.5, 0.5);
         card.ArtOffsetY = Clamp(card.ArtOffsetY + ay, -0.5, 0.5);
-        RenderPreview();
+        RenderPreviewLive();   // a held arrow key repeats fast; the full render follows when it stops
     }
 
     /// <summary>Zooms the art by a small step (used by the +/- keys).</summary>
@@ -2655,16 +2668,66 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var card = ActiveFace;
         if (card == null) return;
         card.ArtScale = Clamp(card.ArtScale + delta, 0.5, 3.0);
-        RenderPreview();
+        RenderPreviewLive();
     }
 
-    /// <summary>A throttled immediate re-render (~60fps) for smooth drag/zoom without flooding the UI thread.</summary>
+    /// <summary>
+    /// Shows the art where it is now, at most once per screen refresh however fast the mouse or a key repeats. The
+    /// card's frame, text and symbols are drawn once (<see cref="CardRenderer.BeginArtDrag"/>); each move after that
+    /// only moves the art under them, put together by the graphics card. A card drawn some other way (a split card,
+    /// a meld back, the whole melded card) renders in full instead, still once per refresh.
+    /// </summary>
     private void RenderPreviewLive()
     {
-        var now = _liveClock.ElapsedMilliseconds;
-        if (now - _lastLiveRenderMs < 16) return;
-        _lastLiveRenderMs = now;
-        RenderPreview(inspect: false);   // skip the extra pixel-inspection render while dragging, for smoothness
+        if (_liveQueued) return;
+        _liveQueued = true;
+        System.Windows.Media.CompositionTarget.Rendering += OnLiveFrame;
+    }
+
+    private void OnLiveFrame(object? sender, EventArgs e)
+    {
+        System.Windows.Media.CompositionTarget.Rendering -= OnLiveFrame;
+        if (!_liveQueued) return;   // a full render came first
+        _liveQueued = false;
+        var card = PreviewSide;
+        var template = card == null ? null : TemplateFor(card);
+        if (card == null || template == null || _viewingMelded || (_readingSideways && card.IsSplit))
+        {
+            RenderPreview(inspect: false);
+            return;
+        }
+        if (_artDrag == null || !ReferenceEquals(_artDrag.Card, card) || _artDrag.Template.Name != template.Name
+            || _artDrag.Template.FramePath != template.FramePath)
+            _artDrag = _renderer.BeginArtDrag(card, template);
+        if (_artDrag == null)
+        {
+            RenderPreview(inspect: false);
+            return;
+        }
+        var drawing = _renderer.DrawArtDrag(_artDrag);
+        if (_viewingFlipped && card.IsFlip)
+        {
+            var b = drawing.Bounds;   // the same half-turn the full preview gets
+            var turned = new System.Windows.Media.DrawingGroup { Transform = new System.Windows.Media.RotateTransform(180, b.Width / 2, b.Height / 2) };
+            turned.Children.Add(drawing);
+            drawing = turned;
+        }
+        var image = new System.Windows.Media.DrawingImage(drawing);
+        image.Freeze();
+        LiveArtImage.Source = image;
+        LiveArtImage.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>Back to the rendered preview: drops the live drawing (and its overlay, which may be out of date now).</summary>
+    private void EndLiveArt()
+    {
+        _liveQueued = false;
+        _artDrag = null;
+        if (LiveArtImage.Visibility != Visibility.Collapsed)
+        {
+            LiveArtImage.Visibility = Visibility.Collapsed;
+            LiveArtImage.Source = null;
+        }
     }
 
     /// <summary>Size of the letterboxed card inside the preview Image — at the card's own aspect, which is
@@ -2940,6 +3003,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     /// <summary>Set for off-screen/headless rendering so closing never shows the save prompt.</summary>
     public bool SuppressClosePrompt { get; set; }
+
+    /// <summary>The fewest pixels the card list keeps (about four cards): below that the BATCH buttons scroll instead.</summary>
+    internal const double MinCardListHeight = 150;
+
+    /// <summary>Caps the BATCH buttons' height to what's left after the buttons above the card list and the list's
+    /// minimum — on a short window (or a display scaled to 150%) they took it all, and the list showed one card, cut off.</summary>
+    private void OnSidebarSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        double top = 0;
+        foreach (UIElement child in Sidebar.Children)
+            if (child is FrameworkElement fe && System.Windows.Controls.DockPanel.GetDock(fe) == System.Windows.Controls.Dock.Top && !ReferenceEquals(fe, BatchScroll))
+                top += fe.ActualHeight + fe.Margin.Top + fe.Margin.Bottom;
+        BatchScroll.MaxHeight = Math.Max(60, Sidebar.ActualHeight - top - MinCardListHeight);
+    }
 
     private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {

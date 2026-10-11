@@ -581,6 +581,9 @@ public sealed class TemplateService
             var specPath = Path.Combine(dir, "template.json");
             var framePath = Path.Combine(dir, "frame.png");
 
+            // An older version's copy of this built-in is brought up to date (kept in replaced-frames first).
+            try { UpgradeBuiltIn(dir, spec, ReplacedFramesDir); } catch { /* best effort: keep what's there */ }
+
             // Rewrite a missing OR corrupt built-in spec so a truncated file self-heals.
             bool specOk = File.Exists(specPath) && TryLoadSpec(specPath, out _);
             if (!specOk)
@@ -590,6 +593,46 @@ public sealed class TemplateService
             }
             EnsureFrame(TemplateSpec.Load(specPath), framePath);
         }
+    }
+
+    /// <summary>Next to a built-in frame's template.json when someone saved their own changes over it (Frame Design's
+    /// "Overwrite built-in", or <c>--editframe</c>): that frame is theirs now and never brought up to date.</summary>
+    internal const string UserEditedTag = "template.json.user-edited";
+
+    /// <summary>Where a built-in frame's old files go when a newer version replaces them.</summary>
+    internal static string ReplacedFramesDir => Path.Combine(AppPaths.DataDir, "replaced-frames");
+
+    /// <summary>
+    /// Brings an older version's copy of a built-in frame up to date. A built-in's files were only ever written when
+    /// missing, so a data folder from an earlier version kept that version's layout for good — and, with no
+    /// <c>.hash</c> beside it (frames before hashes), its frame.png even counted as hand-made and was never redrawn.
+    /// Its regions then disagreed with what the renderer draws today (a P/T notch showing under the P/T box, the
+    /// footer on the border).
+    /// <list type="bullet">
+    /// <item>Leaves a frame alone when it matches today's built-in, or when someone saved their own changes over it
+    /// (<see cref="UserEditedTag"/>).</item>
+    /// <item>Copies the old template.json and frame.png into <paramref name="backupRoot"/> before replacing them, so
+    /// nothing is lost even if a copy was edited by hand before the tag existed.</item>
+    /// </list>
+    /// Returns true when it replaced the frame.
+    /// </summary>
+    internal static bool UpgradeBuiltIn(string dir, TemplateSpec builtIn, string backupRoot)
+    {
+        var specPath = Path.Combine(dir, "template.json");
+        var framePath = Path.Combine(dir, "frame.png");
+        if (!File.Exists(specPath) || File.Exists(Path.Combine(dir, UserEditedTag))) return false;
+        if (!TryLoadSpec(specPath, out var onDisk) || onDisk == null) return false;   // a corrupt one heals as before
+        if (onDisk.ContentHash() == builtIn.ContentHash()) return false;
+
+        var backup = Path.Combine(backupRoot, $"{Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar))}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        Directory.CreateDirectory(backup);
+        File.Copy(specPath, Path.Combine(backup, "template.json"), overwrite: true);
+        if (File.Exists(framePath)) File.Copy(framePath, Path.Combine(backup, "frame.png"), overwrite: true);
+
+        builtIn.Save(specPath);
+        SafeDelete(framePath);
+        SafeDelete(framePath + ".hash");
+        return true;
     }
 
     /// <summary>Regenerates frame.png when it's missing OR when the spec it was baked from has changed

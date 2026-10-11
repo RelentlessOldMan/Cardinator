@@ -87,7 +87,91 @@ public sealed class CardRenderer
         return rtb;
     }
 
-    private void Draw(DrawingContext dc, CardModel card, Template template, bool previewHints, bool footer = true)
+    /// <param name="skipArt">Leave out the backing and the art (the live drag's overlay, <see cref="BeginArtDrag"/>):
+    /// everything else is drawn on transparency, exactly where it lands on the full card.</param>
+    /// <summary>
+    /// A live art drag or zoom on the preview: everything but the art drawn once (<see cref="Overlay"/>), and the art
+    /// shrunk to about twice the size it's shown at, so each mouse move only draws the art and lays the overlay on
+    /// top — instead of the whole card (frame, every line of text, the symbols) again.
+    /// </summary>
+    public sealed class ArtDrag
+    {
+        internal ArtDrag(CardModel card, Template template, TemplateSpec spec, BitmapSource overlay, BitmapSource? art)
+            => (Card, Template, Spec, Overlay, Art) = (card, template, spec, overlay, art);
+        public CardModel Card { get; }
+        public Template Template { get; }
+        internal TemplateSpec Spec { get; }
+        internal BitmapSource Overlay { get; }
+        internal BitmapSource? Art { get; }
+    }
+
+    /// <summary>Starts a live art drag for <paramref name="card"/>, or null for a card drawn some other way (a split
+    /// card, a meld back), which then just renders in full.</summary>
+    public ArtDrag? BeginArtDrag(CardModel card, Template template)
+    {
+        template = TemplateService.ResolveFor(card, template);
+        if (card.IsSplit || card.IsMeldBack || string.IsNullOrWhiteSpace(card.ArtPath)) return null;
+        var spec = template.Spec.WithSubBorderApplied();
+        if (spec.CanvasWidth < 1 || spec.CanvasHeight < 1) return null;
+
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen()) Draw(dc, card, template, previewHints: true, skipArt: true);
+        var overlay = new RenderTargetBitmap(template.Spec.CanvasWidth, template.Spec.CanvasHeight, 96, 96, PixelFormats.Pbgra32);
+        overlay.Render(visual);
+        overlay.Freeze();
+
+        BitmapSource? art = null;
+        try { art = LoadArt(Path.GetFullPath(card.ArtPath)); } catch { /* drawn as a missing picture, like the full render */ }
+        if (art is { PixelWidth: > 0, PixelHeight: > 0 })
+        {
+            // Zoomed in up to 3×, the art covers at most 3× its window: keep that much detail and no more.
+            var rect = ArtRegionOf(spec);
+            double need = 3 * Math.Max(rect.W / art.PixelWidth, rect.H / art.PixelHeight);
+            if (need < 1)
+            {
+                // Decoded once now: a bare TransformedBitmap would shrink the full picture again on every draw.
+                var small = new CachedBitmap(new TransformedBitmap(art, new ScaleTransform(need, need)),
+                    BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+                small.Freeze();
+                art = small;
+            }
+        }
+        return new ArtDrag(card, template, spec, overlay, art);
+    }
+
+    /// <summary>The card of <paramref name="drag"/> with its art where it is now, as a drawing: the preview shows it
+    /// as it is, so the graphics card puts the art and the overlay together rather than this code painting a bitmap.</summary>
+    public Drawing DrawArtDrag(ArtDrag drag)
+    {
+        var spec = drag.Spec;
+        double W = spec.CanvasWidth, H = spec.CanvasHeight, cardR = Math.Max(4, spec.CornerRadius);
+        var group = new DrawingGroup();
+        using (var dc = group.Open())
+        {
+            var clip = new RectangleGeometry(new Rect(0, 0, W, H), cardR, cardR);
+            clip.Freeze();
+            dc.PushClip(clip);
+            dc.DrawRectangle(CardBacking, null, new Rect(0, 0, W, H));
+            DrawArt(dc, drag.Card, ArtRegionOf(spec), previewHints: true, drag.Art);
+            dc.Pop();
+            dc.DrawImage(drag.Overlay, new Rect(0, 0, drag.Overlay.PixelWidth, drag.Overlay.PixelHeight));
+        }
+        group.Freeze();
+        return group;
+    }
+
+    /// <summary><see cref="DrawArtDrag"/> painted to a bitmap (for tests: it must match the full render).</summary>
+    public BitmapSource RenderArtDrag(ArtDrag drag)
+    {
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen()) dc.DrawDrawing(DrawArtDrag(drag));
+        var rtb = new RenderTargetBitmap(drag.Overlay.PixelWidth, drag.Overlay.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(visual);
+        rtb.Freeze();
+        return rtb;
+    }
+
+    private void Draw(DrawingContext dc, CardModel card, Template template, bool previewHints, bool footer = true, bool skipArt = false)
     {
         if (card.IsSplit) { DrawSplit(dc, card, template, previewHints); return; }
         if (card.IsMeldBack) { DrawMeldBack(dc, card, template, previewHints); return; }
@@ -108,12 +192,11 @@ public sealed class CardRenderer
         // so any area that's transparent in the source and not covered by art would otherwise export
         // see-through — looks black on screen over the dark app, but wrong in a viewer / when printed.
         // Procedural frames are opaque on top of this, so it only shows where the frame is transparent.
-        dc.DrawRectangle(CardBacking, null, new Rect(0, 0, W, H));
-
-        // Full-art, borderless and overlay let the art cover the whole card; framed styles clip to the window.
-        bool fullBleed = ArtText(spec);
-        var artRegion = fullBleed ? new Region { X = 0, Y = 0, W = W, H = H } : spec.ArtWindow;
-        DrawArt(dc, card, artRegion, previewHints);
+        if (!skipArt)
+        {
+            dc.DrawRectangle(CardBacking, null, new Rect(0, 0, W, H));
+            DrawArt(dc, card, ArtRegionOf(spec), previewHints);
+        }
 
         // Frame overlay (art shows through its transparent window / floating panels).
         dc.DrawImage(template.FrameImage, new Rect(0, 0, W, H));
@@ -1244,13 +1327,17 @@ public sealed class CardRenderer
         return pg;
     }
 
-    private void DrawArt(DrawingContext dc, CardModel card, Region win, bool previewHints)
+    /// <summary>Where a card's art goes: the whole card on full-art, borderless and overlay styles, else the art window.</summary>
+    private static Region ArtRegionOf(TemplateSpec spec)
+        => ArtText(spec) ? new Region { X = 0, Y = 0, W = spec.CanvasWidth, H = spec.CanvasHeight } : spec.ArtWindow;
+
+    private void DrawArt(DrawingContext dc, CardModel card, Region win, bool previewHints, BitmapSource? art = null)
     {
         var rect = ToRect(win);
         dc.DrawRectangle(CardBacking, null, rect);   // dark backing so any uncovered area never flashes white
 
-        BitmapSource? img = null;
-        if (!string.IsNullOrWhiteSpace(card.ArtPath))
+        BitmapSource? img = art;
+        if (img == null && !string.IsNullOrWhiteSpace(card.ArtPath))
         {
             try { img = LoadArt(Path.GetFullPath(card.ArtPath)); } catch { img = null; }
         }
