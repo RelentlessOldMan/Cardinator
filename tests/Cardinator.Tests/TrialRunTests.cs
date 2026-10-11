@@ -98,6 +98,7 @@ public class TrialRunTests
     [Fact]
     public void AnUpgrade_LeavesASampleFramesPicture_WhenTheUserChangedItsLayout()
     {
+        using var hold = TestHelpers.HoldSampleFrames();   // rewrites the shared Sealed Gate files
         SampleTemplates.EnsureExtracted();
         var dir = Path.Combine(AppPaths.TemplatesDir, "pcc_sealed_gate");
         string png = Path.Combine(dir, "frame.png"), json = Path.Combine(dir, "template.json");
@@ -137,6 +138,7 @@ public class TrialRunTests
     [Fact]
     public void AnUpgrade_RefreshesBothFilesOfASampleFrame_WhenNeitherWasChanged()
     {
+        using var hold = TestHelpers.HoldSampleFrames();   // rewrites the shared Sealed Gate files
         SampleTemplates.EnsureExtracted();
         var dir = Path.Combine(AppPaths.TemplatesDir, "pcc_sealed_gate");
         string png = Path.Combine(dir, "frame.png"), json = Path.Combine(dir, "template.json");

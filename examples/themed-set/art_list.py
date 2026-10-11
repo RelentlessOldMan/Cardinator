@@ -16,7 +16,8 @@ art.tsv columns (tab-separated, one picture per line, # comments allowed):
   python art_list.py add   <workspace> <show> <file> <url> [x,y,w,h]   # download a picture (cropped) and list it
   python art_list.py make  <workspace> <show> [links.md]   # list every picture already in the folder; links come
                                                            # from the existing art.tsv, or rows "| name | ... url |"
-                                                           # of a markdown table (later rows win)
+                                                           # of a markdown table (later rows win). Listed pictures
+                                                           # not downloaded yet keep their lines.
   python art_list.py fetch <workspace> <show>              # download every listed picture that's missing
   python art_list.py check <workspace> <show> [--learn]    # download each one again and compare (finds dead links);
                                                            # --learn records the size of pictures kept smaller
@@ -121,7 +122,7 @@ def write(path, rows):
 def links_from_markdown(md):
     """{name: url} from markdown table rows whose first cell is a name and some cell holds an http(s) link."""
     out = {}
-    for line in open(md, encoding="utf-8"):
+    for line in open(md, encoding="utf-8-sig"):
         if not line.startswith("|"):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -156,9 +157,17 @@ def main(mode, ws, show, rest):
                 data = open(os.path.join(art, f), "rb").read()
                 r["sha"], r["look"] = sha(data), look(data)
                 rows[f] = r
-        rows = {f: r for f, r in rows.items() if os.path.exists(os.path.join(art, f))}
+        # A listed picture that isn't on disk keeps its line while it has a link: it may just not be downloaded
+        # yet (a fresh checkout, a fetch that timed out), and art.tsv is the only place that link is kept.
+        # Only a line with neither a picture nor a link is dropped. (To forget a picture, delete its line.)
+        missing = sorted(f for f, r in rows.items() if r["url"] and not os.path.exists(os.path.join(art, f)))
+        rows = {f: r for f, r in rows.items() if r["url"] or os.path.exists(os.path.join(art, f))}
         write(lst, rows)
         print(f"listed {len(rows)} picture(s); {sum(1 for r in rows.values() if not r['url'])} without a link")
+        if missing:
+            print(f"{len(missing)} listed picture(s) aren't in the folder yet - kept; 'fetch' downloads them:")
+            for f in missing:
+                print("  " + f)
     elif mode in ("fetch", "check"):
         bad, learn = [], "--learn" in rest
         for f, r in rows.items():

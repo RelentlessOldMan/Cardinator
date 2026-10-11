@@ -97,18 +97,25 @@ public static class ImportService
         return n.ToLowerInvariant();
     }
 
+    /// <summary>The name keys of the cards in a project. A themed set's cards carry the show's title as their name
+    /// and the real card's name as the subtitle (--restyle titles=), so a card is "already in" under either.</summary>
+    private static HashSet<string> NamesIn(IEnumerable<CardModel>? existing)
+        => new((existing ?? Enumerable.Empty<CardModel>())
+            .SelectMany(c => string.IsNullOrWhiteSpace(c.Subtitle) ? new[] { c.Name } : new[] { c.Name, c.Subtitle })
+            .Select(NameKey));
+
     /// <summary>Counts how many incoming cards share a name (case-insensitive) with a card already in the
     /// project — so re-importing the same list can warn instead of silently appending duplicates (L3).</summary>
     public static int CountNamesAlreadyIn(IEnumerable<CardModel> existing, IEnumerable<ImportedCard> incoming)
     {
-        var have = new HashSet<string>((existing ?? Enumerable.Empty<CardModel>()).Select(c => NameKey(c.Name)));
+        var have = NamesIn(existing);
         return (incoming ?? Enumerable.Empty<ImportedCard>()).Count(i => have.Contains(NameKey(i.Card.Name)));
     }
 
     /// <summary>Returns the incoming cards whose names aren't already in the project (keeps order; L3).</summary>
     public static List<ImportedCard> RemoveNamesAlreadyIn(IEnumerable<CardModel> existing, IEnumerable<ImportedCard> incoming)
     {
-        var have = new HashSet<string>((existing ?? Enumerable.Empty<CardModel>()).Select(c => NameKey(c.Name)));
+        var have = NamesIn(existing);
         return (incoming ?? Enumerable.Empty<ImportedCard>()).Where(i => !have.Contains(NameKey(i.Card.Name))).ToList();
     }
 
@@ -225,7 +232,7 @@ public static class ImportService
     // upper-cased when read), optional collector that may be alphanumeric with a hyphen (foils/variants like
     // "273p", and The List / PLST numbers like "M20-14"). Anchored at end; names that end in "(...)" have
     // spaces in the brackets, so they aren't mistaken for a hint.
-    private static readonly Regex SetHint = new(@"\s*\(([A-Za-z0-9]{2,6})\)\s*([0-9A-Za-z★\-]+)?\s*$", RegexOptions.Compiled);
+    private static readonly Regex SetHint = new(@"\s*\(([A-Za-z0-9]{2,6})\)\s*([0-9A-Za-z★†\-]+)?\s*$", RegexOptions.Compiled);
     // Trailing foil/etched marker some deck sites (e.g. Moxfield) append, e.g. "... (LTC) 273 *F*".
     private static readonly Regex FoilMarker = new(@"\s*\*[A-Za-z]\*\s*$", RegexOptions.Compiled);
     // Deck sites head their sections "Sideboard", "Sideboard:", "Creatures (25)"… — never card names.

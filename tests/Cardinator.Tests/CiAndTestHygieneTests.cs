@@ -31,6 +31,7 @@ public class CiAndTestHygieneTests
     [Fact]
     public void AnUpgrade_RefreshesASampleFrameAnEarlierVersionWrote()
     {
+        using var hold = TestHelpers.HoldSampleFrames();   // rewrites the shared Sealed Gate files
         var (file, manifestPath) = Paths();
         var shipped = File.ReadAllBytes(file);
         try
@@ -80,6 +81,7 @@ public class CiAndTestHygieneTests
     [Fact]
     public void AnUpgrade_NeverOverwritesASampleFrameTheUserChanged()
     {
+        using var hold = TestHelpers.HoldSampleFrames();   // rewrites the shared Sealed Gate files
         var (file, manifestPath) = Paths();
         var shipped = File.ReadAllBytes(file);
         try

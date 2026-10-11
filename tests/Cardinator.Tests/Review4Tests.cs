@@ -466,6 +466,7 @@ public class Review4Tests
     [Fact]
     public void AnUntouchedSampleFrameFromBeforeTheManifest_IsUpdated()
     {
+        using var hold = TestHelpers.HoldSampleFrames();   // rewrites the shared Sealed Gate files
         SampleTemplates.ResetForTests();
         SampleTemplates.EnsureExtracted();
         var file = Path.Combine(AppPaths.TemplatesDir, "pcc_sealed_gate", "template.json");

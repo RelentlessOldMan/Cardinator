@@ -280,10 +280,11 @@ public static class SelfTest
 
             // Load all cards, then prime every mana symbol they use in one pass.
             var cards = new List<Cardinator.Models.CardModel>();
+            int skipped = 0;
             foreach (var f in cardFiles)
             {
                 try { cards.Add(Cardinator.Models.CardModel.Load(f)); }
-                catch (Exception ex) { Console.Error.WriteLine($"  skip {Path.GetFileName(f)}: {ex.Message}"); }
+                catch (Exception ex) { skipped++; Console.Error.WriteLine($"  skip {Path.GetFileName(f)}: {ex.Message}"); }
             }
             if (cards.Count == 0) { Console.Error.WriteLine("RenderCards: no cards loaded."); return 2; }
 
@@ -323,8 +324,9 @@ public static class SelfTest
                 }
             }
 
-            Console.WriteLine($"Rendered {ok}/{cards.Count} card(s) to {outDir}.");
-            return ok > 0 ? 0 : 1;
+            Console.WriteLine($"Rendered {ok}/{cards.Count} card(s) to {outDir}."
+                + (skipped > 0 ? $" {skipped} file(s) couldn't be read." : ""));
+            return ok > 0 && skipped == 0 ? 0 : 1;   // a file that couldn't be read is an error, like --batch's
         }
         catch (Exception ex)
         {
@@ -461,6 +463,7 @@ public static class SelfTest
                 Console.WriteLine($"Exported {result.Exported}/{cards.Count - result.Repeats} card(s) to {outDir}."
                     + (result.Repeats > 0 ? $" {result.Repeats} repeated card(s) rendered once." : "")
                     + (result.Errors.Count > 0 ? $" {result.Errors.Count} error(s)." : ""));
+                if (result.Errors.Count > 0) return 1;   // as --batch and --renderset do
             }
             return 0;
         }

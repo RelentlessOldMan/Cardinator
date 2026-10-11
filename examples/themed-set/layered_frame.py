@@ -58,7 +58,7 @@ def hexc(rgb):
 
 
 def theme(ws, key):
-    with open(os.path.join(ws, "themes", key + ".json"), encoding="utf-8") as fh:
+    with open(os.path.join(ws, "themes", key + ".json"), encoding="utf-8-sig") as fh:
         t = json.load(fh)
     for k in ("tint", "border", "metal", "metal2", "plate", "plateBorder", "plateHighlight"):
         t[k] = tuple(t[k])

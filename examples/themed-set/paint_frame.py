@@ -65,7 +65,7 @@ def theme(ws, key):
     """<workspace>/themes/<key>.json: name (frames are "<name> <n>"), brief (the style prompt), colors, fonts
     ({role: [family, colour]} for title/type/rules/flavor/pt/credit), shadow, style (deco/comic/bubble/plank),
     and optionally noBold (roles whose face is heavy already, e.g. Impact) and ptNudge ([dx, dy] for the P/T box)."""
-    with open(os.path.join(ws, "themes", key + ".json"), encoding="utf-8") as fh:
+    with open(os.path.join(ws, "themes", key + ".json"), encoding="utf-8-sig") as fh:
         t = json.load(fh)
     t["fonts"] = {k: tuple(v) for k, v in t["fonts"].items()}
     return t

@@ -56,7 +56,7 @@ def cut(ws, t):
 
 
 def build(ws, name):
-    with open(os.path.join(ws, "themes", name + ".json"), encoding="utf-8") as fh:
+    with open(os.path.join(ws, "themes", name + ".json"), encoding="utf-8-sig") as fh:
         t = json.load(fh)
     exe = os.environ.get("CARDINATOR", "Cardinator.exe")
     if not shutil.which(exe):
@@ -64,7 +64,7 @@ def build(ws, name):
     src = cut(ws, t)
     folders = [os.path.join(ws, "frames", f) for f in t["frames"]]
     for d in folders:
-        with open(os.path.join(d, "template.json"), encoding="utf-8") as fh:
+        with open(os.path.join(d, "template.json"), encoding="utf-8-sig") as fh:
             name = json.load(fh).get("frameSrc") or ""
         if name.lower() in ("", "frame.png") or os.path.basename(name) != name:
             sys.exit(f"{d}: its template.json needs a \"frameSrc\" file name for the drawing (not frame.png, which the "

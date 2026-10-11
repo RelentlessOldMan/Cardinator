@@ -4,7 +4,13 @@
 (no window) for scripting, batch work, and verification. Run `Cardinator.exe --help` any time to
 see this list.
 
-All output paths are created if they don't exist. Exit code is `0` on success, non-zero on error.
+All output paths are created if they don't exist. Exit code is `0` on success, non-zero on error. An option
+Cardinator doesn't know, or one given too few arguments, is exit code `2` (it never opens the window).
+
+**From PowerShell or cmd:** `Cardinator.exe` is a Windows app, so PowerShell and cmd start it and go straight on:
+they don't wait for it, show what it prints, or see its exit code. Pipe it to wait and see its output
+(`Cardinator.exe --info "My Deck.cardinator" | Out-Host`, which also sets `$LASTEXITCODE`), or use
+`Start-Process Cardinator.exe -ArgumentList ... -Wait -NoNewWindow -PassThru`. Git Bash waits by itself.
 
 ---
 
@@ -191,10 +197,11 @@ A whole themed set (show art, show titles, a custom footer and an OpenAI-painted
 A typical round:
 
 ```powershell
-Cardinator.exe --import https://moxfield.com/decks/<id> "concepts\steel\My Deck.cardinator" "frame=Alchemist's Steel"
-Cardinator.exe --restyle "concepts\steel\My Deck.cardinator" art=C:\art\my-style "only=Sol Ring|Mind Stone"
-Cardinator.exe --renderset "concepts\steel\My Deck.cardinator" renders\steel
-Cardinator.exe --info "concepts\steel\My Deck.cardinator"
+# "| Out-Host" makes PowerShell wait for each step (see the top of this page)
+Cardinator.exe --import https://moxfield.com/decks/<id> "concepts\steel\My Deck.cardinator" "frame=Alchemist's Steel" | Out-Host
+Cardinator.exe --restyle "concepts\steel\My Deck.cardinator" art=C:\art\my-style "only=Sol Ring|Mind Stone" | Out-Host
+Cardinator.exe --renderset "concepts\steel\My Deck.cardinator" renders\steel | Out-Host
+Cardinator.exe --info "concepts\steel\My Deck.cardinator" | Out-Host
 ```
 
 ### `--moxfield <deck link | id> <out.txt | out.json>`
@@ -213,7 +220,8 @@ Makes a **set from a deck** — a Moxfield link or id, or any list/CSV the app i
 - `art=<dir>`: your own pictures, matched to cards by file name (as **Match art** does); they're used over
   Scryfall's.
 - An existing set is **never touched** — unless you pass `append`, which adds the cards whose names it
-  doesn't already have.
+  doesn't already have (a retitled card counts under its real name too).
+- A picture already copied into the set's folder (same name, same bytes) is reused, not copied again.
 - It won't save into a set's `backups` folder (open a backup in the app to restore it), or over a set a newer
   version of Cardinator saved (exit code 2).
 

@@ -92,9 +92,14 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "The published exe failed its self-test (exit $($p.ExitCode))." }
           Remove-Item -Recurse -Force publish/CardinatorData -ErrorAction SilentlyContinue
 
+      # The notes are the commit's message, published as written. PRIVATE_WORDS (a repository secret, one word or
+      # name per line) lists what must never appear in public: a message naming one stops the release, and the
+      # version is released again from a commit whose message doesn't.
       - name: Create the release
         if: steps.ver.outputs.exists == 'false'
         shell: pwsh
+        env:
+          PRIVATE_WORDS: ${{ secrets.PRIVATE_WORDS }}
         run: |
           $v = "${{ steps.ver.outputs.version }}"
           $subject = git log -1 --format=%s
@@ -105,5 +110,11 @@ jobs:
             "If SmartScreen warns, click **More info -> Run anyway**.", "",
             "### $subject", ""
           ) + $body
+          $text = $notes -join "`n"
+          foreach ($w in "$env:PRIVATE_WORDS" -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }) {
+            if ($text -match "(?<!\w)$([regex]::Escape($w))(?!\w)") {
+              throw "The commit message names something private (one of PRIVATE_WORDS), and it would be published as the release notes. Push a commit with a clean message."
+            }
+          }
           $notes | Set-Content notes.md -Encoding utf8
           gh release create "v$v" publish/Cardinator.exe --target $env:GITHUB_SHA --title "Cardinator v$v" --notes-file notes.md

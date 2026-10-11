@@ -45,6 +45,9 @@ public partial class FrameDesignWindow : Window
 
     // Custom frames use the baked frame.png as-is — the procedural style knobs don't regenerate it.
     private readonly bool _isCustom;
+    // A drawn frame whose frame.png the user replaced with their own picture (TemplateService.IsHandMade): the app
+    // never draws over it, so the editor treats it like a baked custom frame — shows it, keeps it, copies it.
+    private readonly bool _handMade;
     private readonly System.Windows.Media.Imaging.BitmapSource? _customFrameImage;
     private System.Windows.Media.Imaging.BitmapSource? _frameSrcImage;   // raw source for live fit (if any)
 
@@ -88,6 +91,7 @@ public partial class FrameDesignWindow : Window
         _isCustom = _spec.CustomFrame;
         _savedName = _spec.Name;
         _customFrameImage = template.FrameImage;
+        _handMade = !_isCustom && template.FramePath is { Length: > 0 } fp && TemplateService.IsHandMade(fp, fp + ".hash");
         // Prefer the folder the frame lives in; fall back to the standard templates dir when a template
         // has no on-disk frame path yet (an in-memory template), so Apply always has a valid place to write.
         _templateDir = Path.GetDirectoryName(template.FramePath) is { Length: > 0 } dir
@@ -231,7 +235,7 @@ public partial class FrameDesignWindow : Window
             ReadControlsInto(s);
             s.Normalize();
             var frame = (_isCustom && _frameSrcImage != null) ? CustomFrameComposer.Compose(s, _frameSrcImage)
-                : (_isCustom && _customFrameImage != null) ? _customFrameImage   // baked custom frame
+                : ((_isCustom || _handMade) && _customFrameImage != null) ? _customFrameImage   // baked custom frame
                 : FrameGenerator.GenerateBitmap(s);
             var tpl = new Template { Name = s.Name, Spec = s, FramePath = "", FrameImage = frame };
             PreviewImage.Source = _renderer.RenderToBitmap(_previewCard, tpl, supersample: 1);
@@ -444,7 +448,7 @@ public partial class FrameDesignWindow : Window
                 try { File.WriteAllText(framePath + ".hash", CustomFrameComposer.FitHash(_spec, destSrc)); } catch { }
             }
         }
-        else if (!_isCustom)
+        else if (!_isCustom && !_handMade)
         {
             // Procedural frames regenerate from the spec, so drop the cache to show the change.
             if (File.Exists(framePath)) File.Delete(framePath);
@@ -453,11 +457,12 @@ public partial class FrameDesignWindow : Window
         }
         else if (!sameDir)
         {
-            // A plain baked custom frame (no source): copy its frame.png into the new folder as-is.
+            // A plain baked custom frame (no source), or the user's own picture: copy its frame.png into the new
+            // folder as-is (with no hash beside it, so the copy is hand-made too and never drawn over).
             var fromFrame = Path.Combine(srcDir, "frame.png");
             if (File.Exists(fromFrame)) File.Copy(fromFrame, framePath, overwrite: true);
         }
-        // (same-dir baked custom keeps its existing frame.png untouched — unchanged from before.)
+        // (same-dir baked custom or hand-made keeps its existing frame.png untouched.)
 
         // A copy keeps the frame's hand-made flip / sideways / token layouts, or its flip and split cards would
         // quietly drop back to the plain frame.
@@ -518,8 +523,8 @@ public partial class FrameDesignWindow : Window
         _sy = CanvasH / Math.Max(1, _spec.CanvasHeight);
 
         // A custom frame's artwork is baked in — the procedural style knobs don't change it, so disable them.
-        CustomNote.Visibility = _isCustom ? Visibility.Visible : Visibility.Collapsed;
-        if (_isCustom)
+        CustomNote.Visibility = _isCustom || _handMade ? Visibility.Visible : Visibility.Collapsed;
+        if (_isCustom || _handMade)
         {
             foreach (var c in new Control[]
             {
@@ -836,22 +841,27 @@ public partial class FrameDesignWindow : Window
     internal static bool KeysCloseWindow(object? focused)
         => focused is not TextBox and not ComboBoxItem and not ComboBox { IsDropDownOpen: true };
 
+    /// <summary>Whether Enter means Apply: as <see cref="KeysCloseWindow"/>, and not on a focused button, where
+    /// Enter presses that button (Cancel, Save as new…) rather than overwriting the frame.</summary>
+    internal static bool EnterApplies(object? focused) => KeysCloseWindow(focused) && focused is not Button;
+
     private void OnEditorKeyDown(object sender, KeyEventArgs e)
     {
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
 
-        if (ctrl && e.Key == Key.Z && !shift) { Undo(); e.Handled = true; return; }
-        if (ctrl && (e.Key == Key.Y || (e.Key == Key.Z && shift))) { Redo(); e.Handled = true; return; }
+        bool typing = Keyboard.FocusedElement is TextBox;
+
+        // In a text box Ctrl+Z / Ctrl+Y undo the typing (the box's own undo), not the last layout move.
+        if (ctrl && e.Key == Key.Z && !shift && !typing) { Undo(); e.Handled = true; return; }
+        if (ctrl && (e.Key == Key.Y || (e.Key == Key.Z && shift)) && !typing) { Redo(); e.Handled = true; return; }
         // Esc discards the whole layout session, so don't fire it while the user is typing in a field —
         // there Esc is the usual "get me out of this box" reflex, not "throw away my work".
         // Nor while a dropdown is open: there Esc closes the list and Enter picks the item (this window-level
         // preview handler runs before the dropdown would see the key).
         if (e.Key == Key.Escape && KeysCloseWindow(Keyboard.FocusedElement))
         { OnCancel(this, new RoutedEventArgs()); e.Handled = true; return; }
-        if (e.Key == Key.Enter && KeysCloseWindow(Keyboard.FocusedElement)) { OnApply(this, new RoutedEventArgs()); e.Handled = true; return; }
-
-        bool typing = Keyboard.FocusedElement is TextBox;
+        if (e.Key == Key.Enter && EnterApplies(Keyboard.FocusedElement)) { OnApply(this, new RoutedEventArgs()); e.Handled = true; return; }
 
         // Reset the preview to fit-the-pane (100%): Ctrl+0 or F.
         if ((ctrl && (e.Key == Key.D0 || e.Key == Key.NumPad0)) || (!ctrl && e.Key == Key.F && !typing))

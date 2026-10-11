@@ -295,6 +295,32 @@ These drive the fix backlog.
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
   mutation-checked.
+- ✅ **Fifth independent review (1.6.30)** — five reviewers (data safety, rendering, command line and scripts, the
+  window, lookups/privacy/tests). Fixed:
+  - **Frame Design** — Apply deleted the picture a user had put in a drawn frame's folder (the frame docs' own
+    recipe), with no copy kept; now such a frame is shown, kept and (Save as new…) copied like a picture frame.
+    Enter on a focused button (Cancel, Save as new…) ran Apply, overwriting the frame; now it presses that button.
+    Ctrl+Z in a text box undid the last layout move instead of the typing.
+  - **Prototype / mutate cards** — the band's sizing pass placed the seal and the P/T box 18 px lower than drawn, so
+    the rest of the rules shrank again on its own (smaller than the band's) or ran out of the box. Approved from renders.
+  - **Edit details… → Cancel** — the undo timer fired inside the dialog, so a cancelled edit left the set unsaved
+    and Undo brought it back; the timer is held while the dialog is open.
+  - **Themed sets** — `--import … append` (and the window's import) added every card of a retitled set again (it
+    compared show titles with real names). Every `build_set.sh` run copied the art folder into `sets/art/` again;
+    a picture with the same name and bytes is reused. `build_set.sh` builds beside the old set and swaps only when
+    complete, no longer uses up backup slots with its own throwaway saves, stops on a bad `set.json` (and reads
+    one with a BOM, as do the frame scripts), and checks split cards' second halves. `art_list.py make` dropped the
+    links of pictures not downloaded yet.
+  - **Lookups** — Fill blanks on a custom-numbered card (set code + "001/060") got Scryfall's default printing
+    (the 1.6.24 crossover art); only a deck list's printing hint now counts as naming a printing. With no
+    connection an import tried every card in turn (15 s each when it hangs); it stops after the first. Collector
+    numbers with "†" are read as printings.
+  - **Command line** — an unknown option or one with too few arguments opened the window (a script hung); now
+    exit 2. `--search` and `--rendercards` exit 1 when something failed. CLI.md says PowerShell/cmd don't wait.
+  - **Tests and releases** — tests that rewrite the shared Sealed Gate files hold the frames' load lock, so tests
+    beside them never read it half-written. Two old release notes named private work; edited, and the release step
+    now refuses notes naming anything on a private word list (a repository secret).
+  `Review5Tests` (12), mutation-checked; the scripts exercised on a scratch workspace.
 - ✅ **Adventure and prototype text around the seal (1.6.29)** — on frames with a seal set into the text box's bottom
   edge (the sample frames), adventure and prototype/mutate cards ran their text, and an adventure's tinted page, under
   it: the layouts 1.6.8 and 1.6.22 left out. Stopping the text above the seal shrank it too far, so the lines beside

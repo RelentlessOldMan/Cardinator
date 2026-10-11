@@ -186,6 +186,15 @@ public partial class App : Application
             return;
         }
 
+        // Anything else that looks like an option (a mode given too few arguments, or a misspelled one) is a usage
+        // error (exit 2), never the window: a script waiting on it would hang.
+        if (e.Args.Length > 0 && e.Args[0].StartsWith('-') && !(e.Args[0] == "--editframe" && e.Args.Length > 1))
+        {
+            Console.Error.WriteLine($"{e.Args[0]}: unknown option, or missing arguments - run Cardinator --help, or see docs/CLI.md.");
+            Shutdown(2);
+            return;
+        }
+
         // Safety net for the interactive app: a stray exception on the UI thread (e.g. from an event
         // handler after an await) shows a message and keeps the app alive instead of hard-crashing and
         // losing the user's unsaved work. Headless CLI paths above return before this is wired.

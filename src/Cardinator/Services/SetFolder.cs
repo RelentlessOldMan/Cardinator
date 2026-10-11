@@ -36,6 +36,7 @@ public static class SetFolder
             if (full.StartsWith(artRoot, StringComparison.OrdinalIgnoreCase)) return p;   // already in this set
             if (!File.Exists(full)) return p;                                             // missing → art-blank check handles it
             if (copied.TryGetValue(full, out var existing)) return existing;              // shared image → one copy
+            if (SameFileIn(artDir, full) is { } same) { copied[full] = same; return same; }   // copied in before
 
             var dest = Path.Combine(artDir,
                 ImageIntake.UniqueFileName(Path.GetFileNameWithoutExtension(full), Path.GetExtension(full)));
@@ -52,6 +53,30 @@ public static class SetFolder
             face.SetSymbolPath = Localize(face.SetSymbolPath) ?? "";
         }
         return stranded;
+    }
+
+    /// <summary>A copy of <paramref name="source"/> already in the art folder (same name before its "-xxxxxxxx",
+    /// same bytes), so bringing the same picture in again — re-importing a deck list into a new set in this folder,
+    /// as the themed-set build does every run — reuses it rather than piling up another copy each time.</summary>
+    private static string? SameFileIn(string artDir, string source)
+    {
+        try
+        {
+            var stem = TextUtil.SafeFileName(Path.GetFileNameWithoutExtension(source), "art");
+            var ext = Path.GetExtension(source);
+            var len = new FileInfo(source).Length;
+            byte[]? bytes = null;
+            foreach (var f in Directory.EnumerateFiles(artDir, stem + "-*" + ext))
+            {
+                var name = Path.GetFileNameWithoutExtension(f);
+                if (name.Length != stem.Length + 9 || !string.Equals(Path.GetExtension(f), ext, StringComparison.OrdinalIgnoreCase)
+                    || new FileInfo(f).Length != len) continue;
+                bytes ??= File.ReadAllBytes(source);
+                if (File.ReadAllBytes(f).AsSpan().SequenceEqual(bytes)) return f;
+            }
+        }
+        catch { }
+        return null;
     }
 
     /// <summary>True if <paramref name="folder"/> already holds a <c>.cardinator</c> project other than

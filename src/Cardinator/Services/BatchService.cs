@@ -129,12 +129,15 @@ public static class BatchService
             var group = groups[gi];
             var c = group.First().Card;
             List<CardModel>? faces = null;
+            // Only a deck list's "(SET) 123" hint names a printing the user asked for. A card's own set and number
+            // (a custom set's, numbered by the app; Fill blanks) that Scryfall doesn't have asks for nothing.
+            bool namedAPrinting = refs[gi].Set != null && group.First().PrintingHint, viaPrinting = false;
             // A set + number that belongs to a different card (a typo'd or stale number) never replaces the card
             // the list names: that printing is skipped and the card is looked up by its name instead.
             if (!Blank(c.SetCode) && !Blank(c.CollectorNumber)
                 && bySetCn.TryGetValue(c.SetCode + "|" + c.CollectorNumber, out var printed))
             {
-                if (Blank(c.Name) || NamesMatch(c.Name, printed)) faces = printed;
+                if (Blank(c.Name) || NamesMatch(c.Name, printed)) { faces = printed; viaPrinting = true; }
                 else log.Add($"  note: {Ident(c)} is \"{printed[0].Name}\" — looked it up by name instead.");
             }
             if (faces == null && !Blank(c.SetCode)) bySetName.TryGetValue(c.SetCode + "|" + c.Name, out faces);
@@ -142,25 +145,27 @@ public static class BatchService
             // Last resort within the batch: a DFC whose imported name is "Front // Back" — match the front.
             if (faces == null && c.Name.Contains("//"))
                 byName.TryGetValue(c.Name.Split("//")[0].Trim(), out faces);
-            // Asked for by name alone and given a special printing (a crossover, a promo): a regular printing instead.
-            if (faces != null && refs[gi].Set == null && faces[0].SpecialPrinting)
+            // Found by name and given a special printing (a crossover, a promo): a regular printing instead.
+            if (faces != null && !viaPrinting && !namedAPrinting && faces[0].SpecialPrinting)
             {
                 var regular = await client.PreferRegularPrintingAsync(faces, ct);
                 if (!regular[0].SpecialPrinting) log.Add($"  note: {Ident(c)} came as a special printing ({faces[0].SetCode}) — used {regular[0].SetCode} {regular[0].CollectorNumber}.");
                 faces = regular;
             }
             if (faces != null) { ApplyFaces(group, faces); log.Add($"batch OK  {Ident(c)} -> {faces[0].Name}"); }
-            else unresolved.Add((group, refs[gi].Set != null));
+            else unresolved.Add((group, namedAPrinting));
         }
 
         // Phase 1b: fuzzy single lookups only for the stragglers the batch couldn't match (typos, cards
         // whose printing hint was off). Usually a handful, so the ~10/s throttle barely matters.
         int fi = 0;
+        string? unreachable = null;   // once Scryfall can't be reached, the rest aren't tried one by one (15 s each)
         foreach (var (group, namedAPrinting) in unresolved)
         {
             ct.ThrowIfCancellationRequested();
             var c = group.First().Card;
             var name = c.Name;
+            if (unreachable != null) { notFound.Add($"{name} (not looked up: {unreachable})"); log.Add($"NOT LOOKED UP {Ident(c)}"); continue; }
             progress?.Report($"Looking up {name}…");
             percent?.Report(0.4 + (double)(++fi) / Math.Max(1, unresolved.Count) * 0.1);
             try
@@ -171,7 +176,11 @@ public static class BatchService
                 if (faces.Count > 0) { ApplyFaces(group, faces.ToList()); log.Add($"fuzzy OK  {Ident(c)} -> {faces[0].Name}"); }
                 else { notFound.Add(name); log.Add($"NOT FOUND {Ident(c)} (no fuzzy match)"); }
             }
-            catch (ScryfallException ex) { notFound.Add($"{name} ({ex.Message})"); log.Add($"NOT FOUND {Ident(c)} ({ex.Message})"); }
+            catch (ScryfallException ex)
+            {
+                notFound.Add($"{name} ({ex.Message})"); log.Add($"NOT FOUND {Ident(c)} ({ex.Message})");
+                if (ex.Unreachable) unreachable = ex.Message;
+            }
         }
 
         // Phase 1c: a meld part's back is the melded card (Bruna/Gisela → Brisela) — fetched once per melded card.

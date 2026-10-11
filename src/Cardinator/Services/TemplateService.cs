@@ -30,7 +30,7 @@ public sealed class Template
 public sealed class TemplateService
 {
     // Serializes first-time generation so concurrent callers can't race on the same files.
-    private static readonly object LoadLock = new();
+    internal static readonly object LoadLock = new();   // internal: tests that rewrite a shipped frame hold it
 
     // --- orientation ---------------------------------------------------------------------------------
 

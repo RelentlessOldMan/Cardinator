@@ -1,3 +1,4 @@
+using Cardinator.Services;
 using System.Threading;
 using System.Windows.Media.Imaging;
 
@@ -6,6 +7,16 @@ namespace Cardinator.Tests;
 /// <summary>Shared helpers for render tests (STA thread + pixel checks).</summary>
 internal static class TestHelpers
 {
+    /// <summary>Holds the frames' load lock until disposed: for a test that rewrites a shipped sample frame in the
+    /// shared templates folder, so tests running alongside never load it half-rewritten.</summary>
+    public static IDisposable HoldSampleFrames()
+    {
+        Monitor.Enter(TemplateService.LoadLock);
+        return new Release(() => Monitor.Exit(TemplateService.LoadLock));
+    }
+
+    private sealed class Release(Action release) : IDisposable { public void Dispose() => release(); }
+
     /// <summary>Runs an action on a dedicated STA thread (required by RenderTargetBitmap).</summary>
     public static void RunSta(Action action)
     {

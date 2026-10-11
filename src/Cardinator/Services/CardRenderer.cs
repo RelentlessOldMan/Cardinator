@@ -30,6 +30,11 @@ public sealed class CardRenderer
     // Text boxes whose text was still too tall at the smallest size (counted while drawing; see TextOverflows).
     private int _textOverflows;
 
+    /// <summary>The rules size the last text box drew at (for tests: a layout that sized the text first, like the
+    /// prototype band's, must not see the box shrink it again).</summary>
+    internal double LastTextBoxSize { get; private set; }
+    internal double LastTopBandSize { get; private set; }
+
     /// <summary>How many of the card's text boxes can't hold their text even at the smallest size the renderer
     /// shrinks to — the text then runs past the box's bottom. Draws the card (without making a bitmap) to find out.</summary>
     internal int TextOverflows(CardModel card, Template template)
@@ -1802,6 +1807,7 @@ public sealed class CardRenderer
             double scale = size / rulesFont.Size;
             best = LayoutContent(rules, flavor, box, rulesFont, size,
                                  flavorFont, flavorFont.Size * scale, baseSymbolSize * scale, avoid, around);
+            LastTextBoxSize = size;
             if (best.Height <= box.Height) break;
         }
         if (best == null) return;
@@ -2131,11 +2137,13 @@ public sealed class CardRenderer
             double textH = LayoutContent(band.Text, "", textCol, spec.RulesFont, size, spec.FlavorFont,
                 spec.FlavorFont.Size * scale, symSize, null).Height;
             bandH = Math.Max(textH, proto ? symSize + 4 + ptH : 0) + 2 * pad * 0.7;
+            // y = 0 here is where DrawTextBox starts the rest's first line: under the band, past its 18px pad.
             var below = new Rect(box.X + 18 - inset, 0, Math.Max(0, box.Width - 2 * (18 - inset)), 100000);
+            double top = box.Y + bandH + 18;
             double restH = band.Rest.Length + card.FlavorText.Length == 0 ? 0
                 : LayoutContent(band.Rest, card.FlavorText, below, spec.RulesFont, size, spec.FlavorFont,
-                    spec.FlavorFont.Size * scale, symSize, avoid is { } a ? new Rect(a.X, a.Y - box.Y - bandH, a.Width, a.Height) : null,
-                    ornament is { } o ? new Rect(o.X, o.Y - box.Y - bandH, o.Width, o.Height) : null).Height + 2 * 18;
+                    spec.FlavorFont.Size * scale, symSize, avoid is { } a ? new Rect(a.X, a.Y - top, a.Width, a.Height) : null,
+                    ornament is { } o ? new Rect(o.X, o.Y - top, o.Width, o.Height) : null).Height + 2 * 18;
             if (bandH + restH <= box.Height) break;
         }
 
@@ -2159,6 +2167,7 @@ public sealed class CardRenderer
     private void DrawTopBandCard(DrawingContext dc, CardModel card, TemplateSpec spec, TopBand band, Rect? avoid, Rect? ornament)
     {
         var (bandRect, bandText, cost, pt, below, size) = TopBandLayout(card, spec, band, avoid, ornament);
+        LastTopBandSize = size;
         double scale = size / spec.RulesFont.Size;
         double r = Math.Min(10, bandRect.Height * 0.15);
 

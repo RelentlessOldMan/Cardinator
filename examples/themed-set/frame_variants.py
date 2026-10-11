@@ -48,7 +48,7 @@ def analyse(src, base):
 def build(folder):
     src = Image.open(os.path.join(folder, "frame.png")).convert("RGBA")
     W0, H0 = src.size
-    with open(os.path.join(folder, "template.json"), encoding="utf-8") as fh:
+    with open(os.path.join(folder, "template.json"), encoding="utf-8-sig") as fh:
         base = json.load(fh)
     m = analyse(src, base)
     a0, a1, ti0, ti1, xi0, xi1 = (m[k] for k in ("a0", "a1", "ti0", "ti1", "xi0", "xi1"))

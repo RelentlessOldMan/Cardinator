@@ -179,7 +179,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnEditBackFace(object sender, RoutedEventArgs e)
     {
         if (_selectedCard?.BackFace == null) return;
-        new DetailsWindow(_selectedCard.BackFace, _scryfall) { Owner = this }.ShowDialog();
+        ShowCardDialog(new DetailsWindow(_selectedCard.BackFace, _scryfall) { Owner = this });
         // No MarkDirty here: Cancel restores the snapshot, so an unchanged card must stay clean.
         // CommitHistory recomputes Dirty from the history position, which is accurate either way.
         CommitHistory();
@@ -448,7 +448,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnEditFlippedHalf(object sender, RoutedEventArgs e)
     {
         if (_selectedCard?.OtherHalf == null) return;
-        new DetailsWindow(_selectedCard.OtherHalf, _scryfall, _selectedCard.HalfLayout) { Owner = this }.ShowDialog();
+        ShowCardDialog(new DetailsWindow(_selectedCard.OtherHalf, _scryfall, _selectedCard.HalfLayout) { Owner = this });
         CommitHistory();   // recomputes Dirty from history, so a cancelled edit stays clean
         RenderPreview();
     }
@@ -929,9 +929,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string SnapshotJson() => System.Text.Json.JsonSerializer.Serialize(Cards.ToList(), SnapOpts);
 
     /// <summary>Restart the debounce so a burst of edits becomes a single undo step.</summary>
+    /// <summary>Shows a dialog that edits a card live (Edit details…), holding back the undo timer meanwhile: the
+    /// dialog's edits are one undo step, committed when it closes, and a Cancel (which puts the card back) leaves
+    /// no step at all — the timer firing inside the dialog used to commit a half-done edit Cancel couldn't undo.</summary>
+    internal bool? ShowCardDialog(Window dialog)
+    {
+        _cardDialogOpen = true;
+        _undoTimer.Stop();
+        try { return dialog.ShowDialog(); }
+        finally { _cardDialogOpen = false; _undoTimer.Stop(); }
+    }
+    private bool _cardDialogOpen;
+
     private void QueueUndoCommit()
     {
-        if (_restoring || _loading) return;
+        if (_restoring || _loading || _cardDialogOpen) return;
         _undoTimer.Stop();
         _undoTimer.Start();
     }
@@ -1973,7 +1985,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnEditDetails(object sender, RoutedEventArgs e)
     {
         if (_selectedCard == null) return;
-        new DetailsWindow(_selectedCard, _scryfall) { Owner = this }.ShowDialog();
+        ShowCardDialog(new DetailsWindow(_selectedCard, _scryfall) { Owner = this });
         CommitHistory();   // coalesce the dialog's edits into one undo step and refresh the preview
         RefreshCardShape();   // its lookup may have added a back face or another half
         RenderPreview();

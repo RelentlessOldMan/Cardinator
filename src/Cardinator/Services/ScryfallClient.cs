@@ -6,7 +6,11 @@ using Cardinator.Models;
 namespace Cardinator.Services;
 
 /// <summary>Raised when a lookup fails; message is safe to show to the user.</summary>
-public sealed class ScryfallException(string message) : Exception(message);
+public sealed class ScryfallException(string message, bool unreachable = false) : Exception(message)
+{
+    /// <summary>Scryfall couldn't be reached at all (no connection, or it timed out) — not a card it didn't find.</summary>
+    public bool Unreachable { get; } = unreachable;
+}
 
 /// <summary>
 /// Minimal Scryfall client: fuzzy card lookup by name. Sends a User-Agent + Accept header
@@ -188,12 +192,12 @@ public sealed class ScryfallClient
                 }
                 catch (HttpRequestException ex)
                 {
-                    throw new ScryfallException("Couldn't reach Scryfall. Check your internet connection. " + ex.Message);
+                    throw new ScryfallException("Couldn't reach Scryfall. Check your internet connection. " + ex.Message, unreachable: true);
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {
                     // HttpClient.Timeout elapsed (surfaces as TaskCanceledException, not HttpRequestException).
-                    throw new ScryfallException("Scryfall request timed out. Check your internet connection.");
+                    throw new ScryfallException("Scryfall request timed out. Check your internet connection.", unreachable: true);
                 }
                 finally
                 {

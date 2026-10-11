@@ -67,9 +67,11 @@ footer.
    sits inside its bar, the rules text fits its box, and nothing is cut off.
 
 `build_set.sh` rebuilds the set from the deck list every time: pictures are matched by the **real** card names, so
-it never restyles a set that was already retitled. The set it replaces is kept in `sets/backups/` (open it in the
-app to get back anything you changed there). It stops if any card has no show title, and if the frame isn't in
-`frames/`.
+it never restyles a set that was already retitled. It builds the new set beside the old one and only swaps it in
+once every card has its title and picture; the set it replaces is kept in `sets/backups/` (open it in the app to
+get back anything you changed there). It stops if any card (or half of a split card) has no show title, if
+`set.json` isn't valid, and if the frame isn't in `frames/`. Pictures already in `sets/art/` are reused, not
+copied again each run.
 
 ## Three kinds of frame
 
@@ -94,7 +96,8 @@ so composed frames never need to be kept.
 Pictures are most of a workspace's size. `art.tsv` keeps each picture as its link instead:
 
 ```
-python art_list.py make  <workspace> <show>            # list the pictures in the folder (with their checksums)
+python art_list.py make  <workspace> <show>            # list the pictures in the folder (with their checksums);
+                                                       # listed ones not downloaded yet keep their links
 python art_list.py check <workspace> <show> --learn    # download each one again and compare
 python art_list.py fetch <workspace> <show>            # on a fresh checkout: download them all
 ```
