@@ -477,7 +477,10 @@ public class Review4Tests
             // As 1.6.15 left it: the file 1.6.0 shipped, and no record that the app wrote it.
             var old = OldSealedGateTemplate();
             File.WriteAllBytes(file, old);
-            if (File.Exists(manifestPath)) File.Delete(manifestPath);
+            // No record that the app wrote this file (only this file's entry goes: other tests use the rest).
+            var m = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(manifestPath))!;
+            m.Remove("pcc_sealed_gate/template.json");
+            File.WriteAllText(manifestPath, JsonSerializer.Serialize(m));
             SampleTemplates.ResetForTests();
             SampleTemplates.EnsureExtracted();
             Assert.NotEqual(old, File.ReadAllBytes(file));
