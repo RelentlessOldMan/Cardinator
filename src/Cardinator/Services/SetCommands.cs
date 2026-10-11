@@ -27,16 +27,25 @@ public static class SetCommands
 
     /// <summary>
     /// --moxfield: fetches a Moxfield deck and writes it to <paramref name="outPath"/> — the deck's JSON when the
-    /// name ends in .json, else the plain decklist the app's import box shows ("1 Sol Ring (LTC) 273" per line).
+    /// name ends in .json, else the plain decklist the app's import box shows ("1 Sol Ring (LTC) 273" per line), or with
+    /// format=magicdecks the shared MagicDecks deck format (<see cref="MoxfieldClient.ToMagicDecksList"/>).
     /// </summary>
-    public static int RunMoxfield(string source, string outPath)
+    public static int RunMoxfield(string source, string outPath, string[]? opts = null)
     {
+        opts ??= Array.Empty<string>();
+        var format = Opt(opts, "format");
+        if (format != null && !format.Equals("magicdecks", StringComparison.OrdinalIgnoreCase))
+        { Console.Error.WriteLine($"Moxfield: unknown format '{format}' (format=magicdecks is the one there is)."); return 2; }
+        bool magicDecks = format != null;
+        if (magicDecks && outPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        { Console.Error.WriteLine("Moxfield: format=magicdecks writes a deck list, not JSON - give a .txt file."); return 2; }
         var id = DeckId(source);
         if (id == null) { Console.Error.WriteLine($"Moxfield: '{source}' isn't a Moxfield deck link or id."); return 2; }
         try
         {
             var json = FetchDeck(id);
-            var text = outPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? json : MoxfieldClient.ToDeckList(json);
+            var text = magicDecks ? MoxfieldClient.ToMagicDecksList(json)
+                : outPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? json : MoxfieldClient.ToDeckList(json);
             if (IsASet(outPath))
             {
                 Console.Error.WriteLine($"Moxfield: {outPath} is a set — it's never overwritten with a deck list. Choose another file "

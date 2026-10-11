@@ -18,7 +18,7 @@ public static class CliArgs
     {
         ["--render"] = new(2, new[] { "scale", "dpi", "bleed", "q" }, new[] { "nosym" }),
         ["--rendercards"] = new(2, new[] { "scale", "templates" }, new[] { "nosym" }),
-        ["--moxfield"] = new(2, Array.Empty<string>(), Array.Empty<string>()),
+        ["--moxfield"] = new(2, new[] { "format" }, Array.Empty<string>()),
         ["--import"] = new(2, new[] { "frame", "art", "name", "templates" }, new[] { "noart", "append" }),
         ["--renderset"] = new(2, new[] { "only", "templates" }, new[] { "sheet", "a4", "nosym" }),
         ["--restyle"] = new(1, new[] { "frame", "art", "titles", "setcode", "number", "symbol", "only", "templates" }, Array.Empty<string>()),

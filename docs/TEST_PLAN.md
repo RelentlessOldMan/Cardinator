@@ -295,6 +295,11 @@ These drive the fix backlog.
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
   mutation-checked.
+- ✅ **Shared deck format (1.6.32)** — `--moxfield … format=magicdecks` writes the deck format agreed with the
+  MagicDecks and MagicSimulator tools (commanders tagged `*CMDR*`, a blank line, merged `N Name` lines, no set codes
+  or sideboard, a companion as a comment), and the list import reads it (the tag is dropped from names, as Moxfield's
+  `*F*` already was). `MagicDecksFormatTests`; a real deck file imported (100 of 100 found) and a real Moxfield deck
+  fetched in the format.
 - ✅ **Sixth independent review (1.6.31)** — five reviewers (data safety, rendering, command line and scripts, the
   window, lookups/privacy/tests). Fixed:
   - **Edit details… / back face / flipped half** — Esc (even while typing) pressed Cancel and threw the dialog's

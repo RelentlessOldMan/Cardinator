@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Cardinator.Models;
@@ -45,7 +45,7 @@ public static class MoxfieldClient
         var (name, entries) = Enumerate(json);
         var sb = new StringBuilder();
         if (includeName && !string.IsNullOrWhiteSpace(name)) sb.Append("# ").Append(name).Append("\n\n");
-        foreach (var (qty, cardName, set, cn) in entries)
+        foreach (var (_, qty, cardName, set, cn) in entries)
         {
             sb.Append(qty).Append(' ').Append(cardName);
             if (set.Length > 0)
@@ -58,13 +58,42 @@ public static class MoxfieldClient
         return sb.ToString().TrimEnd('\n');
     }
 
+    /// <summary>
+    /// Turns a Moxfield deck JSON into the shared MagicDecks deck format (MagicSimulator's CONTRACT.md §1): each
+    /// commander as "1 Name *CMDR*" in Moxfield's order, one blank line, then the mainboard as "N Name" with the same
+    /// card's lines merged. Only commanders and mainboard: a companion goes in a last "# companion: Name" line, and
+    /// the sideboard, maybeboard and signature spells are left out. No set codes; LF line ends and a final newline.
+    /// A deck with no commander gets no tagged lines and no blank line.
+    /// </summary>
+    public static string ToMagicDecksList(string json)
+    {
+        var (_, entries) = Enumerate(json);
+        var sb = new StringBuilder();
+        var commanders = entries.Where(e => e.board == "commanders").ToList();
+        foreach (var c in commanders)
+            for (int i = 0; i < c.qty; i++) sb.Append("1 ").Append(c.name).Append(" *CMDR*\n");
+        if (commanders.Count > 0) sb.Append('\n');
+
+        var main = new List<(string name, int qty)>();
+        foreach (var e in entries.Where(e => e.board == "mainboard"))
+        {
+            int at = main.FindIndex(m => string.Equals(m.name, e.name, StringComparison.OrdinalIgnoreCase));
+            if (at >= 0) main[at] = (main[at].name, main[at].qty + e.qty);
+            else main.Add((e.name, e.qty));
+        }
+        foreach (var (name, qty) in main) sb.Append(qty).Append(' ').Append(name).Append('\n');
+        foreach (var c in entries.Where(e => e.board == "companions").Select(e => e.name).Distinct(StringComparer.OrdinalIgnoreCase))
+            sb.Append("# companion: ").Append(c).Append('\n');
+        return sb.ToString();
+    }
+
     /// <summary>Maps a Moxfield deck JSON directly into importable cards (used by tests; the app path goes
     /// through <see cref="ToDeckList"/> + <see cref="ImportService"/> so everything shares one parser).</summary>
     public static (string name, List<ImportedCard> cards) ParseDeck(string json, string defaultTemplate)
     {
         var (name, entries) = Enumerate(json);
         var cards = new List<ImportedCard>();
-        foreach (var (qty, cardName, set, cn) in entries)
+        foreach (var (_, qty, cardName, set, cn) in entries)
             for (int i = 0; i < qty; i++)
                 cards.Add(new ImportedCard(new CardModel
                 {
@@ -73,14 +102,14 @@ public static class MoxfieldClient
         return (name, cards);
     }
 
-    /// <summary>Walks the deck JSON and yields (quantity, name, SET, collector) for each deck card,
+    /// <summary>Walks the deck JSON and yields (board, quantity, name, SET, collector) for each deck card,
     /// commander-first, tolerating both the v3 and v2 shapes.</summary>
-    private static (string name, List<(int qty, string name, string set, string cn)> entries) Enumerate(string json)
+    private static (string name, List<(string board, int qty, string name, string set, string cn)> entries) Enumerate(string json)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         string name = root.TryGetProperty("name", out var n) ? (n.GetString() ?? "") : "";
-        var entries = new List<(int, string, string, string)>();
+        var entries = new List<(string, int, string, string, string)>();
 
         // v3 nests boards under "boards"; v2 has them as top-level properties. Look up by our ordered
         // names in whichever container applies.
@@ -89,12 +118,12 @@ public static class MoxfieldClient
 
         foreach (var boardName in OrderedBoards)
             if (container.TryGetProperty(boardName, out var board))
-                AddBoard(board, entries);
+                AddBoard(boardName, board, entries);
 
         return (name, entries);
     }
 
-    private static void AddBoard(JsonElement board, List<(int, string, string, string)> into)
+    private static void AddBoard(string boardName, JsonElement board, List<(string, int, string, string, string)> into)
     {
         // A board is either { "cards": { <id>: {quantity, card} } } (v3) or { <name>: {quantity, card} } (v2).
         var cards = board.ValueKind == JsonValueKind.Object
@@ -116,7 +145,7 @@ public static class MoxfieldClient
 
             var set = (card.TryGetProperty("set", out var s) ? (s.GetString() ?? "") : "").ToUpperInvariant();
             var collector = card.TryGetProperty("cn", out var cnum) ? (cnum.GetString() ?? "") : "";
-            into.Add((qty, cardName, set, collector));
+            into.Add((boardName, qty, cardName, set, collector));
         }
     }
 }

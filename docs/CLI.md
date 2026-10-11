@@ -216,12 +216,28 @@ Cardinator.exe --renderset "concepts\steel\My Deck.cardinator" renders\steel | O
 Cardinator.exe --info "concepts\steel\My Deck.cardinator" | Out-Host
 ```
 
-### `--moxfield <deck link | id> <out.txt | out.json>`
+### `--moxfield <deck link | id> <out.txt | out.json> [format=magicdecks]`
 
 Fetches a **Moxfield deck** (through the same hidden browser the app's import uses, so it needs the WebView2
 runtime that Windows 10/11 already has). A `.json` name gets Moxfield's full deck JSON; anything else gets the
-plain decklist the app's import box shows (`1 Sol Ring (LTC) 273` per line, commander first). It never
-overwrites a set (a `.cardinator` file, or a `.json` one with cards): that's `--import`.
+plain decklist the app's import box shows (`1 Sol Ring (LTC) 273` per line, commander first — it includes the
+sideboard). It replaces an existing `.txt` without asking, but never overwrites a set (a `.cardinator` file, or a
+`.json` one with cards): that's `--import`. A private or deleted deck gives up after about 15 seconds (exit 1).
+
+`format=magicdecks` writes the deck format shared with the MagicDecks and MagicSimulator tools instead: each
+commander as `1 Name *CMDR*`, one blank line, then the mainboard as `N Name` (the same card's lines merged), with
+no set codes, no sideboard, and a companion as a last `# companion: Name` line; UTF-8, LF line ends, a final
+newline. A deck with no commander gets no tagged lines and no blank line.
+
+```
+1 Rograkh, Son of Rohgahh *CMDR*
+1 Silas Renn, Seeker Adept *CMDR*
+
+1 Demonic Consultation
+2 Island
+```
+
+Cardinator's own list import reads that format too (the `*CMDR*` tag and `#` comments are left out of the names).
 
 ### `--import <deck link | list file> <set.cardinator> [frame=<name>] [art=<dir>] [noart] [append] [name=<set name>] [templates=<dir>]`
 

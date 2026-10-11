@@ -233,8 +233,9 @@ public static class ImportService
     // "273p", and The List / PLST numbers like "M20-14"). Anchored at end; names that end in "(...)" have
     // spaces in the brackets, so they aren't mistaken for a hint.
     private static readonly Regex SetHint = new(@"\s*\(([A-Za-z0-9]{2,6})\)\s*([0-9A-Za-z★†\-]+)?\s*$", RegexOptions.Compiled);
-    // Trailing foil/etched marker some deck sites (e.g. Moxfield) append, e.g. "... (LTC) 273 *F*".
-    private static readonly Regex FoilMarker = new(@"\s*\*[A-Za-z]\*\s*$", RegexOptions.Compiled);
+    // Trailing markers some deck lists append: Moxfield's foil/etched "... (LTC) 273 *F*", and the commander tag of
+    // the shared MagicDecks format ("1 Rograkh, Son of Rohgahh *CMDR*", MagicSimulator's CONTRACT.md §1).
+    private static readonly Regex FoilMarker = new(@"(\s*\*(?:[A-Za-z]|CMDR)\*)+\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     // Deck sites head their sections "Sideboard", "Sideboard:", "Creatures (25)"… — never card names.
     private static readonly HashSet<string> SectionHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
