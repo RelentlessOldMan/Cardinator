@@ -24,11 +24,11 @@
 
 ## Repo hygiene
 
-- `private/` (personal workspaces: decks, show art and frames, including the friend's frames) is gitignored
+- `private/` (personal workspaces: decks, show art and frames) is gitignored
   and is its own private repo; nothing from it is ever committed here or shipped, and nothing public names
   what's inside it. The shipped sample frames are the sanitized "Partial Cardboard Chemist" set.
 - `examples/themed-set/` holds the public, generic themed-set scripts (docs/THEMED-SETS.md); they take a
   workspace folder and must never hard-code a private one.
 - Long commit messages: write `commit-msg.tmp` in the repo root, `git commit -F commit-msg.tmp`, then
   delete it. Never write anything under `.git\`.
-- Review renders for the user go in `C:\temp\review\REVIEW`.
+- Review renders for the user go in the one review folder named in `private/README.md`.

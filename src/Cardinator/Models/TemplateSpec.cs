@@ -398,17 +398,6 @@ public sealed class TemplateSpec
         return s;
     }
 
-    /// <summary>
-    /// The same template laid out as a TOKEN: the title, the P/T box and the credits stay put, and the art
-    /// grows down the card. With <paramref name="textLines"/> &gt; 0 the type line moves down and the text box is
-    /// just tall enough for that many lines of rules at full size (at least 3, at most the normal box), as on a
-    /// real token, whose box fits its text; with 0 (a vanilla
-    /// token, e.g. a 1/1 Soldier) there's no text box at all: the type line sits just above the P/T box and the
-    /// art runs down to it. A full-art frame's art already covers the card, so only the plates move. Returns
-    /// this spec unchanged when it is already a token or a flip layout.
-    /// </summary>
-    /// <param name="reserve">Extra height the box needs beyond its lines (a medallion set into its bottom edge,
-    /// which the text stops above).</param>
     /// <summary>This layout with the type line and text box raised by <paramref name="extra"/> and the box that much
     /// taller — for a card whose text won't fit the box at a readable size, on a frame whose art fills the card
     /// (<see cref="ArtFillsCard"/>), where the band behind the text just covers more of the art.</summary>
@@ -420,6 +409,17 @@ public sealed class TemplateSpec
         return s;
     }
 
+    /// <summary>
+    /// The same template laid out as a TOKEN: the title, the P/T box and the credits stay put, and the art
+    /// grows down the card. With <paramref name="textLines"/> &gt; 0 the type line moves down and the text box is
+    /// just tall enough for that many lines of rules at full size (at least 3, at most the normal box), as on a
+    /// real token, whose box fits its text; with 0 (a vanilla
+    /// token, e.g. a 1/1 Soldier) there's no text box at all: the type line sits just above the P/T box and the
+    /// art runs down to it. A full-art frame's art already covers the card, so only the plates move. Returns
+    /// this spec unchanged when it is already a token or a flip layout.
+    /// </summary>
+    /// <param name="reserve">Extra height the box needs beyond its lines (a medallion set into its bottom edge,
+    /// which the text stops above).</param>
     public TemplateSpec ToToken(int textLines, double reserve = 0)
     {
         if (IsTokenLayout || IsFlipLayout) return this;

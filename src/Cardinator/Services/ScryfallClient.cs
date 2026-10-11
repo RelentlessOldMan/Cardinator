@@ -58,7 +58,7 @@ public sealed class ScryfallClient
     /// Looks up a card and returns all faces (one for a normal card, two for a double-faced card).
     /// Empty if no card matches.
     /// </summary>
-    public async Task<IReadOnlyList<CardModel>> LookupFacesAsync(string name, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CardModel>> LookupFacesAsync(string name, CancellationToken ct = default, bool preferRegular = true)
     {
         if (string.IsNullOrWhiteSpace(name)) return Array.Empty<CardModel>();
 
@@ -69,8 +69,12 @@ public sealed class ScryfallClient
         List<CardModel> faces;
         try { faces = ScryfallMapper.MapFaces(json); }
         catch (JsonException) { throw new ScryfallException("Scryfall returned an unexpected response."); }
-        return await PreferRegularPrintingAsync(faces, ct);
+        return preferRegular ? await PreferRegularPrintingAsync(faces, ct) : faces;
     }
+
+    /// <summary>Names already searched for a regular printing that have none (a card only ever printed as a crossover),
+    /// so a deck of them costs one search per card, not one per copy or per printing asked for.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _noRegularPrinting = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>A card found by name alone comes as Scryfall's default printing, which is sometimes a special one (Lightning
     /// Bolt's is a Marvel crossover). Then this looks for the same card's regular paper printings and returns Scryfall's
@@ -79,11 +83,14 @@ public sealed class ScryfallClient
     {
         if (faces.Count == 0 || !faces[0].SpecialPrinting || string.IsNullOrWhiteSpace(faces[0].Name)) return faces.ToList();
         var name = faces[0].Name.Trim();
-        var query = $"!\"{name.Replace("\"", "")}\" game:paper -is:ub -is:promo not:funny";
+        if (_noRegularPrinting.ContainsKey(name)) return faces.ToList();   // already searched: there's none
+        // The same printings ScryfallMapper.IsSpecialPrinting turns away, so the one printing per card the search
+        // returns is a regular one when the card has any.
+        var query = $"!\"{name.Replace("\"", "")}\" game:paper -is:ub -is:promo not:funny -st:memorabilia -st:promo -st:alchemy -st:funny";
         try
         {
             var json = await GetAsync($"{Base}/cards/search?unique=cards&q={Uri.EscapeDataString(query)}", ct);
-            if (json is null) return faces.ToList();   // 404: no regular printing
+            if (json is null) { _noRegularPrinting.TryAdd(name, true); return faces.ToList(); }   // 404: no regular printing
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
                 foreach (var el in data.EnumerateArray())

@@ -20,7 +20,7 @@ frame.png from it (CARDINATOR=<exe>, default Cardinator.exe on the PATH), and fr
 and landscape versions. A new frame: copy a frame folder, change its fit in the app, and add it to "frames".
 Needs: pip install pillow numpy
 """
-import json, os, subprocess, sys
+import json, os, shutil, subprocess, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageChops
 
@@ -58,17 +58,21 @@ def cut(ws, t):
 def build(ws, name):
     with open(os.path.join(ws, "themes", name + ".json"), encoding="utf-8") as fh:
         t = json.load(fh)
+    exe = os.environ.get("CARDINATOR", "Cardinator.exe")
+    if not shutil.which(exe):
+        sys.exit(f"Cardinator not found ({exe}): set CARDINATOR=<path to Cardinator.exe>")
     src = cut(ws, t)
     folders = [os.path.join(ws, "frames", f) for f in t["frames"]]
     for d in folders:
         with open(os.path.join(d, "template.json"), encoding="utf-8") as fh:
-            src.save(os.path.join(d, json.load(fh)["frameSrc"]))
-        for f in ("frame.png", "frame.png.hash"):   # make the app compose it afresh
-            if os.path.exists(os.path.join(d, f)):
-                os.remove(os.path.join(d, f))
-    # The app composes frame.png for every frame with a source when it loads a frames folder.
-    subprocess.run([os.environ.get("CARDINATOR", "Cardinator.exe"), "--listframes",
-                    "templates=" + os.path.join(ws, "frames")], check=True, stdout=subprocess.DEVNULL)
+            name = json.load(fh).get("frameSrc") or ""
+        if name.lower() in ("", "frame.png") or os.path.basename(name) != name:
+            sys.exit(f"{d}: its template.json needs a \"frameSrc\" file name for the drawing (not frame.png, which the "
+                     "app makes from it)")
+        src.save(os.path.join(d, name))
+    # The app composes frame.png for every frame with a source when it loads a frames folder - afresh whenever the
+    # source file or the fit changed, so the frames already there stay until then.
+    subprocess.run([exe, "--listframes", "templates=" + os.path.join(ws, "frames")], check=True, stdout=subprocess.DEVNULL)
     for d in folders:
         print(os.path.basename(d))
         frame_variants.build(d)

@@ -159,7 +159,8 @@ Cardinator.exe --permute mycard.json out
 ## `--batch <list.csv> <outDir> [artDir]`
 
 The whole many-cards pipeline: parse a name list / CSV, fill blank fields from Scryfall, optionally
-match art from `artDir` by filename, and render every card to a PNG.
+match art from `artDir` by filename, and render every card to a PNG (identical cards once; the summary counts
+them separately).
 
 ```powershell
 Cardinator.exe --batch examples/02-custom-set/cards.csv out examples/02-custom-set
@@ -200,7 +201,8 @@ Cardinator.exe --info "concepts\steel\My Deck.cardinator"
 
 Fetches a **Moxfield deck** (through the same hidden browser the app's import uses, so it needs the WebView2
 runtime that Windows 10/11 already has). A `.json` name gets Moxfield's full deck JSON; anything else gets the
-plain decklist the app's import box shows (`1 Sol Ring (LTC) 273` per line, commander first).
+plain decklist the app's import box shows (`1 Sol Ring (LTC) 273` per line, commander first). It never
+overwrites a set (a `.cardinator` file, or a `.json` one with cards): that's `--import`.
 
 ### `--import <deck link | list file> <set.cardinator> [frame=<name>] [art=<dir>] [noart] [append]`
 
@@ -212,6 +214,8 @@ Makes a **set from a deck** — a Moxfield link or id, or any list/CSV the app i
   Scryfall's.
 - An existing set is **never touched** — unless you pass `append`, which adds the cards whose names it
   doesn't already have.
+- It won't save into a set's `backups` folder (open a backup in the app to restore it), or over a set a newer
+  version of Cardinator saved (exit code 2).
 
 ### `--renderset <set.cardinator> <outDir> [sheet] [a4] [only=<name|name>] [templates=<dir>] [nosym]`
 
@@ -232,7 +236,8 @@ name on the subtitle plate (running it again finds a retitled card by that real 
 by the new title too ("Whenever Ulamog attacks" becomes "Whenever Adam attacks"). `setcode=` and `number=`
 set the footer's set code and collector number on every card (a custom set's own, e.g. `666 R • JA • EN`,
 instead of each real card's printing), and `symbol=<image>` puts that picture on the type line as the set symbol. `only=` limits it to
-those cards, by name or real name. The previous file is backed up first.
+those cards, by name or real name. The previous file is backed up first. Like `--import`, it refuses a file in a
+`backups` folder and a set a newer version saved.
 
 ### `--info <set.cardinator> [templates=<dir>]`
 

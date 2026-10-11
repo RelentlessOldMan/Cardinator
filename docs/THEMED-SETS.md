@@ -35,8 +35,8 @@ footer.
 
 ## The steps
 
-1. **The deck.** `Cardinator.exe --moxfield <link> decks/<deck>/moxfield.json` fetches a Moxfield deck, or paste
-   an export into `decks/<deck>/decklist.txt` (see [CLI.md](CLI.md) "Working with sets").
+1. **The deck.** `Cardinator.exe --moxfield <link> decks/<deck>/decklist.txt` fetches a Moxfield deck as a list,
+   or paste an export into `decks/<deck>/decklist.txt` (see [CLI.md](CLI.md) "Working with sets").
 2. **The art.** One picture per card, matched to the card's role: the commander is the lead character, big threats
    are the villains, spells are events, artifacts and lands are items and places. Name each file after the real
    card. `python art_list.py add <workspace> <show> "Sol Ring.png" <url>` downloads one and remembers its link.
@@ -56,6 +56,8 @@ footer.
 5. **The frame.** `python paint_frame.py <workspace> <theme>` paints four variants, measures where the model really
    put each part, rejects the ones whose boxes are too small or overlap (expect one or two usable of four), and
    writes each usable one to `frames/<theme>-<n>/`. `--more` paints four more; `--compose` re-composes for free.
+   Painting again replaces the theme's paints only once the new ones have arrived; the earlier ones are kept in
+   `frames/_paints/_replaced/`.
    `python contact_sheet.py frames <workspace> <theme>` puts them side by side to pick one. (Other kinds of
    frame are under "Three kinds of frame" below.)
 6. **Preview one card.** `CARDS="Sol Ring" bash build_set.sh <workspace> <deck> <show> "<Theme Name> <n>"` builds
@@ -65,7 +67,9 @@ footer.
    sits inside its bar, the rules text fits its box, and nothing is cut off.
 
 `build_set.sh` rebuilds the set from the deck list every time: pictures are matched by the **real** card names, so
-it never restyles a set that was already retitled. It stops if any card has no show title.
+it never restyles a set that was already retitled. The set it replaces is kept in `sets/backups/` (open it in the
+app to get back anything you changed there). It stops if any card has no show title, and if the frame isn't in
+`frames/`.
 
 ## Three kinds of frame
 

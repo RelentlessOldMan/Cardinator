@@ -334,10 +334,6 @@ public sealed class TemplateService
         return rtb;
     }
 
-    /// <summary>The landscape layout of a portrait procedural template, with its frame generated once and
-    /// cached by content hash in <c>CardinatorData/cache/landscape</c> — never inside the template's own
-    /// folder, so a shared template bundle contains only what the user made. Null if it can't be built
-    /// (the caller then falls back to portrait rather than failing the render).</summary>
     /// <summary>How much taller a card's text box should be on a drawn frame whose art fills the card, for text that
     /// won't fit at a readable size: 0 when it fits with a little shrinking, else the shortfall in steps of
     /// <see cref="TallStep"/>, the type line rising no higher than <see cref="TallTypeLineTop"/> of the card. A rough
@@ -398,6 +394,10 @@ public sealed class TemplateService
         }
     }
 
+    /// <summary>The landscape layout of a portrait procedural template, with its frame generated once and
+    /// cached by content hash in <c>CardinatorData/cache/landscape</c> — never inside the template's own
+    /// folder, so a shared template bundle contains only what the user made. Null if it can't be built
+    /// (the caller then falls back to portrait rather than failing the render).</summary>
     public static Template? LandscapeOf(Template template)
     {
         var spec = template.Spec.ToLandscape();

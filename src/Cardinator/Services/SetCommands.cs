@@ -37,6 +37,12 @@ public static class SetCommands
         {
             var json = FetchDeck(id);
             var text = outPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? json : MoxfieldClient.ToDeckList(json);
+            if (IsASet(outPath))
+            {
+                Console.Error.WriteLine($"Moxfield: {outPath} is a set — it's never overwritten with a deck list. Choose another file "
+                    + "(to make a set from the deck, use --import).");
+                return 2;
+            }
             var dir = Path.GetDirectoryName(Path.GetFullPath(outPath));
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
             IoUtil.AtomicWriteText(outPath, text);
@@ -49,6 +55,27 @@ public static class SetCommands
             Console.Error.WriteLine("Moxfield FAILED: " + ex.Message);
             return 1;
         }
+    }
+
+    /// <summary>Why a command must not save over <paramref name="setPath"/>, or null if it may: a file in a set's
+    /// backups folder (saving it there would change the backup and make backups\ its art folder — the window saves an
+    /// opened backup to the set instead), or one a newer version wrote (saving would drop what this version can't read;
+    /// the window warns before that).</summary>
+    internal static string? WontWrite(string setPath, CardProject? project)
+    {
+        if (ProjectBackup.ProjectFileForBackup(setPath) != null)
+            return $"{setPath} is in a backups folder. Open it in the app to restore it, or copy it out of backups first.";
+        if (project?.IsFromNewerVersion == true)
+            return $"{setPath} was saved by a newer version of Cardinator; saving it here would lose what that version added. Use the newer version.";
+        return null;
+    }
+
+    /// <summary>Whether <paramref name="path"/> is an existing set (a .cardinator file, or a .json one with cards).</summary>
+    internal static bool IsASet(string path)
+    {
+        if (!File.Exists(path)) return false;
+        if (path.EndsWith(".cardinator", StringComparison.OrdinalIgnoreCase)) return true;
+        try { return CardProject.Load(path).Cards.Count > 0; } catch { return false; }
     }
 
     /// <summary>
@@ -86,8 +113,10 @@ public static class SetCommands
             }
             else { Console.Error.WriteLine($"Import: '{source}' is neither a Moxfield deck nor a file."); return 2; }
 
+            if (WontWrite(setPath, null) is { } whyNotPath) { Console.Error.WriteLine("Import: " + whyNotPath); return 2; }
             var templates = new TemplateService().LoadAll();
             CardProject? existing = append && File.Exists(setPath) ? CardProject.LoadResolved(setPath, out _) : null;
+            if (existing != null && WontWrite(setPath, existing) is { } whyNot) { Console.Error.WriteLine("Import: " + whyNot); return 2; }
             var houseFrame = frame ?? (existing?.DefaultTemplate is { Length: > 0 } d ? d : templates.FirstOrDefault()?.Name ?? "");
             if (frame != null && templates.All(t => t.Name != frame))
                 Console.WriteLine($"Note: frame “{frame}” isn't installed — the cards keep its name, but draw on another until it is.");
@@ -210,6 +239,7 @@ public static class SetCommands
             if (artDir != null && !Directory.Exists(artDir)) { Console.Error.WriteLine($"Restyle: art folder '{artDir}' not found."); return 2; }
 
             var project = CardProject.LoadResolved(setPath, out _);
+            if (WontWrite(setPath, project) is { } whyNot) { Console.Error.WriteLine("Restyle: " + whyNot); return 2; }
             var cards = Only(project.Cards, only);
             if (cards.Count == 0) { Console.Error.WriteLine("Restyle: no cards matched."); return 3; }
 
@@ -317,8 +347,12 @@ public static class SetCommands
         int n = 0;
         foreach (var face in cards.SelectMany(c => c.Parts()))
         {
-            var real = titles.ContainsKey(face.Name) ? face.Name : face.Subtitle;
-            if (string.IsNullOrEmpty(real) || !titles.TryGetValue(real, out var title)) continue;
+            // A retitled card keeps its real name as the subtitle: look it up by that first, so a re-run never mistakes
+            // the title for a real name (a title that is another card's real name, or a file keyed by titles). A card
+            // not yet retitled is looked up by its name, which becomes the subtitle.
+            bool retitled = !string.IsNullOrEmpty(face.Subtitle);
+            var real = retitled ? face.Subtitle! : face.Name;
+            if (!titles.TryGetValue(real, out var title) && !(retitled && titles.TryGetValue(face.Name, out title))) continue;
             face.RulesText = RenameInText(face.RulesText, title, real, face.Name);
             face.Name = title;
             face.Subtitle = real;
@@ -343,7 +377,11 @@ public static class SetCommands
             if (Short(old) is { } s) map.TryAdd(s, Short(title) ?? title);
         }
         var pattern = string.Join("|", map.Keys.OrderByDescending(k => k.Length).Select(Regex.Escape));
-        return Regex.Replace(text, $@"(?<!\w)(?:{pattern})(?!\w)", m => map[m.Value]);
+        var fullNames = oldNames.ToHashSet(StringComparer.Ordinal);
+        // A short name followed by ", " is the start of ANOTHER card's full name ("meld them into Urza, Planeswalker"
+        // on Urza, Lord Protector): left alone. The card's own full name is matched whole before its short name.
+        return Regex.Replace(text, $@"(?<!\w)(?:{pattern})(?!\w)", m =>
+            !fullNames.Contains(m.Value) && string.CompareOrdinal(text, m.Index + m.Length, ", ", 0, 2) == 0 ? m.Value : map[m.Value]);
     }
 
     /// <summary>The installed frames, with those in <paramref name="extraDir"/> first so they win a name clash.</summary>

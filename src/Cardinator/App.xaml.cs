@@ -20,6 +20,10 @@ public partial class App : Application
     /// drift from the real build — critical for correct bug reports.</summary>
     internal static readonly string Version = "Cardinator " + VersionNumber();
 
+    /// <summary>The set commands and how many arguments each needs, counting itself.</summary>
+    private static readonly Dictionary<string, int> SetCommandArgs = new()
+    { ["--moxfield"] = 3, ["--import"] = 3, ["--renderset"] = 3, ["--restyle"] = 2, ["--info"] = 2 };
+
     /// <summary>The three-part build number (e.g. "1.1.4") read from the assembly.</summary>
     internal static string VersionNumber()
     {
@@ -139,10 +143,17 @@ public partial class App : Application
         }
 
         // Scripting a set: fetch a deck, import it into a set, render, restyle, describe (SetCommands).
+        // Too few arguments for one of these is a usage error (exit 2), never the window: a script would hang on it.
+        if (e.Args.Length > 0 && SetCommandArgs.TryGetValue(e.Args[0], out var needed) && e.Args.Length < needed)
+        {
+            Console.Error.WriteLine($"{e.Args[0]}: missing arguments — see docs/CLI.md.");
+            Shutdown(2);
+            return;
+        }
         if (e.Args.Length > 2 && e.Args[0] == "--moxfield") { Shutdown(SetCommands.RunMoxfield(e.Args[1], e.Args[2])); return; }
         if (e.Args.Length > 2 && e.Args[0] == "--import") { Shutdown(SetCommands.RunImport(e.Args[1], e.Args[2], e.Args[3..])); return; }
         if (e.Args.Length > 2 && e.Args[0] == "--renderset") { Shutdown(SetCommands.RunRenderSet(e.Args[1], e.Args[2], e.Args[3..])); return; }
-        if (e.Args.Length > 2 && e.Args[0] == "--restyle") { Shutdown(SetCommands.RunRestyle(e.Args[1], e.Args[2..])); return; }
+        if (e.Args.Length > 1 && e.Args[0] == "--restyle") { Shutdown(SetCommands.RunRestyle(e.Args[1], e.Args[2..])); return; }
         if (e.Args.Length > 1 && e.Args[0] == "--info") { Shutdown(SetCommands.RunInfo(e.Args[1], e.Args[2..])); return; }
         if (e.Args.Length > 0 && e.Args[0] == "--listframes") { Shutdown(SetCommands.RunListFrames(e.Args[1..])); return; }
 

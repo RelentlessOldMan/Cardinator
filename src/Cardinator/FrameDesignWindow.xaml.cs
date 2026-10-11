@@ -166,6 +166,7 @@ public partial class FrameDesignWindow : Window
         _ready = true;
         BuildLayoutEditor();
         RefreshPreview();
+        _applied = CurrentState();
 
         // Fetch real Scryfall mana symbols in the background so the preview's pips match the exported card.
         // Unsubscribed and cancelled on close so a late callback can't touch a dead dialog.
@@ -178,6 +179,29 @@ public partial class FrameDesignWindow : Window
         if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
         _renderer.ClearSymbolCaches();   // re-derive pip-sampled colors from the real symbol art
         try { Dispatcher.BeginInvoke(new Action(RefreshPreview)); } catch { /* closing */ }
+    }
+
+    /// <summary>The frame as the window's controls and layout boxes have it now, as a hash.</summary>
+    private string CurrentState()
+    {
+        try { var s = _spec.Clone(); ReadControlsInto(s); return s.ContentHash(); }
+        catch { return "(unreadable)"; }
+    }
+
+    private string _applied = "";   // CurrentState() when opened or last applied
+
+    /// <summary>Whether there are changes Apply hasn't saved.</summary>
+    internal bool HasUnappliedChanges => CurrentState() != _applied;
+
+    /// <summary>Closing without Apply — Esc (including after nudging boxes with the arrow keys), Cancel or the window's
+    /// X — asks before it throws changes away.</summary>
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!e.Cancel && DialogResult != true && HasUnappliedChanges
+            && ConfirmDialog.Show(this, "Frame design", "Discard the changes you haven't applied to this frame?",
+                   affirmative: "Discard", negative: "Keep editing") != ConfirmResult.Affirmative)
+            e.Cancel = true;
+        base.OnClosing(e);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -460,6 +484,7 @@ public partial class FrameDesignWindow : Window
     /// every Apply (timestamp changes), so even repeated saves read as taking effect.</summary>
     private void FlashSaved()
     {
+        _applied = CurrentState();   // saved: closing now loses nothing
         SaveStatus.Text = $"Saved ✓   {DateTime.Now:HH:mm:ss}";
         var anim = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames();
         anim.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(1.0,

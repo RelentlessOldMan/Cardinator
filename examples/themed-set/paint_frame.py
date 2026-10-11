@@ -13,7 +13,8 @@ writes a frame the app can use (frame.png + template.json) with the text placed 
   4. compose: stretch to 1500x2100, punch the art window where the magenta was painted (so the ornaments the model
      painted reaching into the window stay on top of the art), round the corners, write the template.
 
-  python paint_frame.py <workspace> <theme>            # paint N (default 4) variants and compose them
+  python paint_frame.py <workspace> <theme>            # paint N (default 4) new variants and compose them
+                                                       # (the earlier paints move to frames/_paints/_replaced/)
   python paint_frame.py <workspace> <theme> --more     # keep the variants so far, paint N more
   python paint_frame.py <workspace> <theme> --compose  # re-compose the existing paints only (free)
 
@@ -22,7 +23,7 @@ the frames to <workspace>/frames/<theme>-<n>/ (named "<theme name> <n>" in the a
 (painting costs money; --compose doesn't), and: pip install pillow numpy openai
 See docs/THEMED-SETS.md for the whole recipe.
 """
-import base64, io, json, os, shutil, sys
+import base64, io, json, os, shutil, sys, time
 import numpy as np
 from PIL import Image, ImageDraw, ImageChops, ImageFilter
 
@@ -90,9 +91,9 @@ def guide():
     return im
 
 
-def generate(ws, key, n, start=1):
+def generate(ws, key, n):
     """images.edit with the layout guide (and, if <theme>_style_ref.png is in frames/_paints, a frame whose look
-    should carry over)."""
+    should carry over). Returns the painted PNGs; nothing is written, so a failed paint changes nothing."""
     from openai import OpenAI
     client = OpenAI()
     paints = os.path.join(ws, "frames", "_paints")
@@ -118,12 +119,17 @@ def generate(ws, key, n, start=1):
         except Exception as e:
             print(f"  {model} failed: {str(e)[:200]}")
     else:
-        raise SystemExit("generation failed")
-    for i, item in enumerate(r.data, start):
-        out = os.path.join(paints, f"{key}_{i}.png")
+        raise SystemExit("generation failed (nothing was changed)")
+    print(f"  painted {len(r.data)} with {model}")
+    return [base64.b64decode(item.b64_json) for item in r.data]
+
+
+def write_paints(ws, key, pngs, start):
+    for i, png in enumerate(pngs, start):
+        out = os.path.join(ws, "frames", "_paints", f"{key}_{i}.png")
         with open(out, "wb") as f:
-            f.write(base64.b64decode(item.b64_json))
-        print("  wrote", out, "with", model)
+            f.write(png)
+        print("  wrote", out)
 
 
 def _runs(mask):
@@ -279,19 +285,32 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         sys.exit(__doc__)
     ws, key = sys.argv[1], sys.argv[2]
+    flags = set(sys.argv[3:])
+    if flags - {"--more", "--compose"} or len(flags) > 1:
+        sys.exit(f"Unknown or conflicting options: {' '.join(sys.argv[3:])}\n\n{__doc__}")
     paints = os.path.join(ws, "frames", "_paints")
     os.makedirs(paints, exist_ok=True)
     guide().save(os.path.join(paints, "_guide.png"))
     n = int(os.environ.get("N", "4"))
     numbered = lambda: sorted(int(f[len(key) + 1:-4]) for f in os.listdir(paints)
                               if f.startswith(key + "_") and f[len(key) + 1:-4].isdigit())
-    if "--more" in sys.argv:          # keep the variants so far and add N more after them
-        generate(ws, key, n, max(numbered(), default=0) + 1)
-    elif "--compose" not in sys.argv:
-        for i in numbered():
-            os.remove(os.path.join(paints, f"{key}_{i}.png"))
-            shutil.rmtree(os.path.join(ws, "frames", f"{key}-{i}"), ignore_errors=True)
-        generate(ws, key, n)
+    if "--more" in flags:             # keep the variants so far and add N more after them
+        write_paints(ws, key, generate(ws, key, n), max(numbered(), default=0) + 1)
+    elif "--compose" not in flags:
+        # Paint first: only once the new paints are here are the old ones set aside (never deleted - OpenAI never
+        # paints the same picture twice) into frames/_paints/_replaced/, and their frames removed.
+        pngs = generate(ws, key, n)
+        old = numbered()
+        if old:
+            aside = os.path.join(paints, "_replaced", time.strftime("%Y%m%d-%H%M%S"))
+            os.makedirs(aside, exist_ok=True)
+            for i in old:
+                shutil.move(os.path.join(paints, f"{key}_{i}.png"), os.path.join(aside, f"{key}_{i}.png"))
+                shutil.rmtree(os.path.join(ws, "frames", f"{key}-{i}"), ignore_errors=True)
+            print(f"  the earlier {len(old)} paint(s) are kept in {aside}")
+        write_paints(ws, key, pngs, 1)
     nums = numbered()
     ok = sum(bool(compose_one(ws, key, i)) for i in nums)
     print(f"{ok} of {len(nums)} usable")
+    if not ok:
+        sys.exit(f"No usable frame for {key}" + ("" if nums else f" (no paints {key}_<n>.png in {paints})"))

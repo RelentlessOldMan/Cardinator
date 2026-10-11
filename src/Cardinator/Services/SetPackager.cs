@@ -82,9 +82,33 @@ public static class SetPackager
         catch { return false; }
     }
 
-    private static ZipArchiveEntry? ProjectEntry(ZipArchive zip) => zip.Entries.FirstOrDefault(e =>
-        !e.FullName.Replace('\\', '/').TrimStart('/').Contains('/')
-        && e.Name.EndsWith(".cardinator", StringComparison.OrdinalIgnoreCase));
+    /// <summary>The set's project file: a .cardinator at the zip's root, or a set saved as .json (Share packs the file
+    /// under its own name) — a root .json holding cards, never a frame's template.json.</summary>
+    private static ZipArchiveEntry? ProjectEntry(ZipArchive zip)
+    {
+        var atRoot = zip.Entries.Where(e => e.Name.Length > 0 && !e.FullName.Replace('\\', '/').TrimStart('/').Contains('/')).ToList();
+        return atRoot.FirstOrDefault(e => e.Name.EndsWith(".cardinator", StringComparison.OrdinalIgnoreCase))
+            ?? atRoot.FirstOrDefault(e => e.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                                          && !e.Name.Equals("template.json", StringComparison.OrdinalIgnoreCase) && HoldsCards(e));
+    }
+
+    private static bool HoldsCards(ZipArchiveEntry e)
+    {
+        try
+        {
+            if (e.Length > 64L << 20) return false;
+            using var stream = e.Open();
+            using var doc = System.Text.Json.JsonDocument.Parse(stream);
+            return doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                && doc.RootElement.EnumerateObject().Any(p => p.Name.Equals("cards", StringComparison.OrdinalIgnoreCase)
+                                                              && p.Value.ValueKind == System.Text.Json.JsonValueKind.Array);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>The most a shared set may unpack: anything bigger isn't a set of cards (a zip bomb, or the wrong zip).</summary>
+    internal const long MaxUnpackedBytes = 4L << 30;
+    internal const int MaxUnpackedFiles = 20000;
 
     /// <summary>
     /// Opens a shared set: unpacks its project file and <c>art/</c> into a new folder under <paramref name="parentDir"/>
@@ -104,20 +128,37 @@ public static class SetPackager
             if (string.IsNullOrWhiteSpace(setName)) setName = "Shared set";
             var dest = Path.Combine(parentDir, setName);
             for (int n = 2; Directory.Exists(dest) || File.Exists(dest); n++) dest = Path.Combine(parentDir, $"{setName} ({n})");
-            Directory.CreateDirectory(dest);
-            var root = Path.GetFullPath(dest).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-
-            foreach (var e in zip.Entries)
+            var wanted = zip.Entries.Where(e =>
             {
                 var name = e.FullName.Replace('\\', '/').TrimStart('/');
-                bool wanted = e == projEntry || name.StartsWith("art/", StringComparison.OrdinalIgnoreCase);
-                if (!wanted || name.EndsWith('/')) continue;
-                var target = Path.GetFullPath(Path.Combine(root, name));
-                if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;   // "../" and the like stay out
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                e.ExtractToFile(target, overwrite: false);
+                return !name.EndsWith('/') && (e == projEntry || name.StartsWith("art/", StringComparison.OrdinalIgnoreCase));
+            }).ToList();
+            if (wanted.Count > MaxUnpackedFiles || wanted.Sum(e => e.Length) > MaxUnpackedBytes)
+                throw new InvalidOperationException("That zip is far too big to be a shared set.");
+
+            Directory.CreateDirectory(dest);
+            var root = Path.GetFullPath(dest).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            projectPath = "";
+            try
+            {
+                foreach (var e in wanted)
+                {
+                    var name = e.FullName.Replace('\\', '/').TrimStart('/');
+                    var target = Path.GetFullPath(Path.Combine(root, name));
+                    if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;   // "../" and the like stay out
+                    if (e == projEntry) projectPath = target;
+                    if (File.Exists(target)) continue;   // a second entry for the same file ("a.png" and "A.png"): the first wins
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    e.ExtractToFile(target, overwrite: false);
+                }
+                if (projectPath.Length == 0) throw new InvalidOperationException("That zip's set file can't be unpacked.");
             }
-            projectPath = Path.Combine(dest, projEntry.Name);
+            catch
+            {
+                // Don't leave a half-unpacked set behind: the folder is new, so nothing else is in it.
+                try { Directory.Delete(dest, recursive: true); } catch { }
+                throw;
+            }
             hasFrames = zip.Entries.Any(e => e.Name.Equals("template.json", StringComparison.OrdinalIgnoreCase));
         }
 

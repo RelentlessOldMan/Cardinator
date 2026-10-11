@@ -123,7 +123,7 @@ public static class BatchService
                 if (!Blank(face.Name)) { byName.TryAdd(face.Name, faces); bySetName.TryAdd(f.SetCode + "|" + face.Name, faces); }
         }
 
-        var unresolved = new List<IGrouping<string, ImportedCard>>();
+        var unresolved = new List<(IGrouping<string, ImportedCard> group, bool namedAPrinting)>();
         for (int gi = 0; gi < groups.Count; gi++)
         {
             var group = groups[gi];
@@ -150,13 +150,13 @@ public static class BatchService
                 faces = regular;
             }
             if (faces != null) { ApplyFaces(group, faces); log.Add($"batch OK  {Ident(c)} -> {faces[0].Name}"); }
-            else unresolved.Add(group);
+            else unresolved.Add((group, refs[gi].Set != null));
         }
 
         // Phase 1b: fuzzy single lookups only for the stragglers the batch couldn't match (typos, cards
         // whose printing hint was off). Usually a handful, so the ~10/s throttle barely matters.
         int fi = 0;
-        foreach (var group in unresolved)
+        foreach (var (group, namedAPrinting) in unresolved)
         {
             ct.ThrowIfCancellationRequested();
             var c = group.First().Card;
@@ -165,7 +165,9 @@ public static class BatchService
             percent?.Report(0.4 + (double)(++fi) / Math.Max(1, unresolved.Count) * 0.1);
             try
             {
-                var faces = await client.LookupFacesAsync(name, ct);
+                // A list line that named a printing keeps Scryfall's pick for the name, as it always did — it isn't
+                // swapped for "a regular printing" the line never asked for.
+                var faces = await client.LookupFacesAsync(name, ct, preferRegular: !namedAPrinting);
                 if (faces.Count > 0) { ApplyFaces(group, faces.ToList()); log.Add($"fuzzy OK  {Ident(c)} -> {faces[0].Name}"); }
                 else { notFound.Add(name); log.Add($"NOT FOUND {Ident(c)} (no fuzzy match)"); }
             }

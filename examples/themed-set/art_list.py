@@ -36,9 +36,13 @@ def sha(data):
 
 
 def download(url):
-    """curl, not Python's downloader (some image hosts refuse it); a short user agent first, a browser's if refused."""
+    """curl, not Python's downloader (some image hosts refuse it); a short user agent first, a browser's if refused.
+    Web links only (an art.tsv from a backup or a friend can't make it read a local file), at most 200 MB."""
+    if not re.match(r"https?://", url, re.I):
+        raise IOError(f"not a web link (http/https): {url}")
     for ua in AGENTS:
-        r = subprocess.run(["curl", "-sfL", "--max-time", "60", "-A", ua, url], capture_output=True)
+        r = subprocess.run(["curl", "-sfL", "--proto", "=http,https", "--proto-redir", "=http,https",
+                            "--max-filesize", "200M", "--max-time", "60", "-A", ua, url], capture_output=True)
         if not r.returncode and r.stdout:
             return r.stdout
     raise IOError(f"download failed (curl {r.returncode}): {url}")
@@ -90,10 +94,16 @@ def same_picture(a, b):
     return ia.size == ib.size and max(ImageStat.Stat(ImageChops.difference(ia, ib)).mean) < 4
 
 
+def safe_name(file):
+    """A picture's file name as art.tsv gives it, if it is a plain name in the art folder (never "../x" or a path)."""
+    ok = file and file == os.path.basename(file) and not re.search(r'[\\/:*?"<>|]', file) and file.strip(". ")
+    return file if ok else None
+
+
 def read(path):
     rows = {}
     if os.path.exists(path):
-        for line in open(path, encoding="utf-8"):
+        for line in open(path, encoding="utf-8-sig"):   # -sig: Notepad and Excel may save it with a BOM
             if line.strip() and not line.startswith("#"):
                 p = line.rstrip("\n").split("\t") + [""] * 5
                 rows[p[0]] = dict(url=p[1], sha=p[2], crop=p[3], size=p[4], look=p[5])
@@ -126,7 +136,11 @@ def main(mode, ws, show, rest):
     lst = os.path.join(art, "art.tsv")
     rows = read(lst)
     if mode == "add":
+        if len(rest) < 2:
+            sys.exit(__doc__)
         file, url = rest[0], rest[1]
+        if not safe_name(file):
+            sys.exit(f"Give a plain file name (no folders): {file}")
         crop = rest[2] if len(rest) > 2 else ""
         data = render(download(url), file, crop)
         open(os.path.join(art, file), "wb").write(data)
@@ -148,6 +162,9 @@ def main(mode, ws, show, rest):
     elif mode in ("fetch", "check"):
         bad, learn = [], "--learn" in rest
         for f, r in rows.items():
+            if not safe_name(f):   # a line pointing outside the art folder is never written (or read)
+                bad.append(f)
+                continue
             path = os.path.join(art, f)
             have = open(path, "rb").read() if os.path.exists(path) else None
             if mode == "fetch" and have:
@@ -183,4 +200,5 @@ def main(mode, ws, show, rest):
 if __name__ == "__main__":
     if len(sys.argv) < 4:
         sys.exit(__doc__)
-    main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:])
+    sys.stdout.reconfigure(errors="replace")   # a name the console can't show doesn't crash it
+    sys.exit(1 if main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]) else 0)

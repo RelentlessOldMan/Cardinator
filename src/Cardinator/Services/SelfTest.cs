@@ -144,7 +144,8 @@ public static class SelfTest
             var result = BatchService.ExportAll(models, templates, outDir, symbols, progress);
             foreach (var err in result.Errors) Console.Error.WriteLine("  ! " + err);
 
-            Console.WriteLine($"Batch done: {result.Exported}/{models.Count} exported to {outDir}.");
+            Console.WriteLine($"Batch done: {result.Exported}/{models.Count - result.Repeats} exported to {outDir}"
+                + (result.Repeats > 0 ? $" ({result.Repeats} repeated card(s) rendered once)." : "."));
             return result.Errors.Count == 0 ? 0 : 1;
         }
         catch (Exception ex)
@@ -457,7 +458,8 @@ public static class SelfTest
             else
             {
                 var result = BatchService.ExportAll(cards, templates, outDir, symbols, progress);
-                Console.WriteLine($"Exported {result.Exported}/{cards.Count} card(s) to {outDir}."
+                Console.WriteLine($"Exported {result.Exported}/{cards.Count - result.Repeats} card(s) to {outDir}."
+                    + (result.Repeats > 0 ? $" {result.Repeats} repeated card(s) rendered once." : "")
                     + (result.Errors.Count > 0 ? $" {result.Errors.Count} error(s)." : ""));
             }
             return 0;

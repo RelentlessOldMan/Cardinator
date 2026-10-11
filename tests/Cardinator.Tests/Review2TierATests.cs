@@ -141,7 +141,7 @@ public class Review2TierATests
     [Fact]
     public void Csv_AStrayQuoteInTheFirstLineComment_DoesNotCrash()
     {
-        var r = ImportService.ParseWithReport("# the friend's 3\" cards\nname,mana\nShock,{R}\n", null, "T");
+        var r = ImportService.ParseWithReport("# Sam's 3\" cards\nname,mana\nShock,{R}\n", null, "T");
         Assert.Equal("Shock", Assert.Single(r.Cards).Card.Name);
     }
 
@@ -301,6 +301,7 @@ public class Review2TierATests
             var setDir = Path.Combine(root, "MySet");
             Directory.CreateDirectory(Path.Combine(setDir, "backups"));
             File.WriteAllText(Path.Combine(setDir, "MySet.cardinator"), "{}");
+            File.WriteAllText(Path.Combine(setDir, "backups", "MySet.20261001-120000.cardinator"), "{}");   // what a real one holds
             Assert.Equal("", ProjectBackup.ProjectFileForBackup(Path.Combine(setDir, "backups", "copied by hand.cardinator")));
         }
         finally { try { Directory.Delete(root, true); } catch { } }

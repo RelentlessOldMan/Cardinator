@@ -4,7 +4,8 @@
 #   build_set.sh <workspace> <deck> <show> "<Frame Name>"
 #
 #   1. imports <workspace>/decks/<deck>/decklist.txt fresh into <workspace>/sets/<show>.cardinator (always from
-#      scratch: art is matched by the REAL card names, so never re-style an already-retitled set),
+#      scratch: art is matched by the REAL card names, so never re-style an already-retitled set; the previous
+#      one is kept in sets/backups/, and the app opens it from there),
 #   2. gives every card its picture from <workspace>/art/<show>/ (files named after the real cards, e.g.
 #      "Sol Ring.png"; a double-faced card's back under its own name) and puts it on the frame,
 #   3. retitles every card from art/<show>/titles.tsv ("real name<TAB>show title": the card shows the show title,
@@ -25,9 +26,16 @@ ART="$WS/art/$SHOW"
 SET="$WS/sets/$SHOW.cardinator"
 OUT="$WS/review/$SHOW"
 
-mkdir -p "$WS/sets"
-rm -f "$SET"
-"$EXE" --import "$WS/decks/$DECK/decklist.txt" "$SET" "art=$ART" noart "frame=$FRAME" | tail -1
+# Cardinator's output without the per-card progress lines: what it saved or rendered, and any note or warning.
+said() { grep -E '^(Note|Not installed|Saved|Rendered|  !)' || true; }
+
+mkdir -p "$WS/sets/backups"
+# The set is rebuilt from the deck list every run. The one there now (with anything changed in the app since) is
+# kept as a backup the app can open, named like its own backups so it's listed and pruned with them.
+if [ -f "$SET" ]; then
+  mv "$SET" "$WS/sets/backups/$SHOW.$(date +%Y%m%d-%H%M%S).cardinator"
+fi
+"$EXE" --import "$WS/decks/$DECK/decklist.txt" "$SET" "art=$ART" noart "frame=$FRAME" | said
 
 STYLE=()
 if [ -f "$ART/set.json" ]; then
@@ -41,8 +49,7 @@ if c.get("symbol"): print("symbol=" + os.path.join(art, c["symbol"]))
 PY
 )
 fi
-"$EXE" --restyle "$SET" "titles=$ART/titles.tsv" "${STYLE[@]}" | tail -1
-rm -rf "$WS/sets/backups"   # the set is rebuilt every run; its rolling backups aren't needed
+"$EXE" --restyle "$SET" "titles=$ART/titles.tsv" "${STYLE[@]}" | said
 
 python - "$SET" <<'PY'
 import json, sys
@@ -59,4 +66,9 @@ PY
 mkdir -p "$OUT"
 rm -f "$OUT"/*.png   # empty it rather than delete it, so it can stay open in Explorer
 ONLY=(); [ -n "$CARDS" ] && ONLY=("only=$CARDS")
-"$EXE" --renderset "$SET" "$OUT" "${ONLY[@]}" "templates=$WS/frames" | tail -1
+RENDERED=$("$EXE" --renderset "$SET" "$OUT" "${ONLY[@]}" "templates=$WS/frames")
+echo "$RENDERED" | said
+if echo "$RENDERED" | grep -q '^Not installed'; then
+  echo "The frame \"$FRAME\" isn't in $WS/frames/ (check its name, or run make_frames.py): the cards were drawn on another." >&2
+  exit 1
+fi

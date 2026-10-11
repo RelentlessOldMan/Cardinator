@@ -22,9 +22,14 @@ if __name__ == "__main__":
     for f in sorted(os.listdir(os.path.join(ws, "themes"))):
         if f.endswith(".json"):
             key = f[:-5]
-            with open(os.path.join(ws, "themes", f), encoding="utf-8") as fh:
-                kind = json.load(fh).get("kind", "painted")
-            script, *opts = SCRIPT[kind]
+            try:   # one bad settings file is reported, and the rest are still built
+                with open(os.path.join(ws, "themes", f), encoding="utf-8-sig") as fh:
+                    kind = json.load(fh).get("kind", "painted")
+                script, *opts = SCRIPT[kind]
+            except (ValueError, KeyError, AttributeError) as e:
+                print(f"== {key}: can't read its settings ({e!r}; kind is one of {', '.join(SCRIPT)})", flush=True)
+                failed.append(key)
+                continue
             print(f"== {key} ({kind})", flush=True)
             if subprocess.run([sys.executable, os.path.join(HERE, script), ws, key, *opts]).returncode:
                 failed.append(key)

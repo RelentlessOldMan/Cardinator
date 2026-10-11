@@ -193,7 +193,7 @@ public static class TemplateImporter
         spec.Name = spec.Name.Trim();
         spec.CustomFrame = true;
         var original = spec.Name;
-        if (IdenticalInstalled(spec, frameBytes) is { } same) return (original, same);
+        if (IdenticalInstalled(zip, folder, spec, frameBytes) is { } same) return (original, same);
         spec.Name = UniqueFrameName(spec.Name);   // never hides a different frame that's already installed
 
         var dir = UniqueTemplateDir(TextUtil.Slug(spec.Name));
@@ -205,12 +205,17 @@ public static class TemplateImporter
         return (original, spec.Name);
     }
 
-    /// <summary>The name of an installed frame that is this one — the same name, the same picture and the same
-    /// settings — or null.</summary>
-    private static string? IdenticalInstalled(TemplateSpec spec, byte[] frameBytes)
+    /// <summary>The name of an installed frame that is this one — the same picture, the same settings and the same
+    /// flip/landscape/token layouts — under the same name, or under the "Name (2)" an earlier import of it had to
+    /// take; null if there's none.</summary>
+    private static string? IdenticalInstalled(ZipArchive zip, string folder, TemplateSpec spec, byte[] frameBytes)
     {
         try
         {
+            var renamed = new System.Text.RegularExpressions.Regex(
+                "^" + System.Text.RegularExpressions.Regex.Escape(spec.Name) + @" \(\d+\)$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            string? asRenamed = null;
             foreach (var dir in Directory.EnumerateDirectories(AppPaths.TemplatesDir))
             {
                 var specPath = Path.Combine(dir, "template.json");
@@ -218,16 +223,41 @@ public static class TemplateImporter
                 if (!File.Exists(specPath) || !File.Exists(framePath)) continue;
                 TemplateSpec installed;
                 try { installed = TemplateSpec.LoadFromJson(File.ReadAllText(specPath)); } catch { continue; }
-                if (!string.Equals(installed.Name?.Trim(), spec.Name, StringComparison.OrdinalIgnoreCase)) continue;
+                var name = installed.Name?.Trim() ?? "";
+                bool sameName = string.Equals(name, spec.Name, StringComparison.OrdinalIgnoreCase);
+                if (!sameName && !renamed.IsMatch(name)) continue;
                 if (new FileInfo(framePath).Length != frameBytes.Length || !File.ReadAllBytes(framePath).AsSpan().SequenceEqual(frameBytes)) continue;
                 var mine = spec.Clone();
                 mine.Name = installed.Name!;
                 installed.CustomFrame = true;
-                if (mine.ContentHash() == installed.ContentHash()) return installed.Name;
+                if (mine.ContentHash() != installed.ContentHash() || !SameLayouts(zip, folder, dir)) continue;
+                if (sameName) return installed.Name;
+                asRenamed ??= installed.Name;
             }
+            return asRenamed;
         }
         catch { /* can't tell: install it as new */ }
         return null;
+    }
+
+    /// <summary>Whether an installed frame's folder has exactly the flip/landscape/token layouts the zip has for it.</summary>
+    private static bool SameLayouts(ZipArchive zip, string folder, string dir)
+    {
+        foreach (var v in TemplateService.VariantKeys)
+        {
+            var specEntry = FindVariantEntry(zip, folder, v, "template.json");
+            var frameEntry = FindVariantEntry(zip, folder, v, "frame.png");
+            bool inZip = specEntry != null && frameEntry != null && frameEntry.Length > 0;
+            var vSpec = Path.Combine(dir, v, "template.json");
+            var vFrame = Path.Combine(dir, v, "frame.png");
+            bool installed = File.Exists(vSpec) && File.Exists(vFrame);
+            if (inZip != installed) return false;
+            if (!inZip) continue;
+            if (!ReadEntryBytes(frameEntry!).AsSpan().SequenceEqual(File.ReadAllBytes(vFrame))) return false;
+            if (TemplateSpec.LoadFromJson(ReadEntryText(specEntry!)).ContentHash() != TemplateSpec.LoadFromJson(File.ReadAllText(vSpec)).ContentHash())
+                return false;
+        }
+        return true;
     }
 
     private static string Normalized(ZipArchiveEntry e) => e.FullName.Replace('\\', '/').TrimStart('/');

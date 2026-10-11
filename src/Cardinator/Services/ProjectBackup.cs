@@ -68,18 +68,25 @@ public static class ProjectBackup
     /// <summary>For a file inside a set's <c>backups/</c> folder: the set file it is a backup of
     /// ("MySet.20261001-120000.cardinator" → "&lt;set&gt;\MySet.cardinator"), or "" when it is in a backups folder
     /// but not named like one of ours. Null for any other file — including a set someone simply keeps in a folder
-    /// called "Backups" (no timestamp in its name, and no set file in the folder above). Saving an opened backup
+    /// called "Backups" (no timestamp in its name, and its own art folder there, or no backups of ours beside it). Saving an opened backup
     /// must go to the set file — saving it where it lies would make backups\ the set folder and break every art link.</summary>
     public static string? ProjectFileForBackup(string filePath)
     {
         var full = Path.GetFullPath(filePath);
         var dir = Path.GetDirectoryName(full) ?? "";
         if (!string.Equals(Path.GetFileName(dir), "backups", System.StringComparison.OrdinalIgnoreCase)) return null;
-        var m = System.Text.RegularExpressions.Regex.Match(Path.GetFileNameWithoutExtension(full),
-            @"^(.+)\.\d{8}-\d{6}(?:-\d+)?$");
+        var stamped = new System.Text.RegularExpressions.Regex(@"^(.+)\.\d{8}-\d{6}(?:-\d+)?$");
+        var m = stamped.Match(Path.GetFileNameWithoutExtension(full));
         var setDir = Path.GetDirectoryName(dir) ?? dir;
         if (!m.Success)
-            return Directory.Exists(setDir) && Directory.EnumerateFiles(setDir, "*.cardinator").Any() ? "" : null;
+        {
+            // Not named like a backup: one only if this really is a set's backups folder — a set file above it and our
+            // timestamped backups in it. A set kept in a folder called "Backups" has its own art\ there instead.
+            if (Directory.Exists(Path.Combine(dir, "art"))) return null;
+            bool ours = Directory.Exists(setDir) && Directory.EnumerateFiles(setDir, "*.cardinator").Any()
+                && Directory.EnumerateFiles(dir).Any(f => stamped.IsMatch(Path.GetFileNameWithoutExtension(f)));
+            return ours ? "" : null;
+        }
         return Path.Combine(Path.GetDirectoryName(dir) ?? dir, m.Groups[1].Value + Path.GetExtension(full));
     }
 

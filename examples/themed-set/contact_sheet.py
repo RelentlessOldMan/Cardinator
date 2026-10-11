@@ -33,6 +33,8 @@ if __name__ == "__main__":
     if mode == "review":
         d = os.path.join(ws, "review", key)
         files = sorted(f for f in os.listdir(d) if f.endswith(".png"))
+        if not files:
+            sys.exit(f"No rendered cards in {d}.")
         if len(files) <= 6:
             grid([Image.open(os.path.join(d, f)) for f in files], 3, 560, 784, os.path.join(out, f"{key}.png"))
         else:   # a whole deck: pages of 12, still big enough to read the rules text
@@ -41,7 +43,11 @@ if __name__ == "__main__":
                      os.path.join(out, f"{key}_p{n}.png"))
     elif mode == "frames":
         fr = os.path.join(ws, "frames")
-        dirs = sorted(d for d in os.listdir(fr) if d.startswith(key + "-"))
+        # A painted theme's frames are <theme>-<n> (not another theme that starts with the same word: carnival-brass).
+        dirs = sorted((d for d in os.listdir(fr) if d.startswith(key + "-") and d[len(key) + 1:].isdigit()),
+                      key=lambda d: int(d[len(key) + 1:]))
+        if not dirs:
+            sys.exit(f"No frames {key}-<n> in {fr}.")
         print("  ".join(dirs))
         grid([Image.open(os.path.join(fr, d, "frame.png")) for d in dirs], max(1, len(dirs)), 300, 420,
              os.path.join(out, f"{key}_frames.png"))
@@ -49,6 +55,8 @@ if __name__ == "__main__":
         p = os.path.join(ws, "frames", "_paints")
         files = sorted((f for f in os.listdir(p) if f.startswith(key + "_") and f[len(key) + 1:-4].isdigit()),
                        key=lambda f: int(f[len(key) + 1:-4]))
+        if not files:
+            sys.exit(f"No paints {key}_<n>.png in {p}.")
         grid([Image.open(os.path.join(p, f)) for f in files], 4, 300, 450, os.path.join(out, f"{key}_paints.png"))
     else:
         sys.exit(__doc__)

@@ -598,7 +598,7 @@ public class Review2TierBTests
     public async Task ACustomSetsOwnCode_IsNotAPrintingHint()
     {
         // A CSV's set column is the card's own data (a custom set), never swapped for a real printing.
-        var item = ImportService.Parse("name,set,number\nLightning Bolt,the show's,12", "", "Default").Single();
+        var item = ImportService.Parse("name,set,number\nLightning Bolt,XYZ,12", "", "Default").Single();
         Assert.False(item.PrintingHint);
         ScryfallClient.TestHttp = new HttpClient(new FakeHandler(req => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -609,7 +609,7 @@ public class Review2TierBTests
         try
         {
             await BatchService.FillFromScryfallAsync(new[] { item with { NeedsLookup = true } }, downloadArt: false);
-            Assert.Equal(("the show's", "12"), (item.Card.SetCode, item.Card.CollectorNumber));
+            Assert.Equal(("XYZ", "12"), (item.Card.SetCode, item.Card.CollectorNumber));
         }
         finally { ScryfallClient.TestHttp = null; }
     }

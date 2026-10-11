@@ -59,6 +59,17 @@ public static class SampleTemplates
         return slugs;
     }
 
+    /// <summary>The SHA-256 of files earlier versions bundled that this one has changed (both line endings), so an
+    /// untouched copy is still recognised as the app's own when the version that wrote it kept no manifest (before
+    /// 1.6.16), and is updated. Add a file's old hashes here whenever a release changes a bundled file.</summary>
+    private static readonly HashSet<string> EarlierBundles = new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        // pcc-sealed-gate/template.json, flip/template.json and landscape/template.json before 1.6.23 (readable footer)
+        "adafbcb5a815158649a2da012002fa852d3181fad3b9b446d124d309cb93be34", "36365888e91457e70ff12999d8455642057d9b922e2d172bf668ab6c02ab64aa",
+        "2ab11b3e1e3d6f44ca5147cdcc102596b78e8205ecea84cae7ec2c37c57938a0", "b012610f1386575fef5764490d71088a00e00f60179db153862c044046013004",
+        "01e4f618c472e630413aeb373f9857242fd8a12997a66b0ea9f2315497df6914", "81614f86371c6658f9ec87310dfa8a7407d74383c9ad080e77a0a4d89af65fa3",
+    };
+
     /// <summary>Writes any bundled template files that aren't already on disk. Safe to call repeatedly.</summary>
     public static void EnsureExtracted()
     {
@@ -109,7 +120,8 @@ public static class SampleTemplates
                     string? onDisk = null;
                     try { if (File.Exists(dest)) onDisk = Hash(File.ReadAllBytes(dest)); } catch { onDisk = "unreadable"; }
                     bool current = onDisk == Hash(bundled);
-                    bool userChanged = onDisk != null && !current && (!manifest.TryGetValue(key, out var written) || written != onDisk);
+                    bool userChanged = onDisk != null && !current && (!manifest.TryGetValue(key, out var written) || written != onDisk)
+                                       && !EarlierBundles.Contains(onDisk);
                     state[key] = (onDisk, current, userChanged);
                 }
                 var keptFolders = files.Where(f => state[f.key].userChanged).Select(f => f.dir)

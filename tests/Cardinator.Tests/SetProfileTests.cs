@@ -10,7 +10,7 @@ public class SetProfileTests
     [Fact]
     public void ApplyDefaults_FillsOnlyBlankFields()
     {
-        var profile = new SetProfile { SetCode = "CDN", Rarity = "R", Copyright = "© Me", Artist = "the friend", SetSymbolPath = @"C:\sym.png" };
+        var profile = new SetProfile { SetCode = "CDN", Rarity = "R", Copyright = "© Me", Artist = "Sam", SetSymbolPath = @"C:\sym.png" };
         var card = new CardModel { Name = "X", Artist = "Someone Else" };   // artist already set
 
         bool changed = profile.ApplyDefaults(card);
@@ -47,7 +47,7 @@ public class SetProfileTests
             var proj = new CardProject
             {
                 Name = "Set",
-                Profile = new SetProfile { SetCode = "CDN", Rarity = "M", Copyright = "© 2026", Artist = "the friend" },
+                Profile = new SetProfile { SetCode = "CDN", Rarity = "M", Copyright = "© 2026", Artist = "Sam" },
                 Cards = { new CardModel { Name = "A" } },
             };
             proj.Save(path);
@@ -56,7 +56,7 @@ public class SetProfileTests
             Assert.Equal("CDN", loaded.Profile.SetCode);
             Assert.Equal("M", loaded.Profile.Rarity);
             Assert.Equal("© 2026", loaded.Profile.Copyright);
-            Assert.Equal("the friend", loaded.Profile.Artist);
+            Assert.Equal("Sam", loaded.Profile.Artist);
         }
         finally { try { File.Delete(path); } catch { } }
     }

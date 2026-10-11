@@ -872,10 +872,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var choice = ConfirmDialog.Show(this, "Recover unsaved changes",
             $"Cardinator closed at {entry.Meta.SavedAt:g} with unsaved changes to {which}.\n\n"
             + "Open the recovered copy? Save it to keep it."
+            + (SetSavedSince(entry) is { } saved
+                ? $"\n\nCareful: the set was saved again after that, at {saved:g}. This copy is OLDER than the set — "
+                  + "saving it would replace the newer set (which would stay in its backups)." : "")
             + (pending.Count > 1 ? $"\n\n({pending.Count - 1} more will be offered next time.)" : ""),
             affirmative: "Open it", negative: "Discard", cancel: "Later");
         if (choice == ConfirmResult.Affirmative) OpenRecovered(entry);
         else if (choice == ConfirmResult.Negative) RecoveryStore.Decline(entry.File);
+    }
+
+    /// <summary>When the set a recovery copy belongs to was saved after the copy was made (its work was redone and
+    /// saved since), or null.</summary>
+    internal static DateTime? SetSavedSince(RecoveryStore.Entry entry)
+    {
+        try
+        {
+            var path = entry.Meta.SetPath;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
+            var written = File.GetLastWriteTime(path);
+            var made = entry.Meta.SavedAt.Kind == DateTimeKind.Utc ? entry.Meta.SavedAt.ToLocalTime() : entry.Meta.SavedAt;
+            return written > made.AddSeconds(2) ? written : null;
+        }
+        catch { return null; }
     }
 
     /// <summary>Loads a recovery copy as the set it belongs to: unsaved, and Save goes to that set's file.</summary>
@@ -925,9 +943,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _undoTimer.Stop();
         var json = SnapshotJson();
         int sel = SelectedIndex();
-        if (_histIdx >= 0 && _history[_histIdx].json == json && _history[_histIdx].sel == sel)
+        if (_histIdx >= 0 && _history[_histIdx].json == json)
         {
-            RecomputeDirty();   // nothing changed — re-derive, so a cancelled edit clears ●
+            // Nothing changed — only, perhaps, which card is selected: that isn't an edit (no ●, no empty undo step),
+            // but undo comes back to it. Re-derive, so a cancelled edit clears ●.
+            _history[_histIdx] = (json, sel);
+            RecomputeDirty();
             return;
         }
         if (_histIdx < _history.Count - 1)
