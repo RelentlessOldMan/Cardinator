@@ -138,6 +138,14 @@ public partial class App : Application
             return;
         }
 
+        // Scripting a set: fetch a deck, import it into a set, render, restyle, describe (SetCommands).
+        if (e.Args.Length > 2 && e.Args[0] == "--moxfield") { Shutdown(SetCommands.RunMoxfield(e.Args[1], e.Args[2])); return; }
+        if (e.Args.Length > 2 && e.Args[0] == "--import") { Shutdown(SetCommands.RunImport(e.Args[1], e.Args[2], e.Args[3..])); return; }
+        if (e.Args.Length > 2 && e.Args[0] == "--renderset") { Shutdown(SetCommands.RunRenderSet(e.Args[1], e.Args[2], e.Args[3..])); return; }
+        if (e.Args.Length > 2 && e.Args[0] == "--restyle") { Shutdown(SetCommands.RunRestyle(e.Args[1], e.Args[2..])); return; }
+        if (e.Args.Length > 1 && e.Args[0] == "--info") { Shutdown(SetCommands.RunInfo(e.Args[1], e.Args[2..])); return; }
+        if (e.Args.Length > 0 && e.Args[0] == "--listframes") { Shutdown(SetCommands.RunListFrames(e.Args[1..])); return; }
+
         if (e.Args.Length > 1 && e.Args[0] == "--qa")
         {
             int code = SelfTest.RunQa(e.Args[1]);
@@ -539,6 +547,25 @@ public partial class App : Application
                   Same as --batch, but compose printable 3x3 sheet pages.
               Cardinator.exe --search "<query>" <outDir> [sheet] [a4] [max=N]
                   Import a Scryfall search (e.g. "t:dragon", "set:dom") with art and render it.
+
+            Working with sets (scripting what the window does; exit code 0 = done):
+              Cardinator.exe --moxfield <deck link|id> <out.txt|out.json>
+                  Fetch a Moxfield deck: .json = the deck's JSON, otherwise a plain decklist.
+              Cardinator.exe --import <deck link|list file> <set.cardinator> [frame=<name>] [art=<dir>] [noart] [append]
+                  Make a set from a Moxfield deck or a list/CSV, filled from Scryfall (with art unless
+                  noart), as the window's import does. frame= = the set's frame (cards a CSV gives
+                  one keep theirs); art=<dir> = your pictures, matched by file name.
+                  An existing set is never touched unless you pass append (adds new names only).
+              Cardinator.exe --renderset <set.cardinator> <outDir> [sheet] [a4] [only=<name|name>] [templates=<dir>] [nosym]
+                  Render a saved set, as Export does (or as 3x3 print sheets). only= picks cards by name;
+                  templates=<dir> also uses frames from a folder without installing them.
+              Cardinator.exe --restyle <set.cardinator> [frame=<name>] [art=<dir>] [titles=<file>] [setcode=<code>] [number=<n>] [symbol=<image>] [only=<name|name>]
+                  Change cards' frame, art and/or titles in a saved set (the old file is backed up first).
+                  titles=<file>: "card name<TAB>new title" lines; the real name becomes the subtitle.
+              Cardinator.exe --info <set.cardinator> [templates=<dir>]
+                  List a set's cards with their frame and art status (tab-separated).
+              Cardinator.exe --listframes [templates=<dir>]
+                  List the installed frame names (what frame= takes).
 
             Other:
               --help, -h        Show this help.

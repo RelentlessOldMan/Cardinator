@@ -12,7 +12,9 @@ selftest-out/
 .vs/
 *.user
 
-# a friend's personal frames — lifted show material, never shipped/committed
+# Private workspaces (personal decks, show art and frames): their own private repo, never shipped/committed
+/private/
+# a friend's personal frames (moved into private/)
 friend/
 
 # Transient commit-message temp files (see global git instructions)

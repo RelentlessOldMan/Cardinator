@@ -4,7 +4,8 @@ using Cardinator.Models;
 namespace Cardinator.Services;
 
 public sealed record FillReport(int Found, int Filled, List<string> NotFound);
-public sealed record BatchExportResult(int Exported, List<string> Errors);
+/// <summary>Exported = image files written; Repeats = cards identical to one already written (rendered once).</summary>
+public sealed record BatchExportResult(int Exported, List<string> Errors, int Repeats = 0);
 
 /// <summary>
 /// Batch operations over many cards: fill blank fields from Scryfall, and render every card
@@ -259,7 +260,8 @@ public static class BatchService
         templates.FirstOrDefault(t => !string.IsNullOrEmpty(houseFrame) && t.Name == houseFrame) ?? templates[0];
 
     /// <summary>Renders every card to a PNG (at 2x) in outDir. Filenames are index_slug.png. A card whose frame
-    /// isn't installed is drawn on <paramref name="houseFrame"/> (the set's), else the first frame — as on screen.</summary>
+    /// isn't installed is drawn on <paramref name="houseFrame"/> (the set's), else the first frame — as on screen.
+    /// A card identical to one already rendered (a deck's 22 Wastes) is rendered once: it would be the same picture.</summary>
     public static BatchExportResult ExportAll(
         IReadOnlyList<CardModel> cards,
         IReadOnlyList<Template> templates,
@@ -280,13 +282,21 @@ public static class BatchService
         foreach (var t in templates) byName.TryAdd(t.Name, t);
         var fallback = FallbackFrame(templates, houseFrame);
 
-        int exported = 0;
+        int exported = 0, repeats = 0;
         var errors = new List<string>();
+        var seen = new HashSet<string>();
         for (int i = 0; i < cards.Count; i++)
         {
             var card = cards[i];
             try
             {
+                if (!seen.Add(System.Text.Json.JsonSerializer.Serialize(card, JsonCompat.Options)))
+                {
+                    repeats++;
+                    progress?.Report($"Skipped {i + 1}/{cards.Count}: {card.Name} (same as an earlier card)");
+                    percent?.Report((double)(i + 1) / cards.Count);
+                    continue;
+                }
                 Template TemplateFor(CardModel c) =>
                     (c.TemplateName is { Length: > 0 } n && byName.TryGetValue(n, out var t)) ? t
                     : c.IsBackFace && string.IsNullOrWhiteSpace(c.TemplateName) ? TemplateFor(card)   // a back with none: its front's
@@ -311,7 +321,7 @@ public static class BatchService
             }
             percent?.Report((double)(i + 1) / cards.Count);
         }
-        return new BatchExportResult(exported, errors);
+        return new BatchExportResult(exported, errors, repeats);
     }
 
     /// <summary>Flattens cards into printable faces for a single-sided sheet: each card's front followed by

@@ -61,6 +61,21 @@ public sealed class CardProject
         return project;
     }
 
+    /// <summary>
+    /// Loads a set as the window opens it: card art and set symbols (both faces) and the profile's set symbol are
+    /// stored relative to the set folder and resolved back to absolute here. A file inside a backups/ folder belongs
+    /// to the set one level up, so it resolves against that. Shared by File > Open and the command line.
+    /// </summary>
+    public static CardProject LoadResolved(string path, out string projectFolder)
+    {
+        var project = Load(path);
+        projectFolder = Cardinator.Services.ProjectBackup.ArtRootFor(path);
+        if (string.IsNullOrEmpty(projectFolder)) projectFolder = Path.GetDirectoryName(Path.GetFullPath(path)) ?? "";
+        foreach (var c in project.Cards) ResolveArt(c, projectFolder);   // older sets saved absolute paths: left as-is
+        project.Profile.SetSymbolPath = ResolveArtPath(project.Profile.SetSymbolPath, projectFolder);
+        return project;
+    }
+
     public void Save(string path)
     {
         FormatVersion = CurrentFormatVersion;   // stamp what wrote this file

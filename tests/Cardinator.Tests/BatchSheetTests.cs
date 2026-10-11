@@ -44,6 +44,28 @@ public class BatchSheetTests
         });
 
     [Fact]
+    public void ExportAll_RendersIdenticalCardsOnce_ButADifferentCopyAgain()
+        => TestHelpers.RunSta(() =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "cardinator_batch_" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var templates = new TemplateService().LoadAll();
+                CardModel Wastes() => new() { Name = "Wastes", TypeLine = "Basic Land", TemplateName = templates[0].Name };
+                var odd = Wastes(); odd.CollectorNumber = "185";   // another printing: a different picture
+                var cards = new List<CardModel> { Wastes(), Wastes(), Wastes(), odd };
+
+                var result = BatchService.ExportAll(cards, templates, dir, new SymbolService());
+
+                Assert.Equal((2, 2), (result.Exported, result.Repeats));
+                Assert.Empty(result.Errors);
+                Assert.Equal(new[] { "001_wastes.png", "004_wastes.png" },
+                    Directory.GetFiles(dir, "*.png").Select(Path.GetFileName).OrderBy(f => f));
+            }
+            finally { try { Directory.Delete(dir, true); } catch { } }
+        });
+
+    [Fact]
     public void ExportAll_WritesOnePngPerCard_AtFullResolution()
         => TestHelpers.RunSta(() =>
         {

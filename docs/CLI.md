@@ -178,6 +178,74 @@ Cardinator.exe --sheet examples/02-custom-set/cards.csv sheets examples/02-custo
 
 ---
 
+## Working with sets
+
+These script what you'd otherwise do in the window: get a deck, make a set from it, try frames and art,
+render it. They use the same code the window does, so a set made this way opens in the app exactly as if
+you'd made it there (art copied into the set's `art` folder, the previous file backed up on every save).
+Exit codes: `0` done, `1` failed, `2` bad arguments, `3` nothing to do (no cards matched).
+A whole themed set (show art, show titles, a custom footer and an OpenAI-painted frame) built from these:
+[THEMED-SETS.md](THEMED-SETS.md) and the scripts in `examples/themed-set/`.
+
+A typical round:
+
+```powershell
+Cardinator.exe --import https://moxfield.com/decks/<id> "concepts\steel\My Deck.cardinator" "frame=Alchemist's Steel"
+Cardinator.exe --restyle "concepts\steel\My Deck.cardinator" art=C:\art\my-style "only=Sol Ring|Mind Stone"
+Cardinator.exe --renderset "concepts\steel\My Deck.cardinator" renders\steel
+Cardinator.exe --info "concepts\steel\My Deck.cardinator"
+```
+
+### `--moxfield <deck link | id> <out.txt | out.json>`
+
+Fetches a **Moxfield deck** (through the same hidden browser the app's import uses, so it needs the WebView2
+runtime that Windows 10/11 already has). A `.json` name gets Moxfield's full deck JSON; anything else gets the
+plain decklist the app's import box shows (`1 Sol Ring (LTC) 273` per line, commander first).
+
+### `--import <deck link | list file> <set.cardinator> [frame=<name>] [art=<dir>] [noart] [append]`
+
+Makes a **set from a deck** — a Moxfield link or id, or any list/CSV the app imports — filled from Scryfall
+(details, and art unless `noart`), and saves it.
+
+- `frame=<name>`: the set's frame. Cards a CSV gives a frame of their own keep it.
+- `art=<dir>`: your own pictures, matched to cards by file name (as **Match art** does); they're used over
+  Scryfall's.
+- An existing set is **never touched** — unless you pass `append`, which adds the cards whose names it
+  doesn't already have.
+
+### `--renderset <set.cardinator> <outDir> [sheet] [a4] [only=<name|name>] [templates=<dir>] [nosym]`
+
+Renders a **saved set** as **Export** does: each card on its own frame (`NNN_name.png`, backs as `-back.png`),
+a card whose frame isn't installed on the set's frame. Identical cards (a deck's 22 Wastes) are rendered once; a
+printed sheet still gets every copy. `sheet` makes printable 3×3 pages instead (`a4` for
+A4). `only=` renders just the cards whose name contains one of the `|`-separated parts (`|` because card names
+have commas). `templates=<dir>` also uses frames straight from a folder without installing them (they win
+over an installed frame of the same name).
+
+### `--restyle <set.cardinator> [frame=<name>] [art=<dir>] [titles=<file>] [setcode=<code>] [number=<n>] [symbol=<image>] [only=<name|name>]`
+
+Changes a **saved set in place**: `frame=` puts the cards on that frame (for the whole set, it also becomes
+the set's frame); `art=<dir>` gives each card — and a double-faced card's back — the picture in that folder
+matching its name (cards without a match keep their art). `titles=<file>` retitles cards, like Universes
+Beyond's flavor names: each line is `card name<TAB>new title`, and the card shows the new title with its real
+name on the subtitle plate (running it again finds a retitled card by that real name). Its rules text names it
+by the new title too ("Whenever Ulamog attacks" becomes "Whenever Adam attacks"). `setcode=` and `number=`
+set the footer's set code and collector number on every card (a custom set's own, e.g. `666 R • JA • EN`,
+instead of each real card's printing), and `symbol=<image>` puts that picture on the type line as the set symbol. `only=` limits it to
+those cards, by name or real name. The previous file is backed up first.
+
+### `--info <set.cardinator> [templates=<dir>]`
+
+Lists a set: its folder and frame, then one tab-separated line per card — number, name, frame (marked
+`(not installed)` when it isn't), and art (`ok`, `missing`, or `none`). A double-faced card's back is listed
+as `Nb`.
+
+### `--listframes [templates=<dir>]`
+
+Prints the installed frame names, one per line — what `frame=` takes.
+
+---
+
 ## Documentation / QA modes
 
 These render the app itself (its windows, a full QA pass, or the illustrated quick-start) — handy

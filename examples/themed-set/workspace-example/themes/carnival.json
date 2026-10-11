@@ -1,0 +1,12 @@
+{
+  "name": "Clockwork Carnival",
+  "brief": "Design a complete, dramatic trading-card frame in the style of a whimsical steampunk carnival storybook: crisp ink outlines, rich painted brass, cream and deep teal, warm lamplight glints. The border is DENSELY ILLUSTRATED all the way around, packed like a carved frieze: brass gears and cogs, tiny carousel horses, striped circus-tent scallops, pocket-watch faces, ticket stubs, hot-air balloons, little wind-up birds and strings of round carnival bulbs. A thick riveted brass trim runs around every plate and around the art window, with gear-shaped corner pieces. A round clockwork seal sits at each end of the type line; the plates are solid deep-teal-black with a polished brass rim and a thin cream keyline. At the bottom centre a brass medallion shaped like a carousel crown. Palette strictly brass, cream, deep teal and black - NO pink, NO purple, NO neon.",
+  "colors": { "border": "#0B0F10", "frame": "#8A6A2E", "frame2": "#D8B25A", "panel": "#0E1A1C", "panelBorder": "#D8B25A" },
+  "fonts": {
+    "title": ["Palatino Linotype", "#FFF6E0"], "type": ["Palatino Linotype", "#F2E6CC"],
+    "rules": ["Georgia", "#F2E6CC"], "flavor": ["Georgia", "#D9C9A6"],
+    "pt": ["Palatino Linotype", "#FFF6E0"], "credit": ["Segoe UI", "#E0D4B8"]
+  },
+  "shadow": true,
+  "style": "deco"
+}

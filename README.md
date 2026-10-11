@@ -15,6 +15,8 @@ a print-quality **PNG**. Every field is editable, so you can make completely ori
 - 🗂️ **One card or a hundred** — build a project, import a CSV, batch-export, print 3×3 sheets
   with optional card backs for double-sided printing; print **bleed**, a set **DPI** and A4 pages are on the
   [command line](docs/CLI.md).
+- 📺 **Themed sets** — turn a whole deck into a set in a show's style: its art and character names on every
+  card, the real names as subtitles, and a frame painted by OpenAI ([how](docs/THEMED-SETS.md)).
 - 🔌 **Works offline** — frames and sample cards are built in, and mana symbols are drawn as clean pips until
   Scryfall's real ones are cached (after that they work offline too); the internet is only used for Scryfall
   lookups, symbol art and downloading art.

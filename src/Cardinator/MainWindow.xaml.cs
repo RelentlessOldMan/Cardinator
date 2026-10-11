@@ -1368,22 +1368,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         try
         {
-            var project = CardProject.Load(path);
-            // Image paths are stored relative to the SET folder. A file opened out of a backups\ folder still
-            // belongs to the set one level up, so resolve against that — otherwise restoring a backup would
-            // point every card at a non-existent backups\art\… file.
-            var projFolder = ProjectBackup.ArtRootFor(path);
-            if (string.IsNullOrEmpty(projFolder)) projFolder = Path.GetDirectoryName(Path.GetFullPath(path));
+            // Image paths are stored relative to the SET folder (a backup's: the set one level up), resolved here —
+            // otherwise restoring a backup would point every card at a non-existent backups\art\… file.
+            var project = CardProject.LoadResolved(path, out var projFolder);
             _loading = true;
             Cards.Clear();
-            foreach (var c in project.Cards)
-            {
-                // Art + set symbol are stored relative to the set folder; resolve them back to absolute paths in
-                // memory (older projects saved absolute paths, which ResolveArt leaves untouched).
-                if (projFolder != null)
-                    CardProject.ResolveArt(c, projFolder);
-                Cards.Add(c);
-            }
+            foreach (var c in project.Cards) Cards.Add(c);
             _projectName = string.IsNullOrWhiteSpace(project.Name)
                 ? Path.GetFileNameWithoutExtension(path) : project.Name;
             _projectPath = path;
@@ -1393,10 +1383,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // even when it isn't installed here (DefaultTemplateName falls back for new cards), so saving on a
             // machine without that frame doesn't rewrite the set's house frame.
             _defaultTemplate = project.DefaultTemplate ?? "";
-            // Restore the set's shared metadata defaults (W1); resolve its symbol path back to absolute.
-            _setProfile = project.Profile ?? new SetProfile();
-            if (projFolder != null)
-                _setProfile.SetSymbolPath = CardProject.ResolveArtPath(_setProfile.SetSymbolPath, projFolder);
+            // Restore the set's shared metadata defaults (W1); LoadResolved already made its symbol path absolute.
+            _setProfile = project.Profile;
             SelectedCard = Cards.FirstOrDefault();
             _loading = false;
             Dirty = false;
@@ -1841,7 +1829,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 BatchService.ExportAll(cardsSnapshot, templatesSnapshot, folder, symbols, strProgress, pctProgress, houseFrame));
 
             _lastExportDir = folder;   // so "Open output folder" follows an Export-all
-            Status = $"Exported {result.Exported}/{cardsSnapshot.Count} to {folder}."
+            Status = $"Exported {result.Exported}/{cardsSnapshot.Count - result.Repeats} to {folder}."
+                     + (result.Repeats > 0 ? $" {result.Repeats} repeated card(s) exported once." : "")
                      + (result.Errors.Count > 0 ? $" {result.Errors.Count} error(s)." : "");
         }
         catch (Exception ex)

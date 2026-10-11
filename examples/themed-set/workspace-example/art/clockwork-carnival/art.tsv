@@ -1,0 +1,2 @@
+# file	url	sha256	crop (x,y,w,h)	size (WxH) - see art_list.py
+# Add your own pictures with: python art_list.py add <workspace> clockwork-carnival "Sol Ring.png" <url>
