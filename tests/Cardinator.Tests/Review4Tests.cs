@@ -475,7 +475,7 @@ public class Review4Tests
         try
         {
             // As 1.6.15 left it: the file 1.6.0 shipped, and no record that the app wrote it.
-            var old = RepoFile("da8d0c3", "src/Cardinator/Assets/templates/pcc-sealed-gate/template.json");
+            var old = OldSealedGateTemplate();
             File.WriteAllBytes(file, old);
             if (File.Exists(manifestPath)) File.Delete(manifestPath);
             SampleTemplates.ResetForTests();
@@ -490,16 +490,122 @@ public class Review4Tests
         }
     }
 
-    /// <summary>A file as an earlier commit had it, with the line endings this checkout uses.</summary>
-    private static byte[] RepoFile(string commit, string path)
+    /// <summary>pcc-sealed-gate/template.json as 1.6.0–1.6.22 shipped it (before the 1.6.23 footer fix), with the line
+    /// endings this checkout uses.</summary>
+    private static byte[] OldSealedGateTemplate()
     {
-        var psi = new System.Diagnostics.ProcessStartInfo("git", $"show {commit}:{path}")
-        { RedirectStandardOutput = true, UseShellExecute = false, WorkingDirectory = AppContext.BaseDirectory };
-        using var p = System.Diagnostics.Process.Start(psi)!;
-        var text = p.StandardOutput.ReadToEnd();
-        p.WaitForExit();
-        Assert.Equal(0, p.ExitCode);
-        text = text.Replace("\r\n", "\n");
+        var text = """
+        {
+          "name": "Sealed Gate",
+          "canvasWidth": 750,
+          "canvasHeight": 1050,
+          "fullArt": false,
+          "customFrame": true,
+          "frameStyle": "classic",
+          "embellishments": false,
+          "cornerRadius": 48,
+          "borderThickness": 28,
+          "panelRadius": 10,
+          "ptBevel": true,
+          "footerPlacement": "frame",
+          "legendaryCrown": false,
+          "crownStyle": "none",
+          "topEmblem": "none",
+          "colors": {
+            "border": "#0A0A0A",
+            "frame": "#B7B4A9",
+            "frame2": "#E8E6DE",
+            "panel": "#D8D6CC",
+            "panelBorder": "#4A4A44"
+          },
+          "titleBar": {
+            "x": 48,
+            "y": 48,
+            "w": 654,
+            "h": 62
+          },
+          "artWindow": {
+            "x": 48,
+            "y": 124,
+            "w": 654,
+            "h": 470
+          },
+          "typeBar": {
+            "x": 48,
+            "y": 604,
+            "w": 654,
+            "h": 54
+          },
+          "textBox": {
+            "x": 48,
+            "y": 664,
+            "w": 654,
+            "h": 286
+          },
+          "ptBox": {
+            "x": 572,
+            "y": 926,
+            "w": 126,
+            "h": 72
+          },
+          "creditBar": {
+            "x": 54,
+            "y": 974,
+            "w": 264,
+            "h": 30
+          },
+          "titleFont": {
+            "family": "Georgia",
+            "size": 33,
+            "color": "#1E1E18",
+            "bold": true,
+            "italic": false,
+            "align": "left"
+          },
+          "typeFont": {
+            "family": "Georgia",
+            "size": 24,
+            "color": "#23231E",
+            "bold": true,
+            "italic": false,
+            "align": "left"
+          },
+          "rulesFont": {
+            "family": "Georgia",
+            "size": 25,
+            "color": "#23231E",
+            "bold": false,
+            "italic": false,
+            "align": "left"
+          },
+          "flavorFont": {
+            "family": "Georgia",
+            "size": 24,
+            "color": "#4A4A42",
+            "bold": false,
+            "italic": true,
+            "align": "left"
+          },
+          "ptFont": {
+            "family": "Georgia",
+            "size": 32,
+            "color": "#23231E",
+            "bold": true,
+            "italic": false,
+            "align": "center"
+          },
+          "creditFont": {
+            "family": "Segoe UI",
+            "size": 13,
+            "color": "#2A2A24",
+            "bold": false,
+            "italic": true,
+            "align": "left"
+          },
+          "manaSymbolSize": 35,
+          "rulesSymbolSize": 26
+        }
+        """.Replace("\r\n", "\n");
         var crlf = File.ReadAllText(Path.Combine(AppPaths.TemplatesDir, "pcc_sealed_gate", "template.json")).Contains("\r\n");
         return Encoding.UTF8.GetBytes(crlf ? text.Replace("\n", "\r\n") : text);
     }
