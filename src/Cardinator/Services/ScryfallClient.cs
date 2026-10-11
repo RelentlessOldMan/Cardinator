@@ -169,6 +169,9 @@ public sealed class ScryfallClient
             Content = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json"),
         }, ct);
 
+    /// <summary>The pause before retrying a request whose connection failed (tests shorten it).</summary>
+    internal static TimeSpan RetryPause = TimeSpan.FromSeconds(1);
+
     /// <summary>Shared send with the Scryfall rate-limit throttle (<see cref="GapFor"/>) and 429/503 backoff+retry. The
     /// request is built fresh per attempt because an HttpRequestMessage can't be resent.</summary>
     private static async Task<string?> SendAsync(Func<HttpRequestMessage> makeRequest, CancellationToken ct)
@@ -189,6 +192,14 @@ public sealed class ScryfallClient
                 try
                 {
                     resp = await Http.SendAsync(request, ct);
+                }
+                catch (HttpRequestException) when (attempt == 1)
+                {
+                    // One retry after a moment: a single dropped connection otherwise counted as "offline" and
+                    // stopped every lookup still to come.
+                    _lastCall = DateTime.UtcNow;
+                    await Task.Delay(RetryPause, ct);
+                    continue;
                 }
                 catch (HttpRequestException ex)
                 {

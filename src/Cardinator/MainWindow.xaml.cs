@@ -628,6 +628,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         internal set   // internal: tests drive the busy state to check the guards
         {
             _busy = value;
+            if (!value && _undoPending) { _undoPending = false; QueueUndoCommit(); }
             OnPropertyChanged();
             OnPropertyChanged(nameof(NotBusy));
             OnPropertyChanged(nameof(CanExport));
@@ -902,6 +903,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!LoadProjectFile(entry.File)) return false;
         var setPath = entry.Meta.SetPath ?? "";
         _projectPath = setPath;   // "" (never saved) → Save asks where
+        StampDisk();
         if (!string.IsNullOrWhiteSpace(entry.Meta.Name)) _projectName = entry.Meta.Name;
         SetProjectFolder(setPath.Length > 0 ? Path.GetDirectoryName(Path.GetFullPath(setPath)) : null);
         MarkUnsavedAgainstDisk();
@@ -944,9 +946,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void QueueUndoCommit()
     {
         if (_restoring || _loading || _cardDialogOpen) return;
+        // A job (a lookup, an import…) ends with one CommitHistory of its own; the timer firing part-way through
+        // made a half-done step of its own (a looked-up card's text without its art took two Undos). Held until it ends.
+        if (_busy) { _undoPending = true; return; }
         _undoTimer.Stop();
         _undoTimer.Start();
     }
+
+    private bool _undoPending;   // an edit came in while Busy: queued once the job is over
 
     /// <summary>Capture the current project state as a new history entry (no-op if nothing changed).</summary>
     internal void CommitHistory()
@@ -1354,6 +1361,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Cards.Clear();
         _projectName = "Untitled Project";
         _projectPath = "";
+        StampDisk();
         SetProjectFolder(null);   // ad-hoc until the first Save sets up a set folder
         _defaultTemplate = "";
         _setProfile = new SetProfile();
@@ -1421,6 +1429,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             SelectedCard = Cards.FirstOrDefault();
             _loading = false;
             Dirty = false;
+            StampDisk();
             OnPropertyChanged(nameof(ProjectSummary));
             OnPropertyChanged(nameof(WindowTitle));
             int missingArt = SetFolder.CountMissingArt(Cards);
@@ -1433,6 +1442,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (ProjectBackup.ProjectFileForBackup(path) is { } setFile)
             {
                 _projectPath = setFile;   // "" (an oddly named file) → Save asks where
+                StampDisk();
                 if (setFile.Length > 0) _projectName = Path.GetFileNameWithoutExtension(setFile);
                 MarkUnsavedAgainstDisk();
                 OnPropertyChanged(nameof(ProjectSummary));
@@ -1520,6 +1530,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _projectPath = realPath;
         _projectName = realName;
+        StampDisk();
         MarkUnsavedAgainstDisk();
         OnPropertyChanged(nameof(ProjectSummary));
         OnPropertyChanged(nameof(WindowTitle));
@@ -1553,6 +1564,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (ok != ConfirmResult.Affirmative) return false;
             }
         }
+        else if (SaveConflict() is { } conflict)
+        {
+            var choice = ConfirmDialog.Show(this, "Save set", conflict.Message,
+                affirmative: "Save as…", negative: conflict.Moved ? "Save there anyway" : "Overwrite", cancel: "Cancel");
+            if (choice == ConfirmResult.Cancel) return false;
+            if (choice == ConfirmResult.Affirmative) return SaveProject(forceDialog: true);
+        }
         CommitHistory();   // fold in edits still waiting on the undo debounce, so the saved point IS what's written
         try
         {
@@ -1569,6 +1587,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _undoTimer.Stop();
             if (_histIdx >= 0) _history[_histIdx] = (SnapshotJson(), SelectedIndex());
             _projectPath = path;
+            StampDisk();
             SetProjectFolder(projFolder);
             _projectName = name;
             MarkSavedPoint();   // this history position now matches disk (undo past it re-marks dirty)
@@ -1584,6 +1603,41 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = "Couldn't save project: " + ex.Message;
             return false;
         }
+    }
+
+    private (string Path, DateTime Written, long Length)? _diskStamp;   // the set file as opened / last saved here
+
+    /// <summary>Notes the set file's time and size as it is now, so Save can tell when something else changed it.</summary>
+    private void StampDisk()
+    {
+        try
+        {
+            var fi = new FileInfo(_projectPath);
+            _diskStamp = _projectPath.Length > 0 && fi.Exists ? (Path.GetFullPath(_projectPath), fi.LastWriteTimeUtc, fi.Length) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { _diskStamp = null; }
+    }
+
+    /// <summary>Why a plain Save to the set's own file needs asking about, or null: the set's folder or file has gone
+    /// since it was opened (moved or renamed — saving would re-create the old folder with the new file and none of the
+    /// art), or something else saved the file since (another window, a command, a script — saving would replace that).</summary>
+    internal (string Message, bool Moved)? SaveConflict()
+    {
+        if (_diskStamp is not { } stamp || _projectPath.Length == 0) return null;
+        string path;
+        try { path = Path.GetFullPath(_projectPath); } catch { return null; }
+        if (!string.Equals(path, stamp.Path, StringComparison.OrdinalIgnoreCase)) return null;
+        var fi = new FileInfo(path);
+        if (!Directory.Exists(fi.DirectoryName))
+            return ($"The set's folder “{fi.DirectoryName}” isn't there any more — was it moved or renamed? Saving here would "
+                    + "make a new folder holding only the set file, without its art. Save as… to the folder where the set is now.", true);
+        if (!fi.Exists)
+            return ($"“{fi.Name}” isn't in its folder any more — was it moved or renamed? Save as… to where it is now, or save it here again.", true);
+        if (fi.LastWriteTimeUtc != stamp.Written || fi.Length != stamp.Length)
+            return ($"“{fi.Name}” was changed and saved somewhere else since you opened it (another window, a command or a script). "
+                    + "Saving replaces those changes (they stay in its backups). Save as… keeps both.", false);
+        return null;
     }
 
     /// <summary>Switches the set folder. A folder exported to while working on another set (or before the first
@@ -2188,6 +2242,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (t == null) { Status = NoFramePicked("design"); return; }
         try
         {
+            // Start from the frame as it is on disk, not the copy loaded with the frame list: an edit made since
+            // (--editframe, another window, a script) would otherwise be overwritten by Apply.
+            t = TemplateService.Reload(t) ?? t;
             var dir = Path.GetDirectoryName(t.FramePath);
             var slug = string.IsNullOrEmpty(dir) ? "" : Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar));
             var win = new FrameDesignWindow(t) { Owner = this, IsBuiltIn = TemplateService.IsBuiltIn(slug) };
@@ -2891,6 +2948,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (IsExporting && ConfirmDialog.Show(this, "Export still running",
                 "Cards are still being exported. Closing now stops it part-way, and the file being written may be "
                 + "left incomplete.", affirmative: "Keep exporting", negative: "Close anyway") != ConfirmResult.Negative)
+        {
+            e.Cancel = true;
+            return;
+        }
+        // A lookup or import part-way through: what it has filled in so far isn't marked unsaved until it's done, so
+        // the unsaved-changes question below wouldn't come up — it was lost without a word.
+        if (Busy && ConfirmDialog.Show(this, "Still working",
+                "A lookup or import is still running. Closing now stops it, and the cards it has filled in so far are lost.",
+                affirmative: "Keep working", negative: "Close anyway") != ConfirmResult.Negative)
         {
             e.Cancel = true;
             return;

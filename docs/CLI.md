@@ -5,7 +5,12 @@
 see this list.
 
 All output paths are created if they don't exist. Exit code is `0` on success, non-zero on error. An option
-Cardinator doesn't know, or one given too few arguments, is exit code `2` (it never opens the window).
+Cardinator doesn't know, or one given too few arguments, is exit code `2` (it never opens the window). The same
+goes for the options of `--render`, `--rendercards` and the set commands: a mistyped one (`fram=Midnight`), or an
+option where a path belongs (a missing path, so `only=X` would have been taken for the folder), stops with exit
+code `2` and says which options it takes. A `templates=` folder that isn't there is exit code `2` too.
+
+What Cardinator prints is UTF-8 with plain `\n` line ends, so accented card and set names reach a script intact.
 
 **From PowerShell or cmd:** `Cardinator.exe` is a Windows app, so PowerShell and cmd start it and go straight on:
 they don't wait for it, show what it prints, or see its exit code. Pipe it to wait and see its output
@@ -61,6 +66,9 @@ Options (for print-ready output):
 - `nosym` — don't fetch Scryfall mana symbols; use the app's own generic pips (offline / for
   screenshots that shouldn't embed third-party symbol art).
 
+An `artPath` relative to the card file's folder is found there; a picture that isn't anywhere gets a `Note:`
+(the art window is drawn empty).
+
 ```powershell
 Cardinator.exe --render mycard.json mycard.png
 Cardinator.exe --render mycard.json mycard.jpg scale=3 dpi=300 bleed=36 q=95
@@ -94,6 +102,10 @@ against the available templates and falling back to the first one (noting which 
   one step.
 - `scale=N` — supersample factor (default 2 → 1500×2100).
 - `nosym` — use the app's own generic mana pips instead of fetching Scryfall symbols.
+
+A card that can't be read or drawn is reported and the rest are still rendered (exit code `1`). A saved set in
+the folder (a `.json` with a list of cards) is skipped — render it with `--renderset`. Art paths work as in
+`--render`.
 
 ```powershell
 # render every card in .\mycards to .\out using the installed frames
@@ -211,14 +223,20 @@ runtime that Windows 10/11 already has). A `.json` name gets Moxfield's full dec
 plain decklist the app's import box shows (`1 Sol Ring (LTC) 273` per line, commander first). It never
 overwrites a set (a `.cardinator` file, or a `.json` one with cards): that's `--import`.
 
-### `--import <deck link | list file> <set.cardinator> [frame=<name>] [art=<dir>] [noart] [append]`
+### `--import <deck link | list file> <set.cardinator> [frame=<name>] [art=<dir>] [noart] [append] [name=<set name>] [templates=<dir>]`
 
 Makes a **set from a deck** — a Moxfield link or id, or any list/CSV the app imports — filled from Scryfall
 (details, and art unless `noart`), and saves it.
 
 - `frame=<name>`: the set's frame. Cards a CSV gives a frame of their own keep it.
-- `art=<dir>`: your own pictures, matched to cards by file name (as **Match art** does); they're used over
-  Scryfall's.
+- `art=<dir>`: your own pictures, named exactly after the cards (`Sol Ring.png`; case and punctuation don't
+  matter); they're used over Scryfall's. Unlike the app's **Match art**, it never guesses from a near name
+  (Forest would get `Snow-Covered Forest.png`): a picture that only nearly matches is named in a `Note:` and not
+  used.
+- `name=<set name>`: the set's name, instead of the file's (a build that writes to a working file and then
+  swaps it in keeps the real name).
+- `templates=<dir>`: frames in that folder count as there, so `frame=` naming one doesn't get the "isn't
+  installed" note.
 - An existing set is **never touched** — unless you pass `append`, which adds the cards whose names it
   doesn't already have (a retitled card counts under its real name too).
 - A picture already copied into the set's folder (same name, same bytes) is reused, not copied again.
@@ -234,11 +252,12 @@ A4). `only=` renders just the cards whose name contains one of the `|`-separated
 have commas). `templates=<dir>` also uses frames straight from a folder without installing them (they win
 over an installed frame of the same name).
 
-### `--restyle <set.cardinator> [frame=<name>] [art=<dir>] [titles=<file>] [setcode=<code>] [number=<n>] [symbol=<image>] [only=<name|name>]`
+### `--restyle <set.cardinator> [frame=<name>] [art=<dir>] [titles=<file>] [setcode=<code>] [number=<n>] [symbol=<image>] [only=<name|name>] [templates=<dir>]`
 
 Changes a **saved set in place**: `frame=` puts the cards on that frame (for the whole set, it also becomes
 the set's frame); `art=<dir>` gives each card — and a double-faced card's back — the picture in that folder
-matching its name (cards without a match keep their art). `titles=<file>` retitles cards, like Universes
+named exactly after it (cards without one keep their art; near names are noted, not used, as for `--import`).
+`templates=<dir>` works as for `--import`. `titles=<file>` retitles cards, like Universes
 Beyond's flavor names: each line is `card name<TAB>new title`, and the card shows the new title with its real
 name on the subtitle plate (running it again finds a retitled card by that real name). Its rules text names it
 by the new title too ("Whenever Ulamog attacks" becomes "Whenever Adam attacks"). `setcode=` and `number=`

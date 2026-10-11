@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Cardinator.Models;
 
 namespace Cardinator.Services;
@@ -23,6 +23,8 @@ public static class ArtMatcher
     /// <summary>The outcome of a folder match: every card that got art, split by confidence (L2).</summary>
     public sealed record MatchReport(IReadOnlyList<ArtMatch> Matches)
     {
+        /// <summary>With exactOnly: the near-name guesses that were NOT used (the card keeps its art).</summary>
+        public IReadOnlyList<ArtMatch> Declined { get; init; } = Array.Empty<ArtMatch>();
         public int Total => Matches.Count;
         public int Exact => Matches.Count(m => m.Kind == MatchKind.Exact);
         public int Fuzzy => Matches.Count(m => m.Kind == MatchKind.Fuzzy);
@@ -41,7 +43,9 @@ public static class ArtMatcher
     /// Like <see cref="MatchInto"/>, but reports which cards matched exactly vs by a fuzzy guess so the
     /// UI can flag the guesses for review instead of binding them silently.
     /// </summary>
-    public static MatchReport MatchIntoWithReport(IEnumerable<CardModel> cards, string folder, bool overwrite)
+    /// <param name="exactOnly">Only exact names count; the near-name guess each other card would have got is listed in
+    /// <see cref="MatchReport.Declined"/> instead (the command line, where nobody reviews the guesses).</param>
+    public static MatchReport MatchIntoWithReport(IEnumerable<CardModel> cards, string folder, bool overwrite, bool exactOnly = false)
     {
         if (!Directory.Exists(folder)) return new(Array.Empty<ArtMatch>());
 
@@ -62,6 +66,7 @@ public static class ArtMatcher
             if (!exact.ContainsKey(img.Norm)) exact[img.Norm] = img.Path;
 
         var matches = new List<ArtMatch>();
+        var declined = new List<ArtMatch>();
         foreach (var card in cards)
         {
             if (!overwrite && !string.IsNullOrWhiteSpace(card.ArtPath)) continue;
@@ -82,13 +87,15 @@ public static class ArtMatcher
                 else kind = MatchKind.Fuzzy;
             }
 
-            if (best != null)
+            if (best != null && exactOnly && kind == MatchKind.Fuzzy)
+                declined.Add(new ArtMatch(card, Path.GetFullPath(best), kind));
+            else if (best != null)
             {
                 card.ArtPath = Path.GetFullPath(best);
                 matches.Add(new ArtMatch(card, card.ArtPath, kind));
             }
         }
-        return new MatchReport(matches);
+        return new MatchReport(matches) { Declined = declined };
     }
 
     private static int Score(string card, string file)

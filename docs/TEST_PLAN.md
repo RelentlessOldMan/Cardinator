@@ -295,6 +295,33 @@ These drive the fix backlog.
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
   mutation-checked.
+- ✅ **Sixth independent review (1.6.31)** — five reviewers (data safety, rendering, command line and scripts, the
+  window, lookups/privacy/tests). Fixed:
+  - **Edit details… / back face / flipped half** — Esc (even while typing) pressed Cancel and threw the dialog's
+    work away, which Undo couldn't bring back; Esc in a box no longer cancels, and Cancel asks when something changed.
+  - **Rendering** — a flip card on a full-art frame with a wider gap threw (and `--rendercards` then stopped the
+    whole folder); its backing panel was a sliver on the shipped Full Art too. One card that fails no longer stops
+    `--rendercards`. Sealed Gate's seal wasn't found on its sideways frame, so battle and plane text ran under it;
+    found now, and short boxes wrap around it. Saga and Class creatures' rows end before the P/T box. Long names
+    and long costs no longer overlap (the cost shrinks, the name ends in "…"); long type lines end in "…" before
+    the set symbol. A leveler's bottom band lines its text up with its badge above the seal. Offline symbols wider
+    than their disc keep their shape; {G/U/P} shows both colours. Approved from renders.
+  - **Command line** — `art=` guessed pictures by near names (Forest got Snow-Covered Forest's) and fooled
+    `build_set.sh`'s check; exact names only now, near names noted. Mistyped options, and an option where a path
+    belongs, are exit 2; so is a `templates=` folder that isn't there. Output is UTF-8 with LF. `--import name=`;
+    `templates=` on `--import`/`--restyle` (no false "isn't installed" note). `build_set.sh` names the set after
+    the show (it was "….building"). `--render`/`--rendercards` find art relative to the card file and note art
+    that's missing; a set file among the cards is skipped.
+  - **Data safety** — Frame Design starts from the frame on disk and asks before Apply replaces a change saved
+    elsewhere; Save asks when the set file was changed elsewhere, or its folder moved (it re-created the old folder
+    without the art).
+  - **Window** — closing during a lookup or import asks; edits during one are a single undo step.
+  - **Lookups** — a dropped connection is retried once before the import counts Scryfall as unreachable; the
+    symbol list is fetched again when it's a month old or lacks a symbol.
+  - **Tests and releases** — golden images always use drawn pips (they used whatever SVGs a machine had cached),
+    re-baselined. The release step refuses an empty PRIVATE_WORDS, matches names across line breaks and plurals,
+    and checks the repository's files too.
+  `Review6Tests` (23), mutation-checked (18 mutations).
 - ✅ **Fifth independent review (1.6.30)** — five reviewers (data safety, rendering, command line and scripts, the
   window, lookups/privacy/tests). Fixed:
   - **Frame Design** — Apply deleted the picture a user had put in a drawn frame's folder (the frame docs' own

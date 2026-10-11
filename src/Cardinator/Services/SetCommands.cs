@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows.Threading;
 using Cardinator.Models;
@@ -83,12 +83,14 @@ public static class SetCommands
     /// does: parse, fill blanks and art from Scryfall, then save. Options: frame=&lt;name&gt; (the set's house frame, and
     /// the frame of every card the list doesn't give one), art=&lt;dir&gt; (your own pictures, matched to cards by file name, used over Scryfall's),
     /// noart (don't download Scryfall art), append (add to an existing set, skipping names it already has; without
-    /// it an existing set is never touched).
+    /// it an existing set is never touched), name=&lt;set name&gt; (instead of the file's name), templates=&lt;dir&gt; (frames
+    /// from a folder count as there for the "isn't installed" note).
     /// </summary>
     public static int RunImport(string source, string setPath, string[] opts)
     {
         try
         {
+            if (MissingTemplatesDir(opts) is { } noDir) { Console.Error.WriteLine("Import: " + noDir); return 2; }
             bool append = Has(opts, "append"), noArt = Has(opts, "noart");
             var frame = Opt(opts, "frame");
             var artDir = Opt(opts, "art");
@@ -114,7 +116,7 @@ public static class SetCommands
             else { Console.Error.WriteLine($"Import: '{source}' is neither a Moxfield deck nor a file."); return 2; }
 
             if (WontWrite(setPath, null) is { } whyNotPath) { Console.Error.WriteLine("Import: " + whyNotPath); return 2; }
-            var templates = new TemplateService().LoadAll();
+            var templates = Templates(Opt(opts, "templates"));
             CardProject? existing = append && File.Exists(setPath) ? CardProject.LoadResolved(setPath, out _) : null;
             if (existing != null && WontWrite(setPath, existing) is { } whyNot) { Console.Error.WriteLine("Import: " + whyNot); return 2; }
             var houseFrame = frame ?? (existing?.DefaultTemplate is { Length: > 0 } d ? d : templates.FirstOrDefault()?.Name ?? "");
@@ -143,7 +145,8 @@ public static class SetCommands
             int matched = artDir != null ? MatchArt(added, artDir) : 0;
 
             var cards = (existing?.Cards ?? new List<CardModel>()).Concat(added).ToList();
-            var name = existing?.Name is { Length: > 0 } n ? n : Path.GetFileNameWithoutExtension(setPath);
+            // name= names the set (a build that writes beside the real file, then swaps it in, keeps the real name).
+            var name = Opt(opts, "name") ?? (existing?.Name is { Length: > 0 } n ? n : Path.GetFileNameWithoutExtension(setPath));
             var dir = Path.GetDirectoryName(Path.GetFullPath(setPath));
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
             int stranded = ProjectWriter.Write(setPath, cards, name, existing?.ArtBaseDir ?? listDir, houseFrame, profile);
@@ -175,6 +178,7 @@ public static class SetCommands
     {
         try
         {
+            if (MissingTemplatesDir(opts) is { } noDir) { Console.Error.WriteLine("RenderSet: " + noDir); return 2; }
             var project = CardProject.LoadResolved(setPath, out _);
             var cards = Only(project.Cards, Opt(opts, "only"));
             if (cards.Count == 0) { Console.Error.WriteLine("RenderSet: no cards to render."); return 3; }
@@ -225,6 +229,7 @@ public static class SetCommands
     {
         try
         {
+            if (MissingTemplatesDir(opts) is { } noDir) { Console.Error.WriteLine("Restyle: " + noDir); return 2; }
             var frame = Opt(opts, "frame");
             var artDir = Opt(opts, "art");
             var only = Opt(opts, "only");
@@ -247,7 +252,7 @@ public static class SetCommands
             {
                 foreach (var c in cards) SetFrame(c, frame);
                 if (only == null) project.DefaultTemplate = frame;
-                if (new TemplateService().LoadAll().All(t => t.Name != frame))
+                if (Templates(Opt(opts, "templates")).All(t => t.Name != frame))
                     Console.WriteLine($"Note: frame “{frame}” isn't installed — the cards keep its name, but draw on another until it is.");
             }
             int matched = artDir != null ? MatchArt(cards, artDir) : 0;
@@ -281,6 +286,7 @@ public static class SetCommands
     {
         try
         {
+            if (MissingTemplatesDir(opts) is { } noDir) { Console.Error.WriteLine("Info: " + noDir); return 2; }
             var project = CardProject.LoadResolved(setPath, out var folder);
             var installed = Templates(Opt(opts, "templates")).Select(t => t.Name).ToHashSet();
             string FrameOf(string? f) => string.IsNullOrEmpty(f) ? "-" : installed.Contains(f) ? f : f + " (not installed)";
@@ -310,6 +316,7 @@ public static class SetCommands
     /// what frame= takes.</summary>
     public static int RunListFrames(string[] opts)
     {
+        if (MissingTemplatesDir(opts) is { } noDir) { Console.Error.WriteLine("ListFrames: " + noDir); return 2; }
         foreach (var t in Templates(Opt(opts, "templates")).OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
             Console.WriteLine(t.Name);
         return 0;
@@ -325,9 +332,17 @@ public static class SetCommands
     }
 
     /// <summary>Gives each face (a double-faced card's back too, and a split card's other half) the picture in
-    /// <paramref name="dir"/> named after it; faces with no match keep their art. Returns how many got one.</summary>
-    private static int MatchArt(IEnumerable<CardModel> cards, string dir) =>
-        ArtMatcher.MatchInto(cards.SelectMany(c => c.Parts()).ToList(), dir, overwrite: true);
+    /// <paramref name="dir"/> named exactly after it; faces with no match keep their art. Returns how many got one.
+    /// Only exact names: a near-name guess (Forest → "Snow-Covered Forest") replaced art with nobody reviewing it, and
+    /// made a build's "every card has a picture" check pass. Each declined guess is printed as a note.</summary>
+    private static int MatchArt(IEnumerable<CardModel> cards, string dir)
+    {
+        var report = ArtMatcher.MatchIntoWithReport(cards.SelectMany(c => c.Parts()).ToList(), dir, overwrite: true, exactOnly: true);
+        foreach (var d in report.Declined)
+            Console.WriteLine($"Note: no picture named exactly “{d.Card.Name}” — not using “{Path.GetFileName(d.ArtPath)}”; "
+                + "rename the picture to the card's name if it's meant for it.");
+        return report.Total;
+    }
 
     /// <summary>
     /// Retitles faces from "card name&lt;TAB&gt;new title" lines: the face takes the new title and keeps its real name as the
@@ -385,6 +400,10 @@ public static class SetCommands
     }
 
     /// <summary>The installed frames, with those in <paramref name="extraDir"/> first so they win a name clash.</summary>
+    /// <summary>A templates= folder that isn't there: the frames would silently come from the installed ones instead.</summary>
+    internal static string? MissingTemplatesDir(string[] opts)
+        => Opt(opts, "templates") is { } dir && !Directory.Exists(dir) ? $"the templates folder '{dir}' isn't there." : null;
+
     private static List<Template> Templates(string? extraDir)
     {
         var service = new TemplateService();

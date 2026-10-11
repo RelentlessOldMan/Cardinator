@@ -543,6 +543,15 @@ public sealed class TemplateService
         return result;
     }
 
+    /// <summary>The frame as it is on disk now (its folder may have been edited since the list was loaded — by
+    /// <c>--editframe</c>, another window or a script), or null if it no longer loads.</summary>
+    public static Template? Reload(Template template)
+    {
+        var dir = Path.GetDirectoryName(template.FramePath);
+        if (string.IsNullOrEmpty(dir)) return null;
+        lock (LoadLock) return LoadOne(dir, template.Name);
+    }
+
     /// <summary>Loads one template folder (template.json + frame.png), or null if it isn't a usable template.
     /// A variant is named after its parent so a card's TemplateName still matches.</summary>
     private static Template? LoadOne(string dir, string? name)

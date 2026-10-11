@@ -195,6 +195,36 @@ public static class SelfTest
         }
     }
 
+    /// <summary>Whether a .json file is a saved set (an object with a "cards" list) rather than one card.</summary>
+    private static bool LooksLikeSet(string path)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+            return doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                && doc.RootElement.EnumerateObject().Any(p => p.Name.Equals("cards", StringComparison.OrdinalIgnoreCase)
+                                                              && p.Value.ValueKind == System.Text.Json.JsonValueKind.Array);
+        }
+        catch { return false; }   // not JSON at all: let the card loader report it
+    }
+
+    /// <summary>A card file's art path relative to the card file's own folder is resolved against it (it was read from
+    /// the current folder and, not found there, drew an empty art window); art that still isn't there is warned about.</summary>
+    private static void WarnMissingArt(Cardinator.Models.CardModel card, string cardFile)
+    {
+        var dir = Path.GetDirectoryName(Path.GetFullPath(cardFile)) ?? "";
+        foreach (var face in new[] { card, card.BackFace, card.OtherHalf })
+        {
+            if (face == null || string.IsNullOrWhiteSpace(face.ArtPath)) continue;
+            if (!Path.IsPathRooted(face.ArtPath) && !File.Exists(face.ArtPath)
+                && File.Exists(Path.Combine(dir, face.ArtPath)))
+                face.ArtPath = Path.Combine(dir, face.ArtPath);
+            if (!File.Exists(face.ArtPath))
+                Console.Error.WriteLine($"  Note: {(string.IsNullOrWhiteSpace(face.Name) ? "a card" : face.Name)}'s art "
+                    + $"\"{face.ArtPath}\" isn't there — its art window is drawn empty.");
+        }
+    }
+
     /// <summary>Renders a saved card JSON to a PNG (CLI export). Returns 0 on success.</summary>
     public static int RunRender(string cardJsonPath, string outPath, string[]? opts = null)
     {
@@ -209,6 +239,7 @@ public static class SelfTest
             bool noSym = opts.Any(o => o.Equals("nosym", StringComparison.OrdinalIgnoreCase));
 
             var card = Cardinator.Models.CardModel.Load(cardJsonPath);
+            WarnMissingArt(card, cardJsonPath);
             var templates = new TemplateService().LoadAll();
             var template = templates.FirstOrDefault(t => t.Name == card.TemplateName) ?? templates[0];
             var symbols = new SymbolService();
@@ -245,6 +276,11 @@ public static class SelfTest
             int scale = Math.Clamp(OptInt(opts, "scale", 2), 1, 6);
             bool noSym = opts.Any(o => o.Equals("nosym", StringComparison.OrdinalIgnoreCase));
             var extraDir = OptStr(opts, "templates");
+            if (!string.IsNullOrWhiteSpace(extraDir) && !Directory.Exists(extraDir))
+            {
+                Console.Error.WriteLine($"RenderCards: the templates folder '{extraDir}' isn't there.");
+                return 2;
+            }
 
             // Collect the card JSON files.
             List<string> cardFiles;
@@ -283,7 +319,12 @@ public static class SelfTest
             int skipped = 0;
             foreach (var f in cardFiles)
             {
-                try { cards.Add(Cardinator.Models.CardModel.Load(f)); }
+                if (LooksLikeSet(f))   // a saved set beside the cards: not a card (it rendered blank)
+                {
+                    Console.WriteLine($"  skip {Path.GetFileName(f)}: it's a set, not a card (render it with --renderset).");
+                    continue;
+                }
+                try { var c = Cardinator.Models.CardModel.Load(f); WarnMissingArt(c, f); cards.Add(c); }
                 catch (Exception ex) { skipped++; Console.Error.WriteLine($"  skip {Path.GetFileName(f)}: {ex.Message}"); }
             }
             if (cards.Count == 0) { Console.Error.WriteLine("RenderCards: no cards loaded."); return 2; }
@@ -310,22 +351,31 @@ public static class SelfTest
                 var name = baseName;
                 for (int i = 2; !usedNames.Add(name); i++) name = $"{baseName}-{i}";
 
-                var outFile = Path.Combine(outDir, name + ".png");
-                var bmp = renderer.RenderToBitmap(card, tpl, scale);
-                CardExporter.SavePng(bmp, outFile);
-                ok++;
-                Console.WriteLine($"  {card.Name}  ->  {name}.png  [{tpl.Name}]"
-                    + (missing ? $"  (templateName '{card.TemplateName}' not found — used fallback)" : ""));
-                if (card.BackFace is { } back)   // a double-faced card's back, named like an export's
+                // One card that fails to draw is reported and counted, and the rest are still rendered.
+                try
                 {
-                    var backTpl = (!string.IsNullOrEmpty(back.TemplateName) && byName.TryGetValue(back.TemplateName, out var bt)) ? bt : tpl;
-                    CardExporter.SavePng(renderer.RenderToBitmap(back, backTpl, scale), Path.Combine(outDir, name + "-back.png"));
-                    Console.WriteLine($"  {back.Name}  ->  {name}-back.png  [{backTpl.Name}]");
+                    var outFile = Path.Combine(outDir, name + ".png");
+                    var bmp = renderer.RenderToBitmap(card, tpl, scale);
+                    CardExporter.SavePng(bmp, outFile);
+                    Console.WriteLine($"  {card.Name}  ->  {name}.png  [{tpl.Name}]"
+                        + (missing ? $"  (templateName '{card.TemplateName}' not found — used fallback)" : ""));
+                    if (card.BackFace is { } back)   // a double-faced card's back, named like an export's
+                    {
+                        var backTpl = (!string.IsNullOrEmpty(back.TemplateName) && byName.TryGetValue(back.TemplateName, out var bt)) ? bt : tpl;
+                        CardExporter.SavePng(renderer.RenderToBitmap(back, backTpl, scale), Path.Combine(outDir, name + "-back.png"));
+                        Console.WriteLine($"  {back.Name}  ->  {name}-back.png  [{backTpl.Name}]");
+                    }
+                    ok++;
+                }
+                catch (Exception ex)
+                {
+                    skipped++;
+                    Console.Error.WriteLine($"  {card.Name}: couldn't be drawn — {ex.Message}");
                 }
             }
 
             Console.WriteLine($"Rendered {ok}/{cards.Count} card(s) to {outDir}."
-                + (skipped > 0 ? $" {skipped} file(s) couldn't be read." : ""));
+                + (skipped > 0 ? $" {skipped} card(s) couldn't be read or drawn." : ""));
             return ok > 0 && skipped == 0 ? 0 : 1;   // a file that couldn't be read is an error, like --batch's
         }
         catch (Exception ex)
@@ -345,6 +395,7 @@ public static class SelfTest
         {
             Directory.CreateDirectory(outDir);
             var card = Cardinator.Models.CardModel.Load(cardJsonPath);
+            WarnMissingArt(card, cardJsonPath);
             var templates = new TemplateService().LoadAll();
             var baseTpl = templates.FirstOrDefault(t => t.Name == card.TemplateName) ?? templates[0];
             var specPath = Path.Combine(Path.GetDirectoryName(baseTpl.FramePath)!, "template.json");

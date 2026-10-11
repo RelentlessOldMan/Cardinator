@@ -435,8 +435,10 @@ public class WindowSmokeTests
             Assert.Equal("Boogie Woogie", card.Name);          // the name is still the card's own
             Assert.Equal("cache/back.jpg", card.BackFace.ArtPath);
 
-            // Cancel puts the card's own art back.
-            Invoke(w, "OnCancel", null, null);
+            // Cancel (once asked "Discard the changes?") puts the card's own art back.
+            Cardinator.ConfirmDialog.TestAnswer = _ => Cardinator.ConfirmResult.Affirmative;
+            try { Invoke(w, "OnCancel", null, null); }
+            finally { Cardinator.ConfirmDialog.TestAnswer = null; }
             Assert.Equal("mine.png", card.ArtPath);
             Assert.Equal(1.5, card.ArtScale);
         });

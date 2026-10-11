@@ -35,7 +35,8 @@ mkdir -p "$WS/sets/backups"
 # the backup slots that keep the sets this replaced.
 NEW="$WS/sets/$SHOW.building.cardinator"
 rm -f "$NEW"
-"$EXE" --import "$WS/decks/$DECK/decklist.txt" "$NEW" "art=$ART" noart "frame=$FRAME" | said
+# name= keeps the set called "$SHOW" (not after the working file), and templates= lets the frame be one in frames/.
+"$EXE" --import "$WS/decks/$DECK/decklist.txt" "$NEW" "art=$ART" noart "frame=$FRAME" "name=$SHOW" "templates=$WS/frames" | said
 
 STYLE=()
 if [ -f "$ART/set.json" ]; then

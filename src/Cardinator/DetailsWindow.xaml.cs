@@ -82,8 +82,26 @@ public partial class DetailsWindow : Window
 
     private void OnCancel(object sender, RoutedEventArgs e)
     {
+        // The edits never reached the main window's undo history (it waits for the dialog), so throwing them
+        // away can't be undone: ask first when there is something to lose.
+        if (HasChanges && ConfirmDialog.Show(this, "Edit details", "Discard the changes made in this dialog?",
+                affirmative: "Discard", negative: "Keep editing") != ConfirmResult.Affirmative)
+            return;
         _card.CopyFrom(_snapshot);   // discard everything changed in this dialog (incl. a Scryfall fill)
         Close();
+    }
+
+    /// <summary>Whether the card differs from how it was when the dialog opened.</summary>
+    internal bool HasChanges
+        => System.Text.Json.JsonSerializer.Serialize(_card, JsonCompat.Options)
+           != System.Text.Json.JsonSerializer.Serialize(_snapshot, JsonCompat.Options);
+
+    /// <summary>Esc means Cancel — but not while typing in a box or in an open dropdown, where it is the usual
+    /// "get me out of this box" reflex (as in Frame Design).</summary>
+    private void OnWindowKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && FrameDesignWindow.KeysCloseWindow(Keyboard.FocusedElement))
+        { e.Handled = true; OnCancel(this, new RoutedEventArgs()); }
     }
 
     private async void OnSearch(object sender, RoutedEventArgs e) => await SearchAsync();

@@ -145,10 +145,10 @@ public sealed class CardRenderer
             if (card.IsPlaneswalker)
                 DrawBadgedRows(dc, ParseAbilities(card.RulesText), spec, loyaltyShields: true,
                     avoid: string.IsNullOrWhiteSpace(card.Loyalty) ? null : LoyaltyRect(spec), ornament: ornament);
-            else if (card.IsSaga)
-                DrawBadgedRows(dc, ParseChapters(card.RulesText), spec, ornament: ornament);
+            else if (card.IsSaga)   // a Saga or Class creature's rows end before its P/T box, like plain rules
+                DrawBadgedRows(dc, ParseChapters(card.RulesText), spec, avoid: RulesAvoid(card, spec), ornament: ornament);
             else if (card.IsClass)
-                DrawBadgedRows(dc, ParseClassLevels(card.RulesText), spec, ornament: ornament);
+                DrawBadgedRows(dc, ParseClassLevels(card.RulesText), spec, avoid: RulesAvoid(card, spec), ornament: ornament);
             else if (card.HasBands)
                 DrawLevelUp(dc, card, spec, BottomOrnament(template, spec));   // leveler / Station / Case bands — any P/T box is in a band
             else if (ParseTopBand(card) is { } topBand)
@@ -655,7 +655,8 @@ public sealed class CardRenderer
         if (!string.IsNullOrWhiteSpace(card.TypeLine))
         {
             var brush = new SolidColorBrush(TemplateSpec.ParseColor(spec.TypeFont.Color));
-            var ft = FitText(card.TypeLine, spec.TypeFont, spec.TypeFont.Size, 12, rightLimit - (bar.X + pad), brush);
+            var ft = Ellipsize(FitText(card.TypeLine, spec.TypeFont, spec.TypeFont.Size, 12, rightLimit - (bar.X + pad), brush),
+                rightLimit - (bar.X + pad));   // still too long at the smallest size: "…" rather than under the set symbol
             DrawGlyphRun(dc, ft, new Point(bar.X + pad, bar.Y + (bar.Height - ft.Height) / 2), spec.TypeFont);
         }
 
@@ -1332,9 +1333,10 @@ public sealed class CardRenderer
         // EffectiveTextBox, not TextBox: with the footer on the border (or off), the text box extends lower,
         // and sizing the scrim from the raw TextBox left those last lines sitting on bare art.
         var text = ToRect(spec.EffectiveTextBox);
-        var lower = new Rect(Math.Min(type.X, text.X) - grow, type.Y - grow,
-            Math.Max(type.Width, text.Width) + 2 * grow,
-            (text.Bottom - type.Y) + 2 * grow);
+        // The union, not "type line top to text bottom": a flip half puts its type line BELOW its rules, where
+        // that span came out a sliver (or negative, which threw and stopped a whole --rendercards run).
+        var lower = Rect.Union(type, text);
+        lower.Inflate(grow, grow);
         dc.DrawRoundedRectangle(scrim, null, lower, r, r);
     }
 
@@ -1362,14 +1364,30 @@ public sealed class CardRenderer
     {
         var bar = ToRect(spec.TitleBar);
         double pad = 16;
+        // When a double-faced indicator sits in the top-left, indent the name past it so it isn't covered.
+        double titleLeft = bar.X + pad;
+        if (DfcBadge(card, spec) is { } b && b.c.X + b.r + 10 > titleLeft)
+            titleLeft = b.c.X + b.r + 10;
+        double titleManaGap = 22;
+        var brush = new SolidColorBrush(TemplateSpec.ParseColor(spec.TitleFont.Color));
 
         // Mana symbols, right-aligned. Accept loosely-typed costs like "2RW" too.
         var manaTokens = ManaText.Tokenize(ManaText.NormalizeCost(card.ManaCost)).Where(t => t.IsSymbol).ToList();
         double symSize = spec.ManaSymbolSize;
+        double ManaWidth(double s) => manaTokens.Count == 0 ? 0 : manaTokens.Count * s * 1.08 - s * 0.08;
+        if (manaTokens.Count > 0)
+        {
+            // A long cost takes at most 55% of the bar, and gives up more room (down to 60% size) when the name
+            // can't fit beside it even at the smallest title size — they drew over each other.
+            double room = bar.Right - pad - titleLeft;
+            if (ManaWidth(symSize) > room * 0.55) symSize *= room * 0.55 / ManaWidth(symSize);
+            double nameMin = MakeText(card.Name, spec.TitleFont, 16, brush).Width;
+            double need = nameMin + titleManaGap + ManaWidth(symSize) - room;
+            if (need > 0)
+                symSize = Math.Max(spec.ManaSymbolSize * 0.6, Math.Min(symSize, symSize - need / (manaTokens.Count * 1.08 - 0.08)));
+        }
         double symGap = symSize * 0.08;
-        double manaWidth = manaTokens.Count == 0
-            ? 0
-            : manaTokens.Count * symSize + (manaTokens.Count - 1) * symGap;
+        double manaWidth = ManaWidth(symSize);
 
         double manaX = bar.Right - pad - manaWidth;
         double symY = bar.Y + (bar.Height - symSize) / 2;
@@ -1391,18 +1409,12 @@ public sealed class CardRenderer
 
         // Title, left-aligned, auto-shrunk to fit remaining width. Keep a clear gap before the mana
         // symbols so the name never crowds them (the title only ever shrinks, never grows past default).
-        // When a double-faced indicator sits in the top-left, indent the name past it so it isn't covered.
-        double titleLeft = bar.X + pad;
-        if (DfcBadge(card, spec) is { } b && b.c.X + b.r + 10 > titleLeft)
-            titleLeft = b.c.X + b.r + 10;
-        double titleManaGap = 22;
         double titleMaxW = (manaWidth > 0 ? manaX - titleManaGap : bar.Right - pad) - titleLeft;
-        var brush = new SolidColorBrush(TemplateSpec.ParseColor(spec.TitleFont.Color));
         // A token's name is centred, as printed (only when it has no cost to share the bar with); an
         // indicator's indent is kept on both sides so the name stays centred on the card.
         bool centred = card.IsToken && manaWidth == 0;
         if (centred) titleMaxW = bar.Width - 2 * (titleLeft - bar.X);
-        var ft = FitText(card.Name, spec.TitleFont, spec.TitleFont.Size, 16, titleMaxW, brush);
+        var ft = Ellipsize(FitText(card.Name, spec.TitleFont, spec.TitleFont.Size, 16, titleMaxW, brush), titleMaxW);
         double ty = bar.Y + (bar.Height - ft.Height) / 2;
         if (centred) titleLeft = bar.X + (bar.Width - ft.Width) / 2;
         DrawGlyphRun(dc, ft, new Point(titleLeft, ty), spec.TitleFont);
@@ -1796,7 +1808,13 @@ public sealed class CardRenderer
         var box = new Rect(region.X + pad, region.Y + pad,
             Math.Max(0, region.W - 2 * pad), Math.Max(0, region.H - 2 * pad));
         if (ornament is { } orn && orn.Top - 4 < box.Bottom && orn.Left < box.Right && orn.Right > box.Left)
-            box.Height = Math.Max(Math.Min(box.Height, 20), orn.Top - 4 - box.Y);
+        {
+            // Stopping above the medallion costs a short box (a sideways frame's) a third of its height or more, and
+            // the text came out tiny: there it wraps around the medallion instead, as adventure text does.
+            double cut = box.Bottom - (orn.Top - 4);
+            if (around == null && cut > box.Height * 0.3) around = orn;
+            else box.Height = Math.Max(Math.Min(box.Height, 20), orn.Top - 4 - box.Y);
+        }
 
         // Shrink from the preferred size down to a floor, but always run at least once so a template with
         // a small RulesFont.Size still renders its text instead of silently dropping it.
@@ -2390,21 +2408,24 @@ public sealed class CardRenderer
             if (need.Sum() + lost <= box.Height) break;
         }
 
-        double spare = Math.Max(0, box.Height - need.Sum()) / Math.Max(1, bands.Count);
+        // The medallion's height goes to the bottom band on top of its share, and that band's text, LEVEL badge and
+        // P/T box are centred together in the part above the medallion (the text alone was squeezed into what was
+        // left there, pinned to the band's top beside a badge centred lower down).
+        double spare = Math.Max(0, box.Height - need.Sum() - lost) / Math.Max(1, bands.Count);
         var result = new List<(LevelBand, Rect, Rect, Rect?, Rect?)>();
         double y = box.Y;
         for (int i = 0; i < bands.Count; i++)
         {
             var b = bands[i];
-            double h = need[i] + spare;
+            double h = need[i] + spare + (i == bands.Count - 1 ? lost : 0);
             var rect = new Rect(box.X, y, box.Width, h);
             var col = TextCol(b, size);
+            double areaH = ornament is { } orn && orn.Top < y + h && orn.Left < col.Right && orn.Right > col.Left
+                ? Math.Max(1, orn.Top - 4 - y) : h;
             Rect? badge = b.Level == null ? null
-                : new Rect(box.X + pad * 0.6, y + (h - BadgeHeight(size)) / 2, BadgeWidth(size), BadgeHeight(size));
-            Rect? pt = b.Pt.Length == 0 ? null : new Rect(box.Right - pad * 0.6 - ptW, y + (h - ptH) / 2, ptW, ptH);
-            var textRect = new Rect(col.X, y, col.Width, h);
-            if (ornament is { } orn && orn.Top < y + h && orn.Left < col.Right && orn.Right > col.Left)
-                textRect = new Rect(col.X, y, col.Width, Math.Max(1, orn.Top - 4 - y));
+                : new Rect(box.X + pad * 0.6, y + (areaH - BadgeHeight(size)) / 2, BadgeWidth(size), BadgeHeight(size));
+            Rect? pt = b.Pt.Length == 0 ? null : new Rect(box.Right - pad * 0.6 - ptW, y + (areaH - ptH) / 2, ptW, ptH);
+            var textRect = new Rect(col.X, y, col.Width, areaH);
             result.Add((b, rect, textRect, badge, pt));
             y += h;
         }
@@ -2515,7 +2536,8 @@ public sealed class CardRenderer
     /// Cardboard Chemist frames (and many imported ones) set into the middle of the box's bottom border — or null.
     /// Found in the frame image: rows up from the box's bottom, across its middle half, where a narrow run of pixels
     /// differs from the box's own colour. Full-width rows (the border line) don't count, nor does anything under
-    /// 12px tall or over 40% of the box (texture, not an ornament). Worked out once per frame.</summary>
+    /// 12px tall or over 38% of the box (texture, not an ornament) — a tenth of the card's short side for a short
+    /// box. Worked out once per frame.</summary>
     internal static Rect? BottomOrnament(Template template, TemplateSpec spec)
     {
         if (spec.FullArt) return null;
@@ -2556,7 +2578,10 @@ public sealed class CardRenderer
             var refc = (b: Med(c => c.b), g: Med(c => c.g), r: Med(c => c.r), a: Med(c => c.a));
 
             // Per canvas row (bottom up): the share of the middle half that differs, and where.
-            int bottom = (int)Math.Floor(tb.Bottom) - 1, limit = (int)(tb.Bottom - tb.Height * 0.4);
+            // The tallest a medallion may be: 38% of the box, or a tenth of the card's short side for a short box — a
+            // sideways frame's box is little over half a portrait one's height, though its medallion is just as big.
+            double maxH = Math.Max(tb.Height * 0.38, Math.Min(spec.CanvasWidth, spec.CanvasHeight) * 0.1);
+            int bottom = (int)Math.Floor(tb.Bottom) - 1, limit = (int)(tb.Bottom - Math.Max(tb.Height * 0.4, maxH + 2));
             int top = -1, gap = 0, minX = int.MaxValue, maxX = int.MinValue;
             bool started = false;
             for (int cy = bottom; cy >= limit; cy--)
@@ -2582,7 +2607,7 @@ public sealed class CardRenderer
             }
             if (!started) return null;
             double height = tb.Bottom - top;
-            if (height < 12 || height > tb.Height * 0.38) return null;
+            if (height < 12 || height > maxH) return null;
             double left = minX / sx - 6, right = maxX / sx + 6;
             return new Rect(left, top, Math.Max(1, right - left), height);
         }
@@ -2749,6 +2774,18 @@ public sealed class CardRenderer
             if (p.Text != null) runs.Add(new Rect(p.X, p.Y, p.Text.Width, p.Text.Height));
             else if (p.Sym != null) runs.Add(new Rect(p.X, p.Y, p.SymSize, p.SymSize));
         return (runs, loyalty);
+    }
+
+    /// <summary>QA hook: where a Saga's or Class's rows land, laid out as they're drawn (around its P/T box), and the box.</summary>
+    internal (List<Rect> TextRuns, Rect? Avoid) InspectBadgedLayout(CardModel card, TemplateSpec spec)
+    {
+        var avoid = RulesAvoid(card, spec);
+        var rows = card.IsSaga ? ParseChapters(card.RulesText) : ParseClassLevels(card.RulesText);
+        var (best, _) = BestBadgedLayout(rows, spec, loyaltyShields: false, avoid);
+        var runs = new List<Rect>();
+        foreach (var p in best?.Placed ?? new List<Placed>())
+            if (p.Text != null) runs.Add(new Rect(p.X, p.Y, p.Text.Width, p.Text.Height));
+        return (runs, avoid);
     }
 
     private PwLayout LayoutPw(List<(string? cost, string text)> rows, Rect box, FontSpec font, double fontSize, double symSize, bool loyaltyShields = false,
@@ -3059,6 +3096,18 @@ public sealed class CardRenderer
     }
 
     // --- text helpers -------------------------------------------------------
+
+    /// <summary>One line that still doesn't fit in <paramref name="maxWidth"/> ends in "…" there.</summary>
+    private static FormattedText Ellipsize(FormattedText ft, double maxWidth)
+    {
+        if (ft.Width > maxWidth && maxWidth > 0)
+        {
+            ft.MaxTextWidth = maxWidth;
+            ft.MaxLineCount = 1;
+            ft.Trimming = TextTrimming.CharacterEllipsis;
+        }
+        return ft;
+    }
 
     private static FormattedText FitText(string text, FontSpec font, double startSize, double minSize, double maxWidth, Brush brush)
     {

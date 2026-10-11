@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -245,14 +245,17 @@ public class Review5Tests
             Interlocked.Increment(ref calls);
             throw new HttpRequestException("No such host is known.");
         }));
+        var pause = ScryfallClient.RetryPause;
+        ScryfallClient.RetryPause = TimeSpan.Zero;
         try
         {
             var cards = ImportService.Parse("1 Sol Ring\n1 Mind Stone\n1 Arcane Signet\n1 Fellwar Stone\n1 Command Tower", "", "Default");
             var report = await BatchService.FillFromScryfallAsync(cards, downloadArt: false);
             Assert.Equal(5, report.NotFound.Count);
-            Assert.True(calls <= 2, $"{calls} requests with no connection");   // the batch, then one card
+            // the batch, then one card — each tried twice (1.6.31: one retry, so a single dropped connection isn't "offline")
+            Assert.True(calls <= 4, $"{calls} requests with no connection");
         }
-        finally { ScryfallClient.TestHttp = null; }
+        finally { ScryfallClient.TestHttp = null; ScryfallClient.RetryPause = pause; }
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -13,8 +13,8 @@ namespace Cardinator.Tests;
 /// Golden-image regression tests: render fixed cards and compare against committed baselines, so an
 /// unintended change to the renderer/layout is caught. A small tolerance absorbs anti-aliasing noise.
 ///
-/// The cards deliberately use NO mana/inline symbols so the output doesn't depend on which Scryfall
-/// SVGs happen to be cached. Baselines live next to this file under <c>golden/</c> and are created on
+/// Mana symbols are always the app's own drawn pips (<c>new SymbolService(drawnOnly: true)</c>), so the output
+/// doesn't depend on which Scryfall SVGs a machine happens to have cached — CI has none. Baselines live next to this file under <c>golden/</c> and are created on
 /// first run. To intentionally re-baseline after a deliberate visual change, set the env var
 /// <c>CARDINATOR_UPDATE_GOLDEN=1</c> and run the tests: each baseline that really changed is rewritten and its test
 /// FAILS saying so (never a silent pass — a variable left set must not turn the checks off), then unset it and run
@@ -83,7 +83,7 @@ public class GoldenTests
             {
                 card.ArtPath = artPath;
                 card.TemplateName = template.Name;
-                var bmp = new CardRenderer(new SymbolService()).RenderToBitmap(card, template, supersample: 1);
+                var bmp = new CardRenderer(new SymbolService(drawnOnly: true)).RenderToBitmap(card, template, supersample: 1);
                 var actual = ToBgra32(bmp);
 
                 Directory.CreateDirectory(GoldenDir());

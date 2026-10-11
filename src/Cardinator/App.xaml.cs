@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -35,6 +35,14 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Command-line output goes to a pipe or file (a GUI exe has no console of its own): write it as UTF-8 with
+        // plain \n line ends, so a script reads accented card and set names (Lim-Dûl, Æther) and bash's `read`
+        // doesn't keep a \r on the last field. It was the ANSI code page and CRLF.
+        if (Console.IsOutputRedirected)
+            Console.SetOut(new System.IO.StreamWriter(Console.OpenStandardOutput(), new System.Text.UTF8Encoding(false)) { AutoFlush = true, NewLine = "\n" });
+        if (Console.IsErrorRedirected)
+            Console.SetError(new System.IO.StreamWriter(Console.OpenStandardError(), new System.Text.UTF8Encoding(false)) { AutoFlush = true, NewLine = "\n" });
+
         if (e.Args.Length > 0 && e.Args[0] is "--help" or "-h" or "/?")
         {
             PrintUsage();
@@ -46,6 +54,13 @@ public partial class App : Application
         {
             Console.WriteLine(Version);
             Shutdown(0);
+            return;
+        }
+
+        if (CliArgs.Problem(e.Args) is { } problem)
+        {
+            Console.Error.WriteLine(problem);
+            Shutdown(2);
             return;
         }
 

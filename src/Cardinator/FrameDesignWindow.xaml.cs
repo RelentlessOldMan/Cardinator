@@ -97,6 +97,7 @@ public partial class FrameDesignWindow : Window
         _templateDir = Path.GetDirectoryName(template.FramePath) is { Length: > 0 } dir
             ? dir
             : Path.Combine(AppPaths.TemplatesDir, TextUtil.SafeFileName(_spec.Name));
+        _onDisk = SpecOnDisk();
         DataContext = _spec;
 
         StyleBox.ItemsSource = new[] { "classic", "clean", "ornate", "faded", "modern", "borderless", "overlay", "wave" };
@@ -354,9 +355,21 @@ public partial class FrameDesignWindow : Window
             return;
         }
 
+        // Someone else saved this frame since it was opened (--editframe, another window, a script): Apply would
+        // silently put the old layout back over their changes.
+        if (SpecOnDisk() != _onDisk)
+        {
+            var choice = ConfirmDialog.Show(this, "Frame changed elsewhere",
+                $"“{_savedName}” was changed and saved somewhere else since you opened it. Applying here replaces those changes.",
+                affirmative: "Save as new…", negative: "Replace them", cancel: "Cancel");
+            if (choice == ConfirmResult.Cancel) return;
+            if (choice == ConfirmResult.Affirmative) { OnSaveAsNew(sender, e); return; }
+        }
+
         try
         {
             WriteTemplate(_templateDir, _templateDir);   // save in place
+            _onDisk = SpecOnDisk();
             AppliedTemplateName = _spec.Name;
             if (_spec.Name != _savedName) { RenamedFrom ??= _savedName; _savedName = _spec.Name; }
             if (Standalone)
@@ -407,6 +420,7 @@ public partial class FrameDesignWindow : Window
             {
                 // Keep editing, but now pointed at the new copy so further Applies save to it.
                 _templateDir = newDir;
+                _onDisk = SpecOnDisk();
                 NameBox.Text = newName;
                 Title = $"Frame layout — {newName}";
                 FlashSaved();
@@ -477,6 +491,15 @@ public partial class FrameDesignWindow : Window
             }
 
         _spec.Save(Path.Combine(destDir, "template.json"));
+    }
+
+    private string? _onDisk;   // this frame's template.json as opened (or last applied here)
+
+    /// <summary>The frame's template.json as it is on disk now, or null when there is none.</summary>
+    private string? SpecOnDisk()
+    {
+        try { var p = Path.Combine(_templateDir, "template.json"); return File.Exists(p) ? File.ReadAllText(p) : null; }
+        catch (IOException) { return _onDisk; }   // can't read it right now: don't claim it changed
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)

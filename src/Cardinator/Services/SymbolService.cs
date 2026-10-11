@@ -23,6 +23,14 @@ public sealed class SymbolService
 
     private static readonly HttpClient Http = CreateClient();
 
+    private readonly bool _drawnOnly;
+
+    public SymbolService() { }
+
+    /// <param name="drawnOnly">Always draw the app's own pips, never a cached Scryfall SVG — for golden-image tests,
+    /// whose output must not depend on which symbols a machine happens to have downloaded.</param>
+    internal SymbolService(bool drawnOnly) => _drawnOnly = drawnOnly;
+
     /// <summary>Raised after a background prime downloads new symbols (so callers can re-render).</summary>
     public event Action? Updated;
 
@@ -47,7 +55,7 @@ public sealed class SymbolService
             if (_cache.TryGetValue(inner, out var cached)) return cached;
 
             var svgPath = Path.Combine(AppPaths.SymbolsDir, SafeFile(inner) + ".svg");
-            if (File.Exists(svgPath) && TryConvertSvg(svgPath, out var svgImg))
+            if (!_drawnOnly && File.Exists(svgPath) && TryConvertSvg(svgPath, out var svgImg))
             {
                 _cache[inner] = svgImg!;
                 return svgImg;
@@ -81,8 +89,14 @@ public sealed class SymbolService
             if (map == null) return;
 
             IEnumerable<string> wanted = tokens != null
-                ? tokens.Select(Normalize).Distinct()
+                ? tokens.Select(Normalize).Distinct().ToList()
                 : map.Keys;
+            // A symbol the cached list doesn't know may be one Scryfall added since: fetch the list again, once a run.
+            if (tokens != null && !_listRefreshed && wanted.Any(t => t.Length > 0 && !map.ContainsKey(t)))
+            {
+                _listRefreshed = true;
+                map = await EnsureSymbologyMapAsync(ct, refresh: true) ?? map;
+            }
 
             bool changed = false;
             foreach (var inner in wanted)
@@ -116,18 +130,29 @@ public sealed class SymbolService
         catch { /* offline or blocked: keep procedural pips */ }
     }
 
-    private async Task<Dictionary<string, string>?> EnsureSymbologyMapAsync(CancellationToken ct)
+    private static volatile bool _listRefreshed;   // the symbol list was fetched again this run (see PrimeAsync)
+
+    /// <param name="refresh">Fetch the list from Scryfall even though one is cached; on failure the cached one stays.</param>
+    private async Task<Dictionary<string, string>?> EnsureSymbologyMapAsync(CancellationToken ct, bool refresh = false)
     {
-        if (_symbologyMap != null) return _symbologyMap;
+        if (_symbologyMap != null && !refresh) return _symbologyMap;
 
         // Serialize so two concurrent primes don't both fetch /symbology and race on the cache file.
         await _mapGate.WaitAsync(ct);
         try
         {
-            if (_symbologyMap != null) return _symbologyMap;   // another caller filled it while we waited
+            if (_symbologyMap != null && !refresh) return _symbologyMap;   // another caller filled it while we waited
 
             var mapPath = Path.Combine(AppPaths.SymbolsDir, "symbology.json");
-            if (File.Exists(mapPath))
+            // A list over 30 days old is fetched again too (kept if Scryfall can't be reached).
+            bool stale = File.Exists(mapPath) && DateTime.UtcNow - File.GetLastWriteTimeUtc(mapPath) > TimeSpan.FromDays(30);
+            Dictionary<string, string>? fallback = _symbologyMap;
+            if (File.Exists(mapPath) && (refresh || stale) && fallback == null)
+            {
+                try { fallback = JsonSerializer.Deserialize<Dictionary<string, string>>(await File.ReadAllTextAsync(mapPath, ct)); }
+                catch { /* unreadable: nothing to fall back on */ }
+            }
+            if (File.Exists(mapPath) && !refresh && !stale)
             {
                 try
                 {
@@ -143,12 +168,12 @@ public sealed class SymbolService
                 using var req = new HttpRequestMessage(HttpMethod.Get, "https://api.scryfall.com/symbology");
                 req.Headers.Accept.ParseAdd("application/json");
                 using var resp = await Http.SendAsync(req, ct);
-                if (!resp.IsSuccessStatusCode) return null;
+                if (!resp.IsSuccessStatusCode) return Keep(fallback);
 
                 var json = await resp.Content.ReadAsStringAsync(ct);
                 using var doc = JsonDocument.Parse(json);
                 if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
-                    return null;   // unexpected shape (e.g. an error page) — keep procedural pips
+                    return Keep(fallback);   // unexpected shape (e.g. an error page) — keep what we had
                 var map = new Dictionary<string, string>();
                 foreach (var el in data.EnumerateArray())
                 {
@@ -159,16 +184,21 @@ public sealed class SymbolService
                         if (key.Length > 0 && !string.IsNullOrEmpty(uri)) map[key] = uri;
                     }
                 }
+                if (map.Count == 0) return Keep(fallback);
                 IoUtil.AtomicWriteText(mapPath, JsonSerializer.Serialize(map));
                 return _symbologyMap = map;
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch
             {
-                return null;
+                return Keep(fallback);
             }
         }
         finally { _mapGate.Release(); }
     }
+
+    private Dictionary<string, string>? Keep(Dictionary<string, string>? fallback)
+        => fallback is { Count: > 0 } ? _symbologyMap = fallback : null;
 
     private static bool TryConvertSvg(string svgPath, out DrawingImage? image)
     {
@@ -217,8 +247,16 @@ public sealed class SymbolService
         if (inner.Contains('/'))
         {
             var parts = inner.Split('/');
-            AddHalf(group, parts[0], left: true, d);
-            AddHalf(group, parts[^1], left: false, d);
+            if (parts.Length == 3 && parts[2] == "P")   // phyrexian hybrid ({G/U/P}): both colours, each marked P
+            {
+                AddHalf(group, parts[0], left: true, d, glyph: "P");
+                AddHalf(group, parts[1], left: false, d, glyph: "P");
+            }
+            else
+            {
+                AddHalf(group, parts[0], left: true, d);
+                AddHalf(group, parts[^1], left: false, d);
+            }
             AddOutline(group, d);
         }
         else
@@ -249,7 +287,7 @@ public sealed class SymbolService
         g.Children.Add(new GeometryDrawing(brush, null, geo));
     }
 
-    private static void AddHalf(DrawingGroup g, string part, bool left, double d)
+    private static void AddHalf(DrawingGroup g, string part, bool left, double d, string? glyph = null)
     {
         var full = new EllipseGeometry(new Rect(0, 0, d, d));
         var clip = new RectangleGeometry(left ? new Rect(0, 0, d / 2, d) : new Rect(d / 2, 0, d / 2, d));
@@ -260,7 +298,7 @@ public sealed class SymbolService
         g.Children.Add(new GeometryDrawing(fill, null, half));
 
         var box = left ? new Rect(0, 0, d / 2, d) : new Rect(d / 2, 0, d / 2, d);
-        AddGlyph(g, GlyphFor(part), box, scale: 0.6);
+        AddGlyph(g, glyph ?? GlyphFor(part), box, scale: 0.6);
     }
 
     private static void AddOutline(DrawingGroup g, double d)
@@ -275,9 +313,13 @@ public sealed class SymbolService
     private static void AddGlyph(DrawingGroup g, string glyph, Rect box, double scale = 0.62)
     {
         if (string.IsNullOrEmpty(glyph)) return;
-        var ft = new FormattedText(
+        FormattedText Text(double size) => new(
             glyph, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            GlyphFace, box.Height * scale, new SolidColorBrush(GlyphColor), 1.0);
+            GlyphFace, size, new SolidColorBrush(GlyphColor), 1.0);
+        var ft = Text(box.Height * scale);
+        // A long glyph ({1000000}, {HW}, an unknown word) is made smaller to fit across the disc.
+        double room = box.Width * 0.8;
+        if (ft.Width > room) ft = Text(Math.Max(1, box.Height * scale * room / ft.Width));
         var origin = new Point(box.X + (box.Width - ft.Width) / 2, box.Y + (box.Height - ft.Height) / 2);
         var geo = ft.BuildGeometry(origin);
         geo.Freeze();
