@@ -148,9 +148,9 @@ public sealed class CardRenderer
                 DrawLevelUp(dc, card, spec, BottomOrnament(template, spec));   // leveler / Station / Case bands — any P/T box is in a band
             else if (ParseTopBand(card) is { } topBand)
                 DrawTopBandCard(dc, card, spec, topBand,   // the rules below always wrap around the P/T box
-                    card.HasDefense ? DefenseRect(spec) : card.HasPowerToughness ? PtRect(spec) : null);
+                    card.HasDefense ? DefenseRect(spec) : card.HasPowerToughness ? PtRect(spec) : null, ornament);
             else if (card.IsAdventure)
-                DrawAdventure(dc, card, spec);
+                DrawAdventure(dc, card, spec, ornament);
             else if (card.ShowBigLandSymbol)
                 DrawBigLandSymbol(dc, card, spec, ornament);
             else
@@ -1783,7 +1783,7 @@ public sealed class CardRenderer
     /// <param name="ornament">A medallion set into the box's bottom edge (<see cref="BottomOrnament"/>): text that
     /// would run onto it shrinks to end above it instead. Short text is laid out exactly as without one.</param>
     private void DrawTextBox(DrawingContext dc, string rules, string flavor, Region region,
-        FontSpec rulesFont, FontSpec flavorFont, double baseSymbolSize, Rect? avoid = null, Rect? ornament = null)
+        FontSpec rulesFont, FontSpec flavorFont, double baseSymbolSize, Rect? avoid = null, Rect? ornament = null, Rect? around = null)
     {
         if (string.IsNullOrWhiteSpace(rules) && string.IsNullOrWhiteSpace(flavor)) return;
 
@@ -1801,7 +1801,7 @@ public sealed class CardRenderer
         {
             double scale = size / rulesFont.Size;
             best = LayoutContent(rules, flavor, box, rulesFont, size,
-                                 flavorFont, flavorFont.Size * scale, baseSymbolSize * scale, avoid);
+                                 flavorFont, flavorFont.Size * scale, baseSymbolSize * scale, avoid, around);
             if (best.Height <= box.Height) break;
         }
         if (best == null) return;
@@ -1829,7 +1829,7 @@ public sealed class CardRenderer
             .ToList();
 
     private TextLayout LayoutContent(string rules, string flavor, Rect box,
-        FontSpec rulesFont, double rulesSize, FontSpec flavorFont, double flavorSize, double symSize, Rect? avoid)
+        FontSpec rulesFont, double rulesSize, FontSpec flavorFont, double flavorSize, double symSize, Rect? avoid, Rect? around = null)
     {
         var layout = new TextLayout();
         double y = box.Y;
@@ -1838,7 +1838,7 @@ public sealed class CardRenderer
         bool hasFlavor = !string.IsNullOrWhiteSpace(flavor);
 
         if (hasRules)
-            y = LayoutParagraphs(rules, rulesFont, rulesSize, symSize, box, layout.Items, y, avoid);
+            y = LayoutParagraphs(rules, rulesFont, rulesSize, symSize, box, layout.Items, y, avoid, around);
 
         if (hasFlavor)
         {
@@ -1848,7 +1848,7 @@ public sealed class CardRenderer
                 layout.Dividers.Add(y);
                 y += rulesSize * 0.55;
             }
-            y = LayoutParagraphs(flavor, flavorFont, flavorSize, flavorSize, box, layout.Items, y, avoid);
+            y = LayoutParagraphs(flavor, flavorFont, flavorSize, flavorSize, box, layout.Items, y, avoid, around);
         }
 
         layout.Height = y - box.Y;
@@ -1856,7 +1856,7 @@ public sealed class CardRenderer
     }
 
     private double LayoutParagraphs(string text, FontSpec font, double fontSize, double symSize,
-        Rect box, List<Placed> placed, double startY, Rect? avoid = null)
+        Rect box, List<Placed> placed, double startY, Rect? avoid = null, Rect? around = null)
     {
         var brush = new SolidColorBrush(TemplateSpec.ParseColor(font.Color));
         double lineHeight = fontSize * 1.34;
@@ -1868,22 +1868,37 @@ public sealed class CardRenderer
 
         // Lines whose vertical band overlaps a reserved box (the P/T box) wrap before it — when it's actually
         // in the right part of the text column (a box beside or left of it would leave no room at all).
-        double RightAt(double lineTop) =>
+        double RightAt(double lineTop) => Math.Min(
             avoid is Rect a && lineTop + lineHeight > a.Top && lineTop < a.Bottom
                 && a.Left < box.Right && a.Left - 8 > box.X + box.Width / 3
                 ? Math.Min(box.Right, a.Left - 8)
-                : box.Right;
+                : box.Right,
+            AroundEdges(lineTop).Right);
+        double LeftAt(double lineTop) => AroundEdges(lineTop).Left;
+
+        // A frame's seal set into the box's bottom edge (adventure and prototype layouts): the lines beside it stop
+        // short of it — ending before it when it's in the middle or right of the column, starting after it when it's
+        // at the left — instead of the whole box ending above it.
+        (double Left, double Right) AroundEdges(double lineTop)
+        {
+            if (around is not Rect o || lineTop + lineHeight <= o.Top - 4 || lineTop >= o.Bottom
+                || o.Right <= box.X || o.Left >= box.Right)
+                return (box.X, box.Right);
+            if (o.Left - 8 > box.X + box.Width / 3) return (box.X, Math.Min(box.Right, o.Left - 8));
+            if (o.Right + 8 < box.Right - box.Width / 3) return (Math.Max(box.X, o.Right + 8), box.Right);
+            return (box.X, Math.Min(box.Right, Math.Max(box.X + 20, o.Left - 8)));
+        }
 
         var paragraphs = text.Replace("\r", "").Split('\n');
         foreach (var para in paragraphs)
         {
             if (para.Trim().Length == 0) { y += lineHeight * 0.5; continue; }
 
-            y = FlowWords(BuildWords(para, font, fontSize, symSize, brush), box.X, box.X, y, lineHeight, RightAt,
+            y = FlowWords(BuildWords(para, font, fontSize, symSize, brush), LeftAt(y), box.X, y, lineHeight, RightAt,
                 (word, px, py) => placed.Add(word.Text != null
                     ? new Placed(px, py, word.Text, null, 0)
                     : new Placed(px, py + symTopOffset, null, word.Sym, symSize)),
-                fontSize, brush);
+                fontSize, brush, around != null ? LeftAt : null);
 
             y += lineHeight + lineHeight * 0.35;   // line close + paragraph gap
         }
@@ -1950,10 +1965,12 @@ public sealed class CardRenderer
     /// it must, and one word wider than the line (no spaces at all) is split between letters, so nothing runs past
     /// the box's edge. Returns the top of the last line.</summary>
     private double FlowWords(List<Word> words, double x, double lineLeft, double y, double lineHeight,
-        Func<double, double> rightAt, Action<Word, double, double> place, double fontSize, Brush brush)
+        Func<double, double> rightAt, Action<Word, double, double> place, double fontSize, Brush brush,
+        Func<double, double>? leftAt = null)
     {
         bool lineStart = true;
-        void NewLine() { x = lineLeft; y += lineHeight; lineStart = true; }
+        double LeftAt(double lineTop) => leftAt?.Invoke(lineTop) ?? lineLeft;
+        void NewLine() { y += lineHeight; x = LeftAt(y); lineStart = true; }
         for (int i = 0; i < words.Count; i++)
         {
             var w = words[i];
@@ -1965,7 +1982,7 @@ public sealed class CardRenderer
                 {
                     double run = w.Width;
                     for (int j = i + 1; j < words.Count && !words[j].BreakBefore; j++) run += words[j].Lead + words[j].Width;
-                    bool fitsALine = run <= rightAt(y + lineHeight) - lineLeft;
+                    bool fitsALine = run <= rightAt(y + lineHeight) - LeftAt(y + lineHeight);
                     wrap = x + w.Lead + run > right && (fitsALine || x + w.Lead + w.Width > right);
                 }
                 else wrap = x + w.Lead + w.Width > right;   // inside a run too long for any line
@@ -2092,7 +2109,7 @@ public sealed class CardRenderer
     /// prototype, a right-hand column for its cost and P/T plate), the rest of the text box below it, and the
     /// one rules size both share — shrunk until the band and the rest fit together.</summary>
     internal (Rect Band, Rect BandText, Rect? Cost, Rect? Pt, Rect Below, double Size) TopBandLayout(
-        CardModel card, TemplateSpec spec, TopBand band, Rect? avoid)
+        CardModel card, TemplateSpec spec, TopBand band, Rect? avoid, Rect? ornament = null)
     {
         var tb = ToRect(spec.EffectiveTextBox);
         double inset = 3, pad = 12, gap = 10;
@@ -2117,7 +2134,8 @@ public sealed class CardRenderer
             var below = new Rect(box.X + 18 - inset, 0, Math.Max(0, box.Width - 2 * (18 - inset)), 100000);
             double restH = band.Rest.Length + card.FlavorText.Length == 0 ? 0
                 : LayoutContent(band.Rest, card.FlavorText, below, spec.RulesFont, size, spec.FlavorFont,
-                    spec.FlavorFont.Size * scale, symSize, avoid is { } a ? new Rect(a.X, a.Y - box.Y - bandH, a.Width, a.Height) : null).Height + 2 * 18;
+                    spec.FlavorFont.Size * scale, symSize, avoid is { } a ? new Rect(a.X, a.Y - box.Y - bandH, a.Width, a.Height) : null,
+                    ornament is { } o ? new Rect(o.X, o.Y - box.Y - bandH, o.Width, o.Height) : null).Height + 2 * 18;
             if (bandH + restH <= box.Height) break;
         }
 
@@ -2138,9 +2156,9 @@ public sealed class CardRenderer
     /// <summary>A Prototype or Mutate card's text box: the band across the top (tinted in the prototype cost's
     /// colours, or shaded for mutate) holding its first line — a prototype's own small cost and P/T plate at
     /// the right end — and the rest of the rules and flavor below, around the card's P/T box as usual.</summary>
-    private void DrawTopBandCard(DrawingContext dc, CardModel card, TemplateSpec spec, TopBand band, Rect? avoid)
+    private void DrawTopBandCard(DrawingContext dc, CardModel card, TemplateSpec spec, TopBand band, Rect? avoid, Rect? ornament)
     {
-        var (bandRect, bandText, cost, pt, below, size) = TopBandLayout(card, spec, band, avoid);
+        var (bandRect, bandText, cost, pt, below, size) = TopBandLayout(card, spec, band, avoid, ornament);
         double scale = size / spec.RulesFont.Size;
         double r = Math.Min(10, bandRect.Height * 0.15);
 
@@ -2215,7 +2233,7 @@ public sealed class CardRenderer
             Align = spec.FlavorFont.Align, Color = spec.FlavorFont.Color, Shadow = spec.FlavorFont.Shadow, ShadowColor = spec.FlavorFont.ShadowColor,
         };
         DrawTextBox(dc, band.Rest, card.FlavorText, new Region { X = below.X, Y = below.Y, W = below.Width, H = below.Height },
-            rules, flavor, spec.RulesSymbolSize * scale, avoid);
+            rules, flavor, spec.RulesSymbolSize * scale, avoid, around: ornament);
     }
 
     // --- level up -------------------------------------------------------------
@@ -2912,7 +2930,7 @@ public sealed class CardRenderer
     /// name bar with its cost, its type line, then its rules — and the creature's rules and flavor on the right
     /// page, around the P/T box. Both pages share one rules size, shrunk until both fit.</summary>
     internal (Rect Left, Rect NameBar, Rect TypeRow, Rect LeftText, Rect Right, double Size) AdventureLayout(
-        CardModel card, TemplateSpec spec, Rect? avoid)
+        CardModel card, TemplateSpec spec, Rect? avoid, Rect? ornament = null)
     {
         var tb = ToRect(spec.EffectiveTextBox);
         double inset = 3, pad = 10, gap = 4;
@@ -2931,10 +2949,10 @@ public sealed class CardRenderer
             double sym = spec.RulesSymbolSize * scale;
             var lcol = new Rect(left.X + pad, left.Y + nameH + typeH + pad * 0.6, Math.Max(20, left.Width - 2 * pad), 100000);
             double lh = (card.AdventureText ?? "").Trim().Length == 0 ? 0
-                : LayoutContent(card.AdventureText!, "", lcol, spec.RulesFont, size, spec.FlavorFont, spec.FlavorFont.Size * scale, sym, null).Height;
+                : LayoutContent(card.AdventureText!, "", lcol, spec.RulesFont, size, spec.FlavorFont, spec.FlavorFont.Size * scale, sym, null, ornament).Height;
             var rcol = new Rect(right.X + pad, right.Y + pad, Math.Max(20, right.Width - 2 * pad), 100000);
             double rh = card.RulesText.Trim().Length + card.FlavorText.Trim().Length == 0 ? 0
-                : LayoutContent(card.RulesText, card.FlavorText, rcol, spec.RulesFont, size, spec.FlavorFont, spec.FlavorFont.Size * scale, sym, avoid).Height;
+                : LayoutContent(card.RulesText, card.FlavorText, rcol, spec.RulesFont, size, spec.FlavorFont, spec.FlavorFont.Size * scale, sym, avoid, ornament).Height;
             if (nameH + typeH + pad * 0.6 + lh + pad <= box.Height && rh + 2 * pad <= box.Height) break;
         }
         size = Math.Max(size, minSize);
@@ -2951,11 +2969,12 @@ public sealed class CardRenderer
 
     private static double AdventureNameHeight(double size) => size * 2.0;
 
-    private void DrawAdventure(DrawingContext dc, CardModel card, TemplateSpec spec)
+    private void DrawAdventure(DrawingContext dc, CardModel card, TemplateSpec spec, Rect? ornament)
     {
-        // The creature's rules always wrap around its P/T box (the right page ends right above it).
+        // The creature's rules always wrap around its P/T box (the right page ends right above it), and both pages'
+        // lines around a seal set into the box's bottom edge.
         Rect? avoid = card.HasDefense ? DefenseRect(spec) : card.HasPowerToughness ? PtRect(spec) : null;
-        var (left, nameBar, typeRow, leftText, rightText, size) = AdventureLayout(card, spec, avoid);
+        var (left, nameBar, typeRow, leftText, rightText, size) = AdventureLayout(card, spec, avoid, ornament);
         double scale = size / spec.RulesFont.Size;
         double sym = spec.RulesSymbolSize * scale;
 
@@ -2963,8 +2982,15 @@ public sealed class CardRenderer
         var tint = PrototypeTint(card.AdventureCost);
         var edge = DarkenC(tint, 0.35);
         double r = Math.Min(10, nameBar.Height * 0.3);
-        dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(60, tint.R, tint.G, tint.B)),
-            new Pen(new SolidColorBrush(Color.FromArgb(150, edge.R, edge.G, edge.B)), 1.4), left, r, r);
+        // The page's wash leaves the seal uncovered.
+        Geometry page = new RectangleGeometry(left, r, r);
+        if (ornament is { } seal && seal.IntersectsWith(left))
+        {
+            var ring = seal; ring.Inflate(3, 3);
+            page = new CombinedGeometry(GeometryCombineMode.Exclude, page, new EllipseGeometry(ring));
+        }
+        dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(60, tint.R, tint.G, tint.B)),
+            new Pen(new SolidColorBrush(Color.FromArgb(150, edge.R, edge.G, edge.B)), 1.4), page);
         var light = LightenC(tint, 0.12);
         var fill = new LinearGradientBrush(Color.FromArgb(240, light.R, light.G, light.B),
             Color.FromArgb(240, tint.R, tint.G, tint.B), new Point(0, 0), new Point(0, 1));
@@ -3000,8 +3026,8 @@ public sealed class CardRenderer
 
         var rules = SizedFont(spec.RulesFont, size);
         var flavor = SizedFont(spec.FlavorFont, spec.FlavorFont.Size * scale);
-        DrawLaidOut(dc, LayoutContent(card.AdventureText ?? "", "", leftText, rules, size, flavor, flavor.Size, sym, null), rules, leftText);
-        DrawLaidOut(dc, LayoutContent(card.RulesText, card.FlavorText, rightText, rules, size, flavor, flavor.Size, sym, avoid), rules, rightText);
+        DrawLaidOut(dc, LayoutContent(card.AdventureText ?? "", "", leftText, rules, size, flavor, flavor.Size, sym, null, ornament), rules, leftText);
+        DrawLaidOut(dc, LayoutContent(card.RulesText, card.FlavorText, rightText, rules, size, flavor, flavor.Size, sym, avoid, ornament), rules, rightText);
     }
 
     private static FontSpec SizedFont(FontSpec f, double size) => new()

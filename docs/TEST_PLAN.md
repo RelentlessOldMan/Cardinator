@@ -294,8 +294,13 @@ These drive the fix backlog.
   flags; `build_set.sh` keeps the replaced set and every backup, shows notes and stops on a missing frame;
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
-  mutation-checked. Left for approval: adventure/prototype text under a frame's seal (cutting the box shrank the text
-  too much; wrapping around the seal is next).
+  mutation-checked.
+- ✅ **Adventure and prototype text around the seal (1.6.29)** — on frames with a seal set into the text box's bottom
+  edge (the sample frames), adventure and prototype/mutate cards ran their text, and an adventure's tinted page, under
+  it: the layouts 1.6.8 and 1.6.22 left out. Stopping the text above the seal shrank it too far, so the lines beside
+  the seal wrap around it (`LayoutParagraphs`' `around`, a left edge per line in `FlowWords`) and the page's tint
+  leaves the seal uncovered. Adventure text keeps its size; long prototype text is a point or two smaller, as it no
+  longer runs onto the seal. Approved from renders. `SealWrapTests` (5), mutation-checked.
 - ✅ **Shared sets (1.6.26)** — print sheets (Letter, A4, double-sided: backs mirrored for long-edge duplex,
   double-faced cards' real backs, battles turned to fit) checked by eye and fine. Fixed: a **Share set + frames** zip
   had to be unzipped by hand before the set opened (opened from inside the zip, Windows runs it from a temp folder: no
