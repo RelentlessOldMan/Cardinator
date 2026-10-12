@@ -26,9 +26,9 @@ their art* and lays them out on a print sheet.
 
 ## How to run any example
 
-**In the app (easiest):** click **Import file…** and pick the example's `.csv`. Art paths in
-the CSV resolve next to the file, so the art loads automatically. Then **Export all…** or
-**Print sheet…**.
+**In the app (easiest):** click **Import cards…** → **Open a file…** and pick the example's `.csv`. Art paths in
+the CSV resolve next to the file, so the art loads automatically. Then **All as images…** or
+**Print sheets…**.
 
 **From the command line** (run from the repo root, using the published `Cardinator.exe`):
 

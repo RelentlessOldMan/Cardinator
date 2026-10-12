@@ -40,15 +40,15 @@ Construct,art/construct.jpg,,Token Artifact Creature — Construct,This token ge
 
 ## Run it
 
-In the app: **Import file…** → `cards.csv`, then **Export all…** or **Print sheet…**. Or click
-**Add token** to start one by hand. From the command line:
+In the app: **Import cards…** → **Open a file…** → `cards.csv`, then **All as images…** or **Print sheets…**. Or click
+**New card ▾** → *Token* to start one by hand. From the command line:
 
 ```powershell
 Cardinator.exe --batch examples/05-tokens-emblems/cards.csv examples/05-tokens-emblems/output examples/05-tokens-emblems
 Cardinator.exe --sheet examples/05-tokens-emblems/cards.csv examples/05-tokens-emblems/output examples/05-tokens-emblems
 ```
 
-Real tokens work too: look one up (e.g. *Goblin // Soldier*), or **Scryfall search…** (BATCH) with `t:token`
+Real tokens work too: look one up (e.g. *Goblin // Soldier*), or **Search Scryfall…** (ADD MANY CARDS) with `t:token`
 (narrow it, e.g. `t:token t:spirit`).
 
 ## The output

@@ -66,6 +66,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _renderer = new CardRenderer(_symbols);
         InitializeComponent();
         DataContext = this;
+        // The lists go in before the first card is selected: filling one later picks an item, and that change
+        // would land on the card as an edit (a fresh window opened with a corner mark of "none" and an undo step).
+        LayoutBox.ItemsSource = LayoutOptions;
+        DfcStyleBox.ItemsSource = DfcStyleOptions;
+        MeldHalfBox.ItemsSource = MeldHalfOptions;
 
         _renderTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
         _renderTimer.Tick += (_, _) => { _renderTimer.Stop(); RenderPreview(); };
@@ -98,9 +103,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Dirty = false;
         SeedHistory();
 
-        LayoutBox.ItemsSource = LayoutOptions;
-        DfcStyleBox.ItemsSource = DfcStyleOptions;
-        MeldHalfBox.ItemsSource = MeldHalfOptions;
         RefreshCardControls();
 
         // Download authentic Scryfall symbols in the background; re-render as they arrive.
@@ -318,7 +320,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 EnsureBackFace(card);
                 if (!card.IsMeld) card.MeldHalf = "top";
                 if (string.IsNullOrWhiteSpace(card.DfcStyle) || card.DfcStyle is "none" or "sunmoon" or "arrow") card.DfcStyle = "meld";
-                _meldPartner = MeldPartner(card);
                 status = "It's a meld card now — its Back is the melded card, and prints its top half. "
                          + "“Add partner” adds the card that prints the other half.";
                 break;
@@ -340,6 +341,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 break;
         }
 
+        // Only a meld card has a partner: a meld card made double-faced keeps its back but must stop copying its edits
+        // onto the old partner's.
+        _meldPartner = target == CardLayout.Meld ? MeldPartner(card) : null;
         _viewingBack = _viewingMelded = _viewingFlipped = _readingSideways = _activeHalf = _viewingCardBack = false;
         MarkDirty();
         CommitHistory();
@@ -409,16 +413,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnSidewaysChanged(object sender, RoutedEventArgs e)
     {
-        if (_syncingControls || _selectedCard?.IsSplit != true) return;
+        if (_syncingControls || _selectedCard == null) return;
+        if (!_selectedCard.IsSplit || _viewingBack || _viewingCardBack) { RefreshCardControls(); return; }   // only shown on a split card's front
         _readingSideways = SidewaysBox.IsChecked == true;
         RenderPreview();
     }
 
     private void OnWholeMeldChanged(object sender, RoutedEventArgs e)
     {
-        if (_syncingControls || _selectedCard?.IsMeld != true) return;
+        if (_syncingControls || _selectedCard == null) return;
+        if (!_selectedCard.IsMeld || !_viewingBack) { RefreshCardControls(); return; }   // only shown on a meld card's back
         _viewingMelded = WholeMeldBox.IsChecked == true;
-        _viewingBack = true;   // the melded card is the back face's content
         RenderPreview();
     }
 
@@ -1965,7 +1970,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             var progress = new Progress<string>(s => Status = s);
             var percent = new Progress<double>(p => ExportProgress = p * 100);
-            var report = await BatchService.FillFromScryfallAsync(items, progress, percent: percent);
+            var report = await BatchService.FillFromScryfallAsync(items, progress, percent: percent, keepNames: true);
             _ = _symbols.PrimeAsync(Cards.SelectMany(c => ManaText.SymbolTokens(c.ManaCost, c.RulesText)));
             foreach (var item in items)   // backs the fill attached inherit the set's metadata like their fronts
                 if (item.NeedsLookup && item.Card.BackFace is { } back) _setProfile.ApplyDefaults(back);

@@ -85,7 +85,7 @@ on every frame you have installed, including your own imports.)*
 a live preview, then **Apply**. To keep the original untouched, click **Save as new…** instead: it
 writes a brand-new, fully editable frame under a name you choose. Built-in frames are protected — if you
 **Apply** changes to one, Cardinator offers to save a copy rather than overwrite the shared original, and
-**Delete…** only removes your *own* frames (built-ins would just be recreated on the next launch).
+**⋯** → *Delete this frame…* only removes your *own* frames (built-ins would just be recreated on the next launch).
 
 **By hand:** copy a folder under `CardinatorData/templates/`, **delete its `frame.png`** (so it
 regenerates), and edit `template.json`. The handy style knobs:
@@ -292,7 +292,7 @@ Cardinator supports two looks, both driven by `template.json`:
 If you have your own frame image (a transparent PNG whose center is the art window), you don't need
 to write JSON by hand:
 
-- **In the app:** click **Import…** beneath the Frame dropdown. The dialog gives you two clear choices:
+- **In the app:** click **⋯** beside the Frame dropdown → *Import a frame…*. The dialog gives you two clear choices:
   a **Choose file…** button (pick a **PNG**, a **.cardframe**, or a **.zip** bundle from your PC) or a
   box to **paste a web link**. A bare PNG becomes a template with a starter `template.json` you can tune —
   the app asks whether it's a **full-art** frame (art fills the card, text sits on top with a shadow) or a
@@ -324,7 +324,7 @@ What *is* built in and safe:
   app from `template.json`. Copy one, change its colors/regions, and you have a new frame with no
   image at all.
 - **Any transparent PNG you provide** — draw your own, or point Cardinator at a frame image you have
-  the rights to use. The **Import…** button takes a **local file or a URL**
+  the rights to use. *Import a frame…* takes a **local file or a URL**
   (`--newtemplate "Name" https://…/frame.png` on the command line). What you use it with is up to
   you; for anything Magic-derived, keep it to personal / fan use.
 
@@ -338,8 +338,8 @@ The easiest way is a **template bundle** — a single `.cardframe` file that hol
 **and** its layout together, so a frame keeps its tuned regions/fonts/colors when someone else
 installs it:
 
-- **Export:** select a frame in the dropdown and click **Export…** → save a `.cardframe` file.
-- **Import:** the recipient clicks **Import…** and picks the `.cardframe` (or just drops it onto the window), and
+- **Export:** select a frame in the dropdown and click **⋯** → *Export this frame…* → save a `.cardframe` file.
+- **Import:** the recipient clicks **⋯** → *Import a frame…* and picks the `.cardframe` (or just drops it onto the window), and
   it installs in one step — no fiddling with regions.
 - **A name you already have:** an imported frame never replaces or hides one of yours. If you already have a frame
   called "Foo", the new one installs as "Foo (2)" and your cards stay on yours; switch a card to "Foo (2)" to use it.
@@ -349,7 +349,7 @@ installs it:
 
 **Several frames in one zip:** a `.zip` can hold any number of frames, each in its own folder with its own
 `frame.png` + `template.json` (and its `flip/` / `landscape/` versions), or a few `.cardframe` files zipped together.
-**Import…** brings them all in at once and the status line names them. (A **Share set + frames** zip is better
+*Import a frame…* brings them all in at once and the status line names them. (A **Share the set…** zip is better
 **opened** than imported: that opens the set too.) Importing a frame you already have — the same name, picture and
 settings — reuses yours rather than adding a copy.
 

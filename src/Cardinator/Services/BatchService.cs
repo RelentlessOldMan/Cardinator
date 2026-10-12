@@ -22,7 +22,8 @@ public static class BatchService
         IProgress<string>? progress = null,
         bool downloadArt = true,
         CancellationToken ct = default,
-        IProgress<double>? percent = null)
+        IProgress<double>? percent = null,
+        bool keepNames = false)
     {
         var client = new ScryfallClient();
         int found = 0, filled = 0;
@@ -62,7 +63,10 @@ public static class BatchService
                     member.Card.CollectorNumber = f0.CollectorNumber;
                     member.Card.Rarity = f0.Rarity;
                 }
-                FillBlanks(member.Card, faces[0], canonicalName: true);
+                // An import takes Scryfall's name ("lightning bolt" → "Lightning Bolt"); filling in the blanks of cards
+                // already in the set keeps theirs ("Bolt" stays "Bolt") and only puts right the letter case.
+                FillBlanks(member.Card, faces[0], canonicalName: !keepNames
+                    || string.Equals(member.Card.Name.Trim(), faces[0].Name.Trim(), StringComparison.OrdinalIgnoreCase));
                 filled++;
                 if (downloadArt && Blank(member.Card.ArtPath) && !Blank(faces[0].ArtUrl))
                     artJobs.Add((member.Card, faces[0].ArtUrl));

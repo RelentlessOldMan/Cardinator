@@ -117,12 +117,12 @@ Full walkthrough → **[User Guide](docs/USER_GUIDE.md)**.
 
 ## Make many at once
 
-Cardinator works on a **project** (the list on the left). **Import file…** loads a batch — a
-list of names, `Name | art.png` lines, or a CSV/TSV with a header row (see the
-[example deck](examples/01-real-cards-custom-art/deck.csv)) — or import a whole **Scryfall search**.
-Then **Fill blanks from Scryfall** fills what's missing, **Add art from folder…** attaches art by filename,
-**Set fields on all…** bulk-edits set/artist/rarity/frame, and **Export all…** / **Print sheet…**
-render everything (3×3 pages at real size + optional card backs). A live **CHECKS** panel flags
+Cardinator works on a **project** (the list on the left). **Import cards…** loads a batch — a
+Moxfield deck link, a list of names, `Name | art.png` lines, or a CSV/TSV with a header row (see the
+[example deck](examples/01-real-cards-custom-art/deck.csv)) — or **Search Scryfall…** imports a whole search.
+Then **Fill in blanks from Scryfall** fills what's missing, **Add art from a folder…** attaches art by filename,
+**Set settings…** sets the set code/artist/rarity/frame/card back for the whole set, and **All as images…** /
+**Print sheets…** render everything (3×3 pages at real size + optional card backs). A live **CHECKS** panel flags
 problems as you type, and every edit is undoable.
 
 Full list of batch tools → **[User Guide: making many cards](docs/USER_GUIDE.md#4-making-many-cards-at-once)**.
@@ -179,15 +179,15 @@ output are all checked in.** Click a thumbnail for that example's guide.
   **prototype** and **mutate** (the band across the top of the text box, a prototype's in its own colour),
   **tokens and emblems** (tall art, the name centred, a text box only if it has rules; on every frame, so a
   set's tokens print with it),
-  **double-faced cards** (one card with two faces: flip the preview, a drawn corner indicator, both sides
+  **double-faced cards** (one card with two faces: a Front | Back switch, a drawn corner mark, both sides
   exported), and **sideways cards** — **Battles** (with a defense shield), **Planes** and **Phenomena** turn
   landscape automatically on every drawn frame, and print sheets rotate them back into a normal slot. Split,
   flip, aftermath and adventure cards import as one card.
 - **Mana:** `{2}{R}{W}`, `{X}`, `{T}`, `{C}`, hybrids `{R/W}`, Phyrexian `{U/P}` — inline in rules
   text too. Loose input like `2RW` is normalized automatically.
 - **Symbols:** authentic Scryfall SVG art, cached locally after first use; clean drawn pips as an
-  offline fallback. Drop in a **custom set-symbol image** for the whole set (**Set defaults…**) or for the
-  cards you select (**Set fields on all…**).
+  offline fallback. Drop in a **custom set-symbol image** for the whole set or just the
+  cards you select (**Set settings…**).
 
 ## Keyboard shortcuts
 

@@ -95,20 +95,20 @@ machine's within the tolerance) and refuses to re-baseline.
 src/Cardinator/
   App.xaml(.cs)            App entry point + headless CLI mode dispatch (--help, --render, …)
   Theme.xaml               Shared styles/palette (merged by App.xaml; loadable standalone in tests)
-  MainWindow.xaml(.cs)     Main UI: card list, editor, live preview, batch actions
+  MainWindow.xaml(.cs)     Main UI: card list, editor, live preview, whole-set actions
   DetailsWindow.xaml(.cs)  Modal editor for the less-common fields
   HelpWindow.xaml(.cs)     Built-in cheat sheet (Help button / F1)
   FrameDesignWindow.xaml(.cs)  Frame designer: edit a template's style/knobs/colors with a live preview
-  BulkEditWindow.xaml(.cs)     "Set fields on all…" bulk editor (set code/artist/rarity/frame/…)
-  SetDefaultsWindow.xaml(.cs)  "Set defaults…": the set's house metadata + default frame
-  DeckListWindow.xaml(.cs)     "Import deck…": Moxfield link (hidden WebView2) or a pasted list
-  ScryfallSearchWindow.xaml(.cs)  "Scryfall search…": search, pick results with thumbnails
+  SetSettingsWindow.xaml(.cs)  "Set settings…": the set's printing details, the frame for new cards, the card back, and how they're applied
+  DeckListWindow.xaml(.cs)     "Import cards…": a Moxfield link (hidden WebView2), a list file, or a pasted list
+  ScryfallSearchWindow.xaml(.cs)  "Search Scryfall…": search, pick results with thumbnails
   ConfirmDialog.xaml(.cs)  Themed message box for the app's prompts
   InputDialog.xaml(.cs)    Small themed text prompt (frame Save as new / Import)
   Models/
     CardModel.cs           One card's editable content (+ JSON load/save, Clone)
     CardProject.cs         A saved project (.cardinator) = a list of cards + set metadata
-    SetProfile.cs          The set's house defaults (set code, rarity, copyright, artist, symbol)
+    SetProfile.cs          The set's settings (set code, rarity, copyright, artist, symbol, card back)
+    CardBackDesign.cs      The set's card back: Cardinator's, designed for the set, or the user's own picture
     TemplateSpec.cs        Template layout: regions, fonts, colors (+ safe parsing)
   Services/
     ScryfallClient.cs      Fuzzy card lookup (User-Agent, rate limit, timeout handling)
@@ -117,7 +117,7 @@ src/Cardinator/
     CardRenderer.cs        The compositor: art -> frame -> title/mana -> type -> rules -> P/T -> footer
     CardExporter.cs        BitmapSource -> PNG/JPEG file (+ DPI stamping)
     PrintExporter.cs       Adds print bleed margins (edge-extended)
-    BackRenderer.cs        Renders the decorative card back
+    BackRenderer.cs        Renders the card back (Cardinator's, or the set's own design / picture)
     TemplateService.cs     Discover/load templates; self-heal + guarantee built-ins exist
     BuiltInTemplates.cs    The starter template specs
     FrameGenerator.cs      Generates frame.png from a TemplateSpec
@@ -142,7 +142,7 @@ src/Cardinator/
     ProjectBackup.cs       Rolling backups/ copies (recent + first of each day), Restore
     RecoveryStore.cs       Recovery copies of unsaved work (every minute, on Windows shutdown), offered at launch
     SetFolder.cs           Makes a set folder self-contained (art/ copies)
-    SetPackager.cs         "Share set + frames…" zip
+    SetPackager.cs         "Share the set…" zip
     SetValidator.cs        "Check all cards" over the whole set
     LiveChecks.cs          CHECKS = CardValidator + RenderInspector
     RenderInspector.cs     Pixel checks on a rendered card (borders, blank art) + text too long for its box

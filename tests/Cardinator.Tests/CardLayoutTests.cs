@@ -218,6 +218,21 @@ public class CardLayoutTests
         });
 
     [Fact]
+    public void AMeldCardMadeDoubleFaced_StopsCopyingItsBackOntoTheOldPartner()
+        => OnAppThread(() =>
+        {
+            var main = NewMain(out var card);
+            main.ChangeLayout(card, Layout.Meld);
+            card.BackFace!.Name = "Melded";
+            main.AddMeldPartner();
+            var partner = main.Cards[main.Cards.IndexOf(card) + 1];
+            main.SelectedCard = card;
+            main.ChangeLayout(card, Layout.DoubleFaced);
+            card.BackFace!.RulesText = "Only on this card's back.";
+            Assert.NotEqual("Only on this card's back.", partner.BackFace!.RulesText);
+        });
+
+    [Fact]
     public void ImportCards_OpensAListFile_IntoTheBox_AndKeepsItsFolder()
         => OnAppThread(() =>
         {

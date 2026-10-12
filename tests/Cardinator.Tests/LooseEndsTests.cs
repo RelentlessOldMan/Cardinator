@@ -273,6 +273,39 @@ public class LooseEndsTests
             finally { ScryfallClient.TestHttp = null; }
         });
 
+    // --- Fill in blanks keeps the cards' own names (1.7.0) ---------------------------------------------
+
+    [Theory]
+    [InlineData("Bolt", true, "Bolt")]                       // filling in the set's blanks: the card's own name stays
+    [InlineData("lightning bolt", true, "Lightning Bolt")]   // …only the letter case is put right
+    [InlineData("Bolt", false, "Lightning Bolt")]            // an import takes Scryfall's name
+    public void FillingInBlanks_KeepsTheCardsName_AnImportTakesScryfalls(string name, bool keepNames, string expected)
+    {
+        const string bolt = """
+            { "object": "card", "name": "Lightning Bolt", "layout": "normal",
+              "mana_cost": "{R}", "type_line": "Instant", "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+              "set": "lea", "collector_number": "161", "rarity": "common" }
+            """;
+        // The batch lookup asks by exact name ("Bolt" isn't one), then fuzzily one card at a time.
+        ScryfallClient.TestHttp = new HttpClient(new FakeHandler(req => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(req.RequestUri!.AbsolutePath.Contains("collection")
+                ? (name.Equals("Lightning Bolt", StringComparison.OrdinalIgnoreCase)
+                    ? $$"""{ "object": "list", "not_found": [], "data": [ {{bolt}} ] }"""
+                    : $$"""{ "object": "list", "not_found": [ { "name": "{{name}}" } ], "data": [] }""")
+                : bolt, Encoding.UTF8, "application/json"),
+        })));
+        try
+        {
+            var card = new CardModel { Name = name };
+            var items = new List<ImportedCard> { new(card, true) };
+            Task.Run(() => BatchService.FillFromScryfallAsync(items, downloadArt: false, keepNames: keepNames)).GetAwaiter().GetResult();
+            Assert.Equal("Instant", card.TypeLine);   // it was filled…
+            Assert.Equal(expected, card.Name);        // …and named as it should be
+        }
+        finally { ScryfallClient.TestHttp = null; }
+    }
+
     private sealed class FakeHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> answer) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => answer(request);

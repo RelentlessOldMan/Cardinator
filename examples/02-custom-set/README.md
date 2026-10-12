@@ -50,14 +50,14 @@ Soldier,art/soldier.png,,Token Creature — Soldier,,,1/1,,Gold Multicolor,C,Car
 
 ## In the app
 
-**Import file…** → `cards.csv` loads the whole set. Here it is with the planeswalker selected —
+**Import cards…** → **Open a file…** → `cards.csv` loads the whole set. Here it is with the planeswalker selected —
 note the loyalty box and ability badges laid out automatically:
 
 ![Cardinator with the custom set loaded](output/app-set.png)
 
 ## Run it
 
-**App:** **Import file…** → `cards.csv`, then **Print sheet…** / **Export all…**
+**App:** **Import cards…** → **Open a file…** → `cards.csv`, then **Print sheets…** / **All as images…**
 
 **Command line** (from the repo root):
 

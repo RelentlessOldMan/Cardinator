@@ -25,16 +25,16 @@ export.**
 
 ![Cardinator main window](images/app-main.png)
 
-*Left: your cards + batch tools. Middle: the editor (name, frame, artwork, export). Right:
+*Left: your cards + tools for the whole set. Middle: the editor (name, frame, artwork, export). Right:
 the live preview that updates as you type.*
 
 1. **Name your card.** The **CARD NAME** box is just your card's title — type whatever you like.
 2. **Pick a frame** from the **Frame** dropdown (on its own row so long names aren't clipped), with
-   **Design…**, **Import…**, **Export…** and **Delete…** beneath it. Choose **Full Art** for a card
+   **Design…** and a **⋯** menu (*Import a frame…*, *Export this frame…*, *Delete this frame…*) beside it. Choose **Full Art** for a card
    whose text sits directly on the artwork. Click **Design…** to open the frame designer — mix and
    match the frame's style, connected panels, textured background, bottom taper, top emblem, royal
    sub-border, border thickness and colors, all with a **live preview** (and **Save as new…** to keep
-   the original). Have your own frame image? Click **Import…** — see
+   the original). Have your own frame image? Click **⋯** → *Import a frame…* — see
    [Making your own frames](TEMPLATES.md). Each card remembers its own frame, so a set can mix frames.
 3. **Add your art.** Three easy ways:
    - **Change art…** to browse for an image file, or
@@ -71,7 +71,7 @@ the live preview that updates as you type.*
 > **Mana symbols** use the real Scryfall artwork. The first time you use a symbol it's downloaded
 > and cached; after that it works offline. Before it's cached (or with no internet), Cardinator
 > draws clean colored pips instead, so nothing ever breaks. You can also use a **custom set-symbol
-> image** — for the whole set in **Set defaults…**, or for the cards you select with **Set fields on all…**.
+> image** — for the whole set, or just the cards you select, in **Set settings…**.
 > It's drawn in its own proportions, where the rarity pip goes.
 
 > **The CHECKS panel** (in the editing column, just above **Export PNG…**) watches the selected card as you
@@ -105,41 +105,53 @@ Cardinator recognizes these automatically from the type line / fields and lays t
 | **Planeswalker** | Type line contains "Planeswalker", set **Loyalty** | Loyalty box + one badge per ability line (`+2:`, `-3:`, `-8:`) |
 | **Saga** | Type line contains "Saga" | Chapter badges (`I`, `II`, `III`) beside each chapter |
 | **Class** | Type line contains "Class" | Level badges beside each level's abilities |
-| **Adventure** | Fill the **Adventure** fields (or import an adventure card) | A storybook text box: the spell on the left page, the creature's rules on the right |
-| **Double-faced** | Look up a real DFC, or **Make double-faced** | One card with a **front + back face** you can flip |
+| **Adventure** | **Card layout** → *Adventure*, then fill the **Adventure** fields (or import an adventure card) | A storybook text box: the spell on the left page, the creature's rules on the right |
+| **Double-faced** | Look up a real DFC, or **Card layout** → *Double-faced* | One card with a **front + back face** you can flip |
 | **Battle** | Type line contains "Battle" (e.g. *Battle — Siege*), set **Defense** | **Sideways** card + a defense shield bottom-right |
 | **Plane / Phenomenon** | Type line contains "Plane" or "Phenomenon" | **Sideways** card (Planechase) |
-| **Flip card** | Look up a real flip card, or **Make flip card** | Two halves on one face: the other half **upside down** below the art |
-| **Split card** | Look up a real split card or Room, or **Make split card** | Two small cards **side by side**, read with the card turned sideways |
+| **Flip card** | Look up a real flip card, or **Card layout** → *Flip* | Two halves on one face: the other half **upside down** below the art |
+| **Split card** | Look up a real split card or Room, or **Card layout** → *Split* | Two small cards **side by side**, read with the card turned sideways |
 | **Level up** | Rules with lines like `LEVEL 2-6`, then `3/3`, then that level's rules | Text box split into **level bands**, each with a LEVEL badge and its own P/T box |
 | **Station** | Rules with lines like `3+ \| Flying` (Spacecraft, Planets) | Text box split into **threshold bands** with a `3+` badge; the P/T box sits on the band where it becomes a creature |
 | **Case** | Rules with `To solve — …` and `Solved — …` lines | The opening ability, then a **To solve** band (magnifying glass) and a **Solved** band (check mark) |
 | **Prototype** | First rules line like `Prototype {2}{R} — 3/2 (…)` | A band across the top of the text box in the prototype's colour, with its own cost and P/T |
 | **Mutate** | First rules line like `Mutate {1}{G}{G} (…)` | The mutate line in a shaded band across the top of the text box |
-| **Meld** | **Make meld card** (MELD section), or look up a meld card | Two double-faced cards whose backs, side by side, make one big melded card |
+| **Meld** | **Card layout** → *Meld*, or look up a meld card | Two double-faced cards whose backs, side by side, make one big melded card |
 | **Aftermath** | A split card whose other half's rules start with **Aftermath** | First half **upright across the top**, the other half **sideways** below it |
-| **Token / Emblem** | Type line starts with "Token" or "Emblem" (*Token Creature — Soldier*, *Emblem — Elspeth*), or **Add token** | **Tall art**, the name centred, a text box that fits its rules — **none** on a vanilla token |
+| **Token / Emblem** | Type line starts with "Token" or "Emblem" (*Token Creature — Soldier*, *Emblem — Elspeth*), or **New card ▾** → *Token* | **Tall art**, the name centred, a text box that fits its rules — **none** on a vanilla token |
 
 **Double-faced cards (DFC).** A card can have a **back face** — a front/back card that flips. Looking up a real
 double-faced card imports it as **one card with both faces**, whether you use **Ctrl+L**, a deck/CSV import or
 the search inside **Edit details…**. (A **split** card like *Fire // Ice* is printed on one side, so it comes
-in as one split card — see below — not a double-faced one.) To build one yourself, click **Make double-faced**
-(under the editor), then **Edit back face…** to fill the back's fields and art, and **Show back** to flip the
-preview. The style dropdown adds a corner indicator — **Flip arrow**, or **Sun / moon** (sun on the front,
-crescent moon on the back) — drawn by Cardinator (no third-party art). Exporting writes both sides
-(`Name.png` + `Name-back.png`); **Print sheet** puts the real back behind each front for double-sided printing.
+in as one split card — see below — not a double-faced one.) To build one yourself, pick *Double-faced* in the
+**Card layout** dropdown under the card name, then click **Back** in the **Front | Back** switch above the preview:
+the name box, frame, art buttons and **Edit details…** now work on the back face. **Corner mark** adds an
+indicator — **Flip arrow**, or **Sun / moon** (sun on the front, crescent moon on the back) — drawn by Cardinator
+(no third-party art). Exporting writes both sides (`Name.png` + `Name-back.png`); **Print sheets** puts the real
+back behind each front for double-sided printing.
+
+**Changing a card's layout.** The **Card layout** dropdown (*Normal*, *Double-faced*, *Meld*, *Flip*, *Split*,
+*Adventure*) changes the card the moment you pick one. What both layouts use is kept — a back face between
+double-faced and meld, the other half between flip and split; if something you wrote would be lost it asks first,
+and **Undo** brings it back. Pick *Normal* to make it an ordinary card again.
+
+**The set's card back.** A card without a back face shows the **set's card back** on **Back**, with a
+**Change the card back…** button. Choose it in **Set settings…**: *Cardinator's* (the default), *Designed for this
+set* (the words under the emblem — blank means the set's name —, a colour, a trim, and optionally your set symbol
+as the emblem), or *My own picture*. It travels with the set folder, double-sided print sheets put it behind
+every card without a back face, and **Save the card back as an image…** exports it as a PNG.
 
 **Sideways (landscape) cards.** Battles, Planes and Phenomena are printed sideways, and Cardinator turns them
 **automatically** — no setting to find. Every drawn frame works: pick *Crimson Red* and a Battle comes out as a
 sideways Crimson Red card, with the same colours, fonts and style laid out for the wider shape. A Battle's
 **Defense** goes in **Edit details…** (next to Loyalty) and is drawn in a shield in the corner — its own field,
 so a Battle never picks up planeswalker ability badges. A real Battle looked up from Scryfall arrives as one
-card: a **sideways front** and its **upright transformed back** (use **Show back** to flip). To force any card
+card: a **sideways front** and its **upright transformed back** (use the **Front | Back** switch). To force any card
 either way, use **Orientation** in **Edit details…** (*Automatic*, *Portrait*, or *Landscape*).
 
 <p><img src="images/battle-landscape.png" width="520" alt="A Battle rendered sideways on the Crimson Red frame"></p>
 
-Exports come out sideways (2100 × 1500). On a **Print sheet** a sideways card is turned upright into a normal
+Exports come out sideways (2100 × 1500). On a **print sheet** a sideways card is turned upright into a normal
 card slot — it's the same physical card size — and on a double-sided sheet its transformed back lands right
 behind it. *Imported* frames (a frame image you brought in) are fixed pictures that can't be turned; CHECKS tells
 you when a sideways card is on one, and importing a frame image that is **wider than tall** makes a sideways
@@ -148,9 +160,10 @@ template to match.
 **Flip cards.** A Kamigawa-style flip card (*Erayo, Soratami Ascendant*, *Bushi Tenderfoot*) is one card with
 two halves on the **same** side: the top half reads upright — name, rules, then the type line with power/toughness
 at its end — the art fills the middle, and the other half is printed **upside down** below it, for when the card
-flips. Looking up a real flip card brings both halves as **one card**. To make one yourself, click **Make flip
-card** (under the editor), then **Edit flipped half…** for the upside-down half's name, type, rules and P/T (it has
-no mana cost, like the real ones), and **Show flipped** to turn the preview over and read it. Both halves share the
+flips. Looking up a real flip card brings both halves as **one card**. To make one yourself, pick *Flip* in
+**Card layout**, then **Flipped half** in the **Top half | Flipped half** switch above the preview — it turns the
+preview over, and the name box and **Edit details…** then work on the upside-down half's name, type, rules and P/T
+(it has no mana cost, like the real ones). Both halves share the
 card's art, set and credits.
 
 <p><img src="images/flip-card.png" width="360" alt="A flip card: the top half upright, the flipped half upside down below the art"></p>
@@ -164,20 +177,21 @@ frame that has a flip layout. A flip card prints on **one** side — no back, on
 on one face, each a small card of its own — name, mana cost, art, type line and rules — read with the card
 turned sideways: the first half is on the left (the bottom of the upright card), the other half on the right, and
 the card's credits run along its bottom edge. Looking up a real one brings both halves as **one card**, and
-Scryfall's art (both halves' pictures side by side) is cut so each half gets its own. To make one yourself, click
-**Make split card**, then **Edit other half…** for the second half. **Click a half in the preview** to choose which
-half **Change art…**, paste, drag-to-move and scroll-to-zoom work on (or drop an image straight onto a half), and
-**Read sideways** turns the preview so you can read it.
+Scryfall's art (both halves' pictures side by side) is cut so each half gets its own. To make one yourself, pick
+*Split* in **Card layout**. The **First half | Second half** switch above the preview (or **clicking a half in the
+preview**) chooses which half the name box, **Edit details…**, **Change art…**, paste, drag-to-move and
+scroll-to-zoom work on (or drop an image straight onto a half), and **Read sideways** turns the preview so you can
+read it.
 
 A reminder both halves end with — **Fuse** (*"You may cast one or both halves…"*) or a Room's *"(You may cast either
 half…)"* — is printed **once**, in a bar across both halves, each end in its half's colour (red under *Wear*, white
 under *Tear*). Every frame works, drawn or imported: each half is the frame's own card, just smaller. A split card
 prints on one side, like a flip card.
 
-**A frame for each half.** The card's frame is the first half's. To give the other half a frame of its own (a red
-frame for *Wear* and a white one for *Tear*), pick it in **Other half's frame** under FLIP / SPLIT CARD; **Same as
+**A frame for each half.** The card's frame is the first half's. To give the second half a frame of its own (a red
+frame for *Wear* and a white one for *Tear*), pick it in **Second half's frame** under **Card layout**; **Same as
 the card** puts it back. It works for aftermath cards too, and with any frame, including imported picture frames.
-**Share set + frames** takes the other half's frame along, and CHECKS says if it isn't installed (the half is then
+**Share the set…** takes the second half's frame along, and CHECKS says if it isn't installed (the half is then
 drawn with the card's frame).
 
 <p><img src="images/split-card.png" width="360" alt="A split card: two small cards side by side, turned sideways, the second half on a blue frame of its own, with a Fuse bar red at one end and blue at the other"></p>
@@ -185,8 +199,8 @@ drawn with the card's frame).
 **Adventures.** An adventure card (*Bonecrusher Giant*) opens its text box like a book, the way cards have since
 *Wilds of Eldraine*: the adventure spell is on the **left page** — a name bar in the spell's colour with its cost,
 its type line, then its rules — and the creature's rules and flavor are on the **right page**, wrapping above the
-P/T box. Both pages use the same rules size, so the spell reads as easily as the creature. Fill the **Adventure**
-fields in **Edit details…** (or look an adventure card up) and it's drawn this way on every frame.
+P/T box. Both pages use the same rules size, so the spell reads as easily as the creature. Pick *Adventure* in **Card layout** and fill the
+**Adventure** fields in **Edit details…** (or look an adventure card up) and it's drawn this way on every frame.
 
 <p><img src="images/adventure-card.png" width="360" alt="An adventure card: the spell on the left page of the text box, the creature's rules on the right"></p>
 
@@ -233,11 +247,11 @@ frame without one shows its normal upright picture in the top half.
 **Meld.** A meld pair (*Bruna, the Fading Light* and *Gisela, the Broken Blade*) are two double-faced cards whose
 **backs are the two halves of one big card** (*Brisela, Voice of Nightmares*): put the two cards side by side, turn
 them a quarter clockwise, and the melded card reads across both. In Cardinator each part is a double-faced card whose
-**back face is the melded card**; the back prints only its half. The **MELD** section has the controls:
-**Make meld card** (its back becomes the melded card — edit it with **Edit back face…**), **Add meld partner** (adds
-the other card, its back printing the other half of the same melded card), **Back: top half / bottom half** (which
-half this card's back prints; the partner gets the other), and **Show melded card** (preview the whole melded card,
-or this card's half as printed). Edits to the melded card through either part — its text, art, pan and zoom — reach
+**back face is the melded card**; the back prints only its half. Pick *Meld* in **Card layout**:
+its back becomes the melded card (click **Back** above the preview to edit it). Under the dropdown, **Its back shows
+the** *top half* / *bottom half* picks which half this card's back prints (the partner gets the other), and **Add
+partner** adds the other card, its back printing the other half of the same melded card. On **Back**, **Show the
+whole melded card** previews the whole melded card instead of this card's half as printed. Edits to the melded card through either part — its text, art, pan and zoom — reach
 both. Looking up a meld card brings its melded card along and picks the right half; the status line names the
 partner to add. The fronts show a meld icon. Exports and print sheets give each part its own back, so printing
 double-sided just works: the top-half card goes on the left. A CSV import can make meld cards too, with the
@@ -250,9 +264,9 @@ double-sided just works: the top-half card goes on the left. A CSV import can ma
 Artifact — Treasure*, *Emblem — Elspeth* — and the card gets its frame's **token layout**: the art runs much
 further down the card, the name is centred in the title bar (when there's no mana cost), and the text box is
 just big enough for its rules. A **vanilla** token (no rules, like a 1/1 Soldier) has **no text box** at all: the
-type line sits on the P/T box. **Add token** (under CARDS) starts one. Tokens are ordinary cards in your set, so
-**Export all** and **Print sheet** do them with everything else — make the tokens your set creates and print
-them in one go. Looking up a real token works too (e.g. *Goblin // Soldier*), and **Scryfall search…** (BATCH)
+type line sits on the P/T box. **New card ▾** → *Token* (under CARDS) starts one. Tokens are ordinary cards in your set, so
+**All as images…** and **Print sheets…** do them with everything else — make the tokens your set creates and print
+them in one go. Looking up a real token works too (e.g. *Goblin // Soldier*), and **Search Scryfall…** (ADD MANY CARDS)
 with `t:token` (add a name or type, e.g. `t:token t:spirit`) brings in a batch. Every frame has a token layout:
 built-in frames are redrawn for it, and picture frames (the alchemy samples, imported ones) are rearranged —
 their art window stretched down and their text box shortened — keeping their own borders and medallion
@@ -274,9 +288,10 @@ See the [gallery in the README](../README.md#gallery) for examples of each.
 ## 4. Making many cards at once
 
 Cardinator always works on a **project** — the list of cards down the left side. Build it up card
-by card, or import a whole batch.
+by card (**New card ▾**), or add many at once with the **ADD MANY CARDS** group.
 
-- **Import file…** — load a file of cards. It accepts:
+- **Import cards…** — one window for a **Moxfield deck link** (**Get from Moxfield** pulls the whole decklist
+  in, quantities and all), a file of cards (**Open a file…**), or a list you paste. It accepts:
   - a plain **list of names**, one per line (each looked up on Scryfall) — a deck list works too:
     quantities (`4 Lightning Bolt`), printing hints (`Sol Ring (CMR) 472`; a lowercase code like `(cmr)` counts
     only with a number after it, so `Goblin King (alt)` keeps its name) and section
@@ -288,29 +303,41 @@ by card, or import a whole batch.
     [example CSV](../examples/02-custom-set/cards.csv) and the [column reference](#csv-columns) below.
   - If any lines can't be read they're counted in the status, and if some card names are **already in
     your project** you're asked whether to **skip the duplicates** or add them anyway.
-- **Import deck…** — paste a **Moxfield deck URL** (or the deck's exported text) and Cardinator pulls
-  the whole decklist in, quantities and all.
-- **Scryfall search…** — type a Scryfall query (e.g. `t:dragon c:r`, `set:dom`) and Cardinator lists up
+  - Dropping a `.txt` / `.csv` / `.tsv` file on the window imports it directly.
+- **Search Scryfall…** — type a Scryfall query (e.g. `t:dragon c:r`, `set:dom`) and Cardinator lists up
   to 60 matching cards; tick the ones you want and **Add** brings them in **with their real art** — a fast
   way to build a themed set. (Also on the command line via `--search`.)
-- **Add art from folder…** — point it at a folder of images and it attaches them to cards by
+- **Add art from a folder…** — point it at a folder of images and it attaches them to cards by
   matching the filename to the card name (`serra angel.png` → "Serra Angel"). Only fills cards
   that don't already have art. Exact filename matches are used silently; any **best-guess** (fuzzy)
   matches are listed afterwards so you can review the ones it wasn't sure about.
-- **Fill blanks from Scryfall** — fills any card that still has only a name.
+- **Fill in blanks from Scryfall** — fills any card that still has only a name.
+
+The **WHOLE SET** group:
+
+- **Set settings…** — the set's **set code, rarity, artist, copyright line, set-symbol image**, the **frame for
+  new cards**, and the set's **card back** (see [Special card types](#special-card-types)). **Use these for**
+  chooses how far they reach: *New and imported cards only* (each new card takes them for any field it doesn't
+  already have), *…and fill in the cards already here that leave them blank*, or *…and replace them on every card
+  already here* (leave a field blank to keep each card's own; tick boxes empty the set code, artist, copyright or set
+  symbol instead). With cards **multi-selected** in the list, *Only the N selected cards* applies to just those. A
+  new frame goes on each card's back face too, unless that back face has a frame of its own. Saved with the project.
 - **Number cards** — assigns collector numbers in list order, zero-padded to the set's size: `1/9` … `9/9`
   for a set of 9, `01/12` … `12/12` for 12, `001/120` … for 120 — so a whole set is numbered in one click.
-- **Set defaults…** — the set's **house defaults** (set code, rarity, copyright, artist, set-symbol image,
-  and default frame). Every **new or imported** card inherits these for any field it doesn't already have, so
-  you set them once instead of per card. Tick **Also apply to cards already in the set** to fill blanks on the cards
-  you already have. Defaults are saved with the project.
-- **Set fields on all…** — a bulk editor: set the **set code, artist, rarity, copyright, frame** and
-  a **custom set-symbol image** on every card at once (leave a field blank to keep each card's own). If you
-  **multi-select** cards in the list first, it asks whether to apply to just those or the whole set. A new
-  frame goes on each card's back face too, unless that back face has a frame of its own.
 - **Check all cards** — runs the CHECKS across the whole set and lists every card that needs attention
   (missing art/frame, bad symbol, duplicate/stale number, broken special layout…), then jumps to the first.
-- **Share set + frames…** — zips the whole set (project + `art/` + a bundle for each custom frame the
+
+The **EXPORT** group:
+
+- **All as images…** — renders every card to PNGs (600 DPI, real card size) in a folder you choose. Runs
+  in the background with a progress bar so the window stays responsive, even for 100 cards.
+- **Print sheets…** — lays cards out **9 per page (3×3) at real size (2.5″×3.5″, 300 DPI)** on
+  Letter pages with cut marks — one PNG per page, ready to print and cut. (A4 pages are on the command line:
+  `--sheet … a4`.) It first asks
+  whether to include **card backs** for double-sided printing: **Front + back** writes a mirrored back
+  page after each front page (flip on the long edge; cards without a back face get the set's card back),
+  **Fronts only** writes just the fronts.
+- **Share the set…** — zips the whole set (project + `art/` + a bundle for each custom frame the
   cards use, with its flip and sideways layouts) so you can hand it to someone who doesn't have your
   frames. The set must have been saved once; any unsaved changes, it offers to save first.
   **Got one?** Don't unzip it — **Open** it (or drop it on the window). Cardinator unpacks the set and its art into
@@ -318,15 +345,9 @@ by card, or import a whole batch.
   touched), installs its frames, and opens it; the status line says where it went. A frame you already have,
   exactly the same, isn't installed twice. If you have a *different* frame with the same name, yours is kept and
   theirs comes in as "Name (2)" — and the set's cards use theirs.
-- **Move ↑ / ↓** — reorder the selected card in the list (this is also the print/collector order).
-- **Duplicate** (**Ctrl+D**) — copy the selected card (the sidebar button next to Add token).
-- **Export all…** — renders every card to PNGs (600 DPI, real card size) in a folder you choose. Runs
-  in the background with a progress bar so the window stays responsive, even for 100 cards.
-- **Print sheet…** — lays cards out **9 per page (3×3) at real size (2.5″×3.5″, 300 DPI)** on
-  Letter pages with cut marks — one PNG per page, ready to print and cut. (A4 pages are on the command line:
-  `--sheet … a4`.) It first asks
-  whether to include **card backs** for double-sided printing: **Front + back** writes a mirrored back
-  page after each front page (flip on the long edge), **Fronts only** writes just the fronts.
+
+Under **CARDS**, **Move up** / **Move down** reorder the selected card in the list (this is also the print/collector
+order), and **Duplicate** (**Ctrl+D**) copies it.
 
 Editing is fully **undoable** (**Ctrl+Z** / **Ctrl+Y**, or the header Undo/Redo buttons), across the
 whole project. Use **New / Open / Save** in the top-right to manage projects.
@@ -380,7 +401,7 @@ up on Scryfall. Costs can be typed loosely — `2RW`, `W/U` (hybrid), `G/P` (Phy
 | `loyalty` | loy | Planeswalker loyalty |
 | `defense` | defence, def | Battle defense |
 | `orientation` | | `landscape` to draw the card sideways |
-| `template` | frame, border, color, colour | Frame name (blank = the set's house frame) |
+| `template` | frame, border, color, colour | Frame name (blank = the set's frame for new cards) |
 | `set` | set code, expansion, edition code — or edition, when it's a code (`m10`, not `Magic 2010`) | Set code |
 | `collector` | collector number, card number, number, num | Collector number |
 | `rarity` | | `C`, `U`, `R` or `M` |
@@ -420,8 +441,8 @@ Special layouts add their own columns (any one of them makes the row that kind o
 - an **image** → sets the current card's art;
 - a **`.cardinator` / `.json`** → opens that project;
 - a **`.txt` / `.csv` / `.tsv`** → imports that card list;
-- a **Share set + frames** `.zip` → opens that set (unpacked into a folder of its own, its frames installed);
-- a **`.cardframe` / `.zip`** frame bundle → installs the frame(s), as **Import…** would.
+- a **Share the set…** `.zip` → opens that set (unpacked into a folder of its own, its frames installed);
+- a **`.cardframe` / `.zip`** frame bundle → installs the frame(s), as *Import a frame…* would.
 
 While Cardinator is busy (an import, an export), a drop is turned away until it's done.
 
