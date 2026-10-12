@@ -16,13 +16,17 @@ public sealed class SetProfile
     /// <summary>A set-symbol image path shared across the set (travels with the set folder like card art).</summary>
     public string SetSymbolPath { get; set; } = "";
 
+    /// <summary>The back every single-faced card in the set shows (null in older sets: Cardinator's default back).</summary>
+    public CardBackDesign? CardBack { get; set; }
+
     /// <summary>True when nothing is set — so we can skip applying/saving an all-blank profile.</summary>
     public bool IsEmpty =>
         string.IsNullOrWhiteSpace(SetCode)
         && string.IsNullOrWhiteSpace(Rarity)
         && string.IsNullOrWhiteSpace(Copyright)
         && string.IsNullOrWhiteSpace(Artist)
-        && string.IsNullOrWhiteSpace(SetSymbolPath);
+        && string.IsNullOrWhiteSpace(SetSymbolPath)
+        && (CardBack == null || CardBack.IsDefault);
 
     /// <summary>
     /// Fills a card's <em>blank</em> profile fields from this profile. Never overwrites a value the card
@@ -51,5 +55,6 @@ public sealed class SetProfile
     public SetProfile Clone() => new()
     {
         SetCode = SetCode, Rarity = Rarity, Copyright = Copyright, Artist = Artist, SetSymbolPath = SetSymbolPath,
+        CardBack = CardBack?.Clone(),
     };
 }

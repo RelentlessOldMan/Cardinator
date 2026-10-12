@@ -45,6 +45,7 @@ public static class SetFolder
         }
 
         if (profile != null) profile.SetSymbolPath = Localize(profile.SetSymbolPath) ?? "";
+        if (profile?.CardBack is { } back) back.ImagePath = Localize(back.ImagePath) ?? "";
 
         // Both faces of a double-faced card: the back's art must travel with the set like the front's.
         foreach (var face in cards.SelectMany(c => c.Parts()))

@@ -73,6 +73,7 @@ public sealed class CardProject
         if (string.IsNullOrEmpty(projectFolder)) projectFolder = Path.GetDirectoryName(Path.GetFullPath(path)) ?? "";
         foreach (var c in project.Cards) ResolveArt(c, projectFolder);   // older sets saved absolute paths: left as-is
         project.Profile.SetSymbolPath = ResolveArtPath(project.Profile.SetSymbolPath, projectFolder);
+        if (project.Profile.CardBack is { } back) back.ImagePath = ResolveArtPath(back.ImagePath, projectFolder);
         return project;
     }
 

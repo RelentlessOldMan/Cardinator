@@ -13,15 +13,35 @@ namespace Cardinator.Services;
 public static class BackRenderer
 {
     public static BitmapSource Render(string wordmark = "CARDINATOR", int supersample = 2)
+        => Render(null, wordmark, null, supersample);
+
+    /// <summary>
+    /// The set's card back (<see cref="Models.CardBackDesign"/>): Cardinator's own when <paramref name="design"/> is
+    /// null or the default; the same layout in the set's colours with its wordmark (blank: <paramref name="setName"/>)
+    /// and, if asked, the set symbol (<paramref name="setSymbolPath"/>) as its emblem; or the user's picture filling
+    /// the card. A picture or symbol that can't be read falls back to the drawn back / the diamond.
+    /// </summary>
+    public static BitmapSource Render(Models.CardBackDesign? design, string? setName, string? setSymbolPath, int supersample = 2)
     {
         const double W = 750, H = 1050;
+        supersample = Math.Clamp(supersample, 1, 8);
         int w = (int)(W * supersample), h = (int)(H * supersample);
 
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
             dc.PushTransform(new ScaleTransform(supersample, supersample));
-            Draw(dc, W, H, wordmark);
+            string style = (design?.Style ?? "").Trim().ToLowerInvariant();
+            var picture = style == Models.CardBackDesign.PictureStyle ? LoadImage(design!.ImagePath) : null;
+            if (picture != null) DrawPicture(dc, W, H, picture);
+            else if (style == Models.CardBackDesign.DesignedStyle)
+            {
+                var symbol = design!.UseSetSymbol ? LoadImage(setSymbolPath) : null;
+                var word = string.IsNullOrWhiteSpace(design.Wordmark) ? (setName ?? "") : design.Wordmark;
+                Draw(dc, W, H, word.Trim().ToUpperInvariant(), Parse(design.Color, Color.FromRgb(0x1F, 0x2A, 0x44)),
+                    Parse(design.Accent, Color.FromRgb(0xC9, 0xA2, 0x4B)), symbol);
+            }
+            else Draw(dc, W, H, "CARDINATOR");
             dc.Pop();
         }
         var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
@@ -30,16 +50,51 @@ public static class BackRenderer
         return rtb;
     }
 
+    private static Color Parse(string? hex, Color fallback)
+    {
+        try { return (Color)ColorConverter.ConvertFromString((hex ?? "").Trim()); }
+        catch { return fallback; }
+    }
+
+    private static BitmapSource? LoadImage(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        try
+        {
+            var full = System.IO.Path.GetFullPath(path);
+            return System.IO.File.Exists(full) ? ImageIntake.LoadOriented(System.IO.File.ReadAllBytes(full)) : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>The user's picture filling the card (cropped to cover it, centred), inside the rounded corners and a
+    /// thin dark edge like every card's.</summary>
+    private static void DrawPicture(DrawingContext dc, double W, double H, BitmapSource img)
+    {
+        const double cardR = 30;
+        var clip = new RectangleGeometry(new Rect(0, 0, W, H), cardR, cardR);
+        clip.Freeze();
+        dc.PushClip(clip);
+        double scale = Math.Max(W / img.PixelWidth, H / img.PixelHeight);
+        double dw = img.PixelWidth * scale, dh = img.PixelHeight * scale;
+        dc.DrawImage(img, new Rect((W - dw) / 2, (H - dh) / 2, dw, dh));
+        dc.Pop();
+        dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Color.FromRgb(0x0A, 0x0C, 0x12)), 10), new Rect(0, 0, W, H), cardR, cardR);
+    }
+
     private static void Draw(DrawingContext dc, double W, double H, string wordmark)
+        => Draw(dc, W, H, wordmark, Color.FromRgb(0x24, 0x33, 0x53), Color.FromRgb(0xC9, 0xA2, 0x4B), null, Color.FromRgb(0x4C, 0x8D, 0xF0));
+
+    private static void Draw(DrawingContext dc, double W, double H, string wordmark, Color panel, Color gold, BitmapSource? symbol,
+        Color? emblem = null)
     {
         var full = new Rect(0, 0, W, H);
         double cardR = 30;
 
-        var deep = Color.FromRgb(0x14, 0x1B, 0x2A);
-        var mid = Color.FromRgb(0x24, 0x33, 0x53);
+        var deep = Darken(panel, 0.45);
+        var mid = panel;
         var edge = Color.FromRgb(0x0A, 0x0C, 0x12);
-        var accent = Color.FromRgb(0x4C, 0x8D, 0xF0);
-        var gold = Color.FromRgb(0xC9, 0xA2, 0x4B);
+        var accent = emblem ?? Lighten(panel, 0.35);
 
         // Background gradient panel with rounded corners.
         var bg = new RadialGradientBrush(mid, deep) { GradientOrigin = new Point(0.5, 0.4), Center = new Point(0.5, 0.5), RadiusX = 0.75, RadiusY = 0.6 };
@@ -51,8 +106,17 @@ public static class BackRenderer
         dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Color.FromArgb(120, accent.R, accent.G, accent.B)), 1.5),
             Inset(full, 34), cardR - 16, cardR - 16);
 
-        // Central diamond emblem.
+        // Central emblem: the set symbol on a designed back that asks for it, else the diamond.
         var cx = W / 2; var cy = H / 2 - 20; double s = 150;
+        if (symbol is { PixelWidth: > 0, PixelHeight: > 0 })
+        {
+            double fit = Math.Min(2 * s * 0.9 / symbol.PixelWidth, 2 * s * 0.9 / symbol.PixelHeight);
+            double sw = symbol.PixelWidth * fit, sh = symbol.PixelHeight * fit;
+            dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(70, 0, 0, 0)), new Pen(new SolidColorBrush(gold), 3), new Point(cx, cy), s * 1.02, s * 1.02);
+            dc.DrawImage(symbol, new Rect(cx - sw / 2, cy - sh / 2, sw, sh));
+            DrawWordmark(dc, wordmark, cx, cy + s + 40, W, gold);
+            return;
+        }
         var diamond = new StreamGeometry();
         using (var g = diamond.Open())
         {
@@ -79,11 +143,23 @@ public static class BackRenderer
         inner.Freeze();
         dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), null, inner);
 
-        // Wordmark beneath the emblem.
+        DrawWordmark(dc, wordmark, cx, cy + s + 40, W, gold);
+    }
+
+    /// <summary>The wordmark beneath the emblem, in a light tint of the accent, shrunk to fit inside the keylines.</summary>
+    private static void DrawWordmark(DrawingContext dc, string wordmark, double cx, double y, double W, Color gold)
+    {
+        if (string.IsNullOrWhiteSpace(wordmark)) return;
         var face = new Typeface(new FontFamily("Georgia"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
-        var ft = new FormattedText(wordmark ?? "", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            face, 44, new SolidColorBrush(Color.FromRgb(0xEC, 0xE3, 0xC9)), 1.0);
-        dc.DrawText(ft, new Point(cx - ft.Width / 2, cy + s + 40));
+        var ink = new SolidColorBrush(Lighten(gold, 0.65));
+        double size = 44;
+        FormattedText ft;
+        do
+        {
+            ft = new FormattedText(wordmark, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, size, ink, 1.0);
+            size -= 2;
+        } while (ft.Width > W - 120 && size > 14);
+        dc.DrawText(ft, new Point(cx - ft.Width / 2, y));
     }
 
     private static Rect Inset(Rect r, double by)

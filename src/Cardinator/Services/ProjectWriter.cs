@@ -30,6 +30,7 @@ public static class ProjectWriter
         // 2. Portable: the set symbol in the profile travels with the folder like card art.
         var savedProfile = profile.Clone();
         savedProfile.SetSymbolPath = CardProject.RelativeArtPath(savedProfile.SetSymbolPath, projFolder);
+        if (savedProfile.CardBack is { } back) back.ImagePath = CardProject.RelativeArtPath(back.ImagePath, projFolder);
 
         var project = new CardProject
         {
