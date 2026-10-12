@@ -1,7 +1,7 @@
 <Window x:Class="Cardinator.DeckListWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Import a deck" Height="600" Width="560" MinHeight="480" MinWidth="460"
+        Title="Import cards" Height="600" Width="560" MinHeight="480" MinWidth="460"
         Background="{StaticResource Bg}" WindowStartupLocation="CenterOwner"
         TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True" ShowInTaskbar="False">
     <Grid Margin="18">
@@ -16,11 +16,11 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Import a deck" FontSize="15" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="0" Text="Import cards" FontSize="15" FontWeight="SemiBold"/>
         <TextBlock Grid.Row="1" TextWrapping="Wrap" Foreground="{StaticResource Subtle}" FontSize="12" Margin="0,4,0,12">
-            <Run Text="Fetch a Moxfield deck by link, or paste an exported list (Moxfield"/>
-            <Run Text="⋯ More → Export" FontWeight="SemiBold" Foreground="{StaticResource Text}"/>
-            <Run Text=", Archidekt, MTGGoldfish, or plain text — one card per line, quantities and (SET) numbers welcome). Each card is filled from Scryfall with its art."/>
+            <Run Text="Get a Moxfield deck from its link, open a list file (.txt, .csv or .tsv), or paste a list exported from Moxfield"/>
+            <Run Text="(⋯ More → Export)" FontWeight="SemiBold" Foreground="{StaticResource Text}"/>
+            <Run Text=", Archidekt, MTGGoldfish or anywhere else — one card per line; quantities and (SET) numbers are fine. Each card is filled in from Scryfall, with its art."/>
         </TextBlock>
 
         <!-- Moxfield link fetch -->
@@ -39,7 +39,11 @@
                      Foreground="{StaticResource Accent}" Background="{StaticResource ProgressTrack}"
                      BorderThickness="0" Visibility="Collapsed"/>
 
-        <TextBlock Grid.Row="5" Text="DECK LIST" Style="{StaticResource SectionLabel}" Margin="2,12,0,4"/>
+        <Grid Grid.Row="5" Margin="0,12,0,4">
+            <TextBlock Text="CARD LIST" Style="{StaticResource SectionLabel}" Margin="2,0,0,0" VerticalAlignment="Bottom"/>
+            <Button x:Name="OpenFileButton" Content="Open a file…" Style="{StaticResource Ghost}" HorizontalAlignment="Right"
+                    Click="OnOpenFile" ToolTip="Load a .txt, .csv or .tsv card list into the box (a CSV's art paths are read from beside the file)"/>
+        </Grid>
         <TextBox Grid.Row="6" x:Name="DeckBox" AcceptsReturn="True" AcceptsTab="False"
                  TextWrapping="NoWrap" VerticalContentAlignment="Top" Padding="12,8"
                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"

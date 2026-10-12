@@ -54,7 +54,7 @@
                 <RadioButton x:Name="ModeFill" GroupName="Mode" Margin="2,4,0,4" Checked="OnModeChanged"
                              Content="…and fill in the cards already here that leave them blank"/>
                 <RadioButton x:Name="ModeReplace" GroupName="Mode" Margin="2,4,0,4" Checked="OnModeChanged"
-                             Content="…and put them on every card already here, replacing what's there"/>
+                             Content="…and replace them on every card already here"/>
                 <StackPanel x:Name="ReplacePanel" Margin="24,2,0,0" Visibility="Collapsed">
                     <CheckBox x:Name="OnlySelectedBox" Margin="0,2,0,6" Visibility="Collapsed"/>
                     <TextBlock Text="A blank field above leaves the cards' own value. To empty it on them, tick it here:"

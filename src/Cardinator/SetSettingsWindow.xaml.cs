@@ -114,6 +114,13 @@ public partial class SetSettingsWindow : Window
 
     private void OnApply(object sender, RoutedEventArgs e)
     {
+        Collect();
+        DialogResult = true;
+    }
+
+    /// <summary>Reads the controls into the outputs (<see cref="Profile"/>, <see cref="Mode"/>, …).</summary>
+    internal void Collect()
+    {
         var back = CurrentBack();
         Profile = new SetProfile
         {
@@ -133,7 +140,6 @@ public partial class SetSettingsWindow : Window
         ClearArtist = replace && ClearArtistBox.IsChecked == true;
         ClearCopyright = replace && ClearCopyrightBox.IsChecked == true;
         ClearSetSymbol = replace && ClearSymbolBox.IsChecked == true;
-        DialogResult = true;
     }
 
     private static string? PickImage(string title)

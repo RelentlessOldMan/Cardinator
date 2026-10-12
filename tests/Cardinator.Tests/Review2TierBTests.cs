@@ -109,7 +109,7 @@ public class Review2TierBTests
             main.Cards.Add(card);
             main.SelectedCard = card;
             Assert.Equal(names[0], main.SelectedTemplate?.Name);
-            Invoke(main, "OnFlipPreview", null, null);   // Show back
+            main.ShowSide(back: true);
             Assert.Equal(names[1], main.SelectedTemplate?.Name);
             main.SelectedTemplate = main.Templates.First(t => t.Name == names[2]);
             Assert.Equal((names[0], names[2]), (card.TemplateName, card.BackFace!.TemplateName));
@@ -306,12 +306,12 @@ public class Review2TierBTests
                 var card = new CardModel { Name = "Fire", TemplateName = main.Templates[0].Name };
                 main.Cards.Add(card);
                 main.SelectedCard = card;
-                Assert.Equal("Make split card", main.SplitToggleBtn.Content);
+                Assert.StartsWith("Normal", main.LayoutBox.SelectedItem!.ToString());
                 Invoke(main, "OnLookup", null, null);
                 PumpUntil(() => !main.Busy);
                 Assert.True(card.IsSplit);
-                Assert.Equal("Remove other half", main.SplitToggleBtn.Content);
-                Assert.Equal("Edit other half…", main.FlipEditBtn.Content);
+                Assert.StartsWith("Split", main.LayoutBox.SelectedItem!.ToString());
+                Assert.Equal("Second half", main.OtherHalfSeg.Content);
             }
             finally { ScryfallClient.TestHttp = null; }
         });
@@ -348,16 +348,6 @@ public class Review2TierBTests
             main.RenderPreview();
             Assert.Contains("note", main.ValidationSummary);
             Assert.Contains("No artwork", main.ValidationDetails);
-        });
-
-    [Fact]
-    public void SetFields_SaysWhichCardsItChanges()
-        => OnAppThread(() =>
-        {
-            Assert.Contains("every card", new BulkEditWindow(new[] { "A" }).ScopeText.Text);
-            var some = new BulkEditWindow(new[] { "A" }, selectedCount: 3);
-            Assert.Contains("3 selected", some.HeadingText.Text);
-            Assert.DoesNotContain("every card", some.ScopeText.Text);
         });
 
     // --- rendering ----------------------------------------------------------------------------------

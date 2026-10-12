@@ -66,10 +66,10 @@ public class WindowSmokeTests
         });
 
     [Fact]
-    public void BulkEditWindow_Constructs_WithAppResources()
+    public void SetSettingsWindow_Constructs_WithAppResources()
         => OnAppThread(() =>
         {
-            var w = new Cardinator.BulkEditWindow(new[] { "Gold Multicolor", "Ocean Blue" });
+            var w = new Cardinator.SetSettingsWindow(new SetProfile(), "", new[] { "Gold Multicolor", "Ocean Blue" }, "Set");
             Assert.NotNull(w.Content);
         });
 
@@ -285,9 +285,7 @@ public class WindowSmokeTests
             main.RenderPreview();
             var upright = main.PreviewImage!;
 
-            typeof(Cardinator.MainWindow).GetMethod("OnShowFlipped",
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .Invoke(main, new object?[] { null, null });
+            main.ShowHalf(other: true);   // "Flipped half" above the preview
             var turned = main.PreviewImage!;
 
             // The same pixels, rotated 180°.
@@ -312,7 +310,7 @@ public class WindowSmokeTests
             main.RenderPreview();
             var upright = main.PreviewImage!;
 
-            Invoke(main, "OnShowFlipped", null, null);
+            main.SidewaysBox.IsChecked = true;   // Read sideways
             var turned = main.PreviewImage!;
             Assert.Equal(upright.PixelHeight, turned.PixelWidth);
             Assert.Equal(upright.PixelWidth, turned.PixelHeight);
@@ -338,7 +336,7 @@ public class WindowSmokeTests
             card.OtherHalf = new CardModel { Name = "Lead", TypeLine = "Sorcery", RulesText = "Aftermath (Cast this spell only from your graveyard.)" };
             main.RenderPreview();
             var upright = main.PreviewImage!;
-            Invoke(main, "OnShowFlipped", null, null);
+            main.SidewaysBox.IsChecked = true;   // Read sideways
             var turned = main.PreviewImage!;
 
             // 90° counter-clockwise: the upright pixel (x, y) lands at (y, W-1-x).
@@ -382,13 +380,13 @@ public class WindowSmokeTests
             var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
             var card = main.SelectedCard!;
             card.Name = "Gisela, the Broken Blade";
-            Invoke(main, "OnToggleMeld", null, null);
+            main.ChangeLayout(card, Cardinator.MainWindow.CardLayout.Meld);
             Assert.True(card.IsMeld);
             Assert.Equal("top", card.MeldHalf);
             card.BackFace!.Name = "Brisela, Voice of Nightmares";
 
             int before = main.Cards.Count;
-            Invoke(main, "OnAddMeldPartner", null, null);
+            main.AddMeldPartner();
             Assert.Equal(before + 1, main.Cards.Count);
             var partner = main.Cards[main.Cards.IndexOf(card) + 1];
             Assert.True(partner.IsMeld);
@@ -404,14 +402,15 @@ public class WindowSmokeTests
             Assert.Equal("bottom", partner.BackFace.MeldHalf);   // its own half is kept
 
             // Swapping the halves swaps both.
-            Invoke(main, "OnSwapMeldHalf", null, null);
+            main.SetMeldHalf(bottom: true);
             Assert.Equal("bottom", card.MeldHalf);
             Assert.Equal("top", partner.MeldHalf);
 
             // "Show melded card" previews the whole melded card: an upright card, not this back's half.
-            Invoke(main, "OnShowMelded", null, null);
+            main.ShowSide(back: true);
+            main.WholeMeldBox.IsChecked = true;
             var whole = TestHelpers.Pixels(main.PreviewImage!);
-            Invoke(main, "OnShowMelded", null, null);
+            main.WholeMeldBox.IsChecked = false;
             var half = TestHelpers.Pixels(main.PreviewImage!);
             Assert.NotEqual(whole, half);
         });
@@ -515,9 +514,9 @@ public class WindowSmokeTests
         {
             var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
             var card = main.SelectedCard!;
-            Invoke(main, "OnToggleMeld", null, null);
+            main.ChangeLayout(card, Cardinator.MainWindow.CardLayout.Meld);
             card.BackFace!.ArtPath = "brisela.png";
-            Invoke(main, "OnFlipPreview", null, null);   // show the back (the melded card's top half, turned)
+            main.ShowSide(back: true);   // show the back (the melded card's top half, turned)
             Invoke(main, "NudgeArt", 0.0, 0.01);         // down on the back = towards the melded card's left edge
             Assert.True(card.BackFace.ArtOffsetX < 0, "the melded card's art didn't move left");
             Assert.Equal(0, card.BackFace.ArtOffsetY, 6);
@@ -529,8 +528,8 @@ public class WindowSmokeTests
         {
             var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
             Assert.Equal(Visibility.Collapsed, main.HalfFramePanel.Visibility);   // not a split card yet
-            Invoke(main, "OnToggleSplit", null, null);
             var card = main.SelectedCard!;
+            main.ChangeLayout(card, Cardinator.MainWindow.CardLayout.Split);
             Assert.True(card.IsSplit);
             Assert.Equal(Visibility.Visible, main.HalfFramePanel.Visibility);
             Assert.Equal(Cardinator.MainWindow.SameFrameAsCard, main.HalfFrameBox.SelectedItem);

@@ -198,29 +198,25 @@ public class PreviewFixesTests
     // --- meld ----------------------------------------------------------------------------------------------
 
     [Fact]
-    public void RemoveMeld_MakesItANormalCardAgain_SoFlipAndSplitAreBack()
+    public void LeavingMeld_MakesItANormalCardAgain_WithNoBackFaceLeftBehind()
         => OnAppThread(() =>
         {
             var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
             var card = main.SelectedCard!;
-            var split = (Button)main.FindName("SplitToggleBtn");
-            var flip = (Button)main.FindName("FlipToggleBtn");
-            var dfc = (Button)main.FindName("DfcToggleBtn");
-            Assert.True(split.IsEnabled);
 
             ConfirmDialog.TestAnswer = _ => ConfirmResult.Affirmative;
             try
             {
-                Invoke(main, "OnToggleMeld", null, null);
+                Assert.True(main.ChangeLayout(card, Cardinator.MainWindow.CardLayout.Meld));
+                card.BackFace!.Name = "The Melded";
+                main.CommitHistory();
                 Assert.True(card.IsMeld);
-                Assert.False(split.IsEnabled);
 
-                Invoke(main, "OnToggleMeld", null, null);
+                Assert.True(main.ChangeLayout(card, Cardinator.MainWindow.CardLayout.Normal));
                 Assert.Null(card.BackFace);
                 Assert.False(card.IsDoubleFaced);
-                Assert.True(split.IsEnabled);
-                Assert.True(flip.IsEnabled);
-                Assert.Equal("Make double-faced", dfc.Content);
+                Assert.Equal("", card.MeldHalf);
+                Assert.StartsWith("Normal", main.LayoutBox.SelectedItem!.ToString());
 
                 main.Undo();   // the melded card comes back
                 Assert.True(main.SelectedCard!.IsMeld);

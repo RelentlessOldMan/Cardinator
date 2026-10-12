@@ -13,6 +13,13 @@ public partial class DeckListWindow : Window
     /// <summary>The deck text to import (valid only when the dialog result is true).</summary>
     public string DeckText { get; private set; } = "";
 
+    /// <summary>The folder of the list file opened into the box (its art paths are relative to it); "" when the list
+    /// was pasted or fetched.</summary>
+    public string BaseDir { get; private set; } = "";
+
+    /// <summary>The name of the list file opened into the box, for the status line; "" otherwise.</summary>
+    public string FileName { get; private set; } = "";
+
     public DeckListWindow()
     {
         InitializeComponent();
@@ -53,24 +60,55 @@ public partial class DeckListWindow : Window
         }
     }
 
+    private void OnOpenFile(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Open a card list",
+            Filter = "Card lists (*.txt;*.csv;*.tsv)|*.txt;*.csv;*.tsv|All files|*.*",
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        LoadFile(dlg.FileName);
+    }
+
+    /// <summary>Puts a list file's text in the box and remembers where it came from.</summary>
+    internal void LoadFile(string path)
+    {
+        try
+        {
+            DeckBox.Text = ImportService.ReadListFile(path);
+            BaseDir = System.IO.Path.GetDirectoryName(path) ?? "";
+            FileName = System.IO.Path.GetFileName(path);
+            StatusText.Text = $"Opened {FileName} — check the list, then Import.";
+        }
+        catch (Exception ex) { StatusText.Text = "Couldn't open that file: " + ex.Message; }
+    }
+
     private void OnImport(object sender, RoutedEventArgs e)
+    {
+        if (TryAccept()) DialogResult = true;
+    }
+
+    /// <summary>Checks the box holds a list to import and takes it (<see cref="DeckText"/>); false, with a hint in
+    /// the status line, when it doesn't.</summary>
+    internal bool TryAccept()
     {
         var text = DeckBox.Text.Trim();
         if (text.Length == 0)
         {
             StatusText.Text = MoxfieldClient.IsMoxfieldUrl(MoxLinkBox.Text)
                 ? "Click “Get from Moxfield” to load the deck first."
-                : "Paste a deck list, or fetch one from a Moxfield link.";
-            return;
+                : "Paste a card list, open a file, or get one from a Moxfield link.";
+            return false;
         }
-        if (ImportService.LooksLikeOnlyLinks(text))
+        if (BaseDir.Length == 0 && ImportService.LooksLikeOnlyLinks(text))
         {
             StatusText.Text = "That's a link — put a Moxfield URL in the box above and click Get from Moxfield, "
                             + "or paste an exported list here.";
-            return;
+            return false;
         }
         DeckText = text;
-        DialogResult = true;
+        return true;
     }
 
     private void OnCancel(object sender, RoutedEventArgs e) => DialogResult = false;

@@ -188,6 +188,13 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length > 2 && e.Args[0] == "--uishot" && e.Args[2] == "layouts")
+        {
+            int code = RunLayoutShots(e.Args[1]);
+            Shutdown(code);
+            return;
+        }
+
         if (e.Args.Length > 1 && e.Args[0] == "--uishot")
         {
             int code = RunUiShot(e.Args[1]);
@@ -312,6 +319,75 @@ public partial class App : Application
         }
     }
 
+    /// <summary>The main window in each card layout and side (front, back face, the set's card back, a split card's
+    /// other half, a meld card's whole melded card), and the Set settings window — for reviewing the layout UI.</summary>
+    private int RunLayoutShots(string outDir)
+    {
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            void Shot(string name, Action<MainWindow, CardModel> setUp)
+            {
+                var main = new MainWindow { SuppressClosePrompt = true };
+                var card = main.Cards[0];
+                setUp(main, card);
+                SaveWindow(main, 1240, 820, Path.Combine(outDir, name + ".png"));
+
+            }
+            Shot("1-normal-front", (_, _) => { });
+            Shot("2-normal-cardback", (m, _) => m.ShowSide(back: true));
+            Shot("3-dfc-front", (m, c) => m.ChangeLayout(c, Cardinator.MainWindow.CardLayout.DoubleFaced));
+            Shot("4-dfc-back", (m, c) =>
+            {
+                m.ChangeLayout(c, Cardinator.MainWindow.CardLayout.DoubleFaced);
+                c.BackFace!.Name = "Seraph Ascendant";
+                c.BackFace.TypeLine = "Legendary Creature — Angel";
+                c.BackFace.RulesText = "Flying\nWhenever another creature you control dies, draw a card.";
+                m.ShowSide(back: true);
+            });
+            Shot("5-meld-back-whole", (m, c) =>
+            {
+                m.ChangeLayout(c, Cardinator.MainWindow.CardLayout.Meld);
+                c.BackFace!.Name = "The Last Light Unbound";
+                m.ShowSide(back: true);
+                m.WholeMeldBox.IsChecked = true;
+            });
+            Shot("6-flip-other", (m, c) =>
+            {
+                m.ChangeLayout(c, Cardinator.MainWindow.CardLayout.Flip);
+                c.OtherHalf!.Name = "Seraph Fallen";
+                m.ShowHalf(other: true);
+            });
+            Shot("7-split-right", (m, c) =>
+            {
+                m.ChangeLayout(c, Cardinator.MainWindow.CardLayout.Split);
+                c.OtherHalf!.Name = "Dusk";
+                c.OtherHalf.TypeLine = "Instant";
+                c.OtherHalf.RulesText = "Destroy target creature.";
+                m.ShowHalf(other: true);
+            });
+            Shot("8-adventure", (m, c) => m.ChangeLayout(c, Cardinator.MainWindow.CardLayout.Adventure));
+
+            var tpls = new TemplateService().LoadAll();
+            var settings = new SetSettingsWindow(new SetProfile
+            {
+                SetCode = "CDN", Rarity = "R", Artist = "Sam",
+                CardBack = new CardBackDesign { Style = CardBackDesign.DesignedStyle, Color = "#5A1A2A", Accent = "#E0C080" },
+            }, "", tpls.Select(t => t.Name), "My Set");
+            settings.ModeReplace.IsChecked = true;
+            SaveWindow(settings, 760, 700, Path.Combine(outDir, "9-set-settings.png"));
+            var deck = new DeckListWindow();
+            SaveWindow(deck, 560, 600, Path.Combine(outDir, "10-import-cards.png"));
+            Console.WriteLine($"Layout screenshots written to {outDir}.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Layout screenshots FAILED: " + ex);
+            return 1;
+        }
+    }
+
     /// <summary>Renders the app's four windows (main, details, frame design, help) to PNGs in a folder.
     /// Shared by --uishot and --docs so the documentation screenshots always match the real UI.</summary>
     private void WriteWindowShots(string outDir)
@@ -332,8 +408,8 @@ public partial class App : Application
         var design = new FrameDesignWindow(designTpl);
         SaveWindow(design, 940, 760, Path.Combine(outDir, "app-frame-design.png"));
 
-        var bulk = new BulkEditWindow(tpls.Select(t => t.Name));
-        SaveWindow(bulk, 430, 470, Path.Combine(outDir, "app-bulk-edit.png"));
+        var setSettings = new SetSettingsWindow(new SetProfile { SetCode = "CDN", Artist = "Sam" }, "", tpls.Select(t => t.Name), "My Set");
+        SaveWindow(setSettings, 760, 640, Path.Combine(outDir, "app-set-settings.png"));
 
         var deck = new DeckListWindow();
         SaveWindow(deck, 560, 560, Path.Combine(outDir, "app-deck-list.png"));

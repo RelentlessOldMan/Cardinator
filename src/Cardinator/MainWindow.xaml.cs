@@ -98,108 +98,346 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Dirty = false;
         SeedHistory();
 
+        LayoutBox.ItemsSource = LayoutOptions;
         DfcStyleBox.ItemsSource = DfcStyleOptions;
-        RefreshDfcControls();
-        RefreshFlipControls();
-        RefreshMeldControls();
+        MeldHalfBox.ItemsSource = MeldHalfOptions;
+        RefreshCardControls();
 
         // Download authentic Scryfall symbols in the background; re-render as they arrive.
         _symbols.Updated += OnSymbolsUpdated;
         _ = _symbols.PrimeAsync();
     }
 
-    // --- double-faced cards (DFC) -------------------------------------------
+    // --- the card's layout, and which side the preview shows -----------------
 
-    /// <summary>Display label ↔ stored DfcStyle value for the indicator dropdown.</summary>
+    /// <summary>What kind of card the selected card is — the one Card layout dropdown in place of the separate
+    /// double-faced / meld / flip / split buttons. Stored as before (a back face, a meld half, another half with its
+    /// layout, adventure fields), so nothing about the file format changes.</summary>
+    public enum CardLayout { Normal, DoubleFaced, Meld, Flip, Split, Adventure }
+
+    private sealed record LayoutOption(string Label, CardLayout Value) { public override string ToString() => Label; }
+    private static readonly LayoutOption[] LayoutOptions =
+    {
+        new("Normal", CardLayout.Normal),
+        new("Double-faced (a back face)", CardLayout.DoubleFaced),
+        new("Meld (half of a bigger card)", CardLayout.Meld),
+        new("Flip (a half upside down)", CardLayout.Flip),
+        new("Split (two halves side by side)", CardLayout.Split),
+        new("Adventure (a creature and a spell)", CardLayout.Adventure),
+    };
+
+    /// <summary>The layout the dropdown shows.</summary>
+    internal CardLayout? ShownLayout => (LayoutBox.SelectedItem as LayoutOption)?.Value;
+
+    internal static CardLayout LayoutOf(CardModel card) =>
+        card.IsMeld ? CardLayout.Meld
+        : card.IsDoubleFaced ? CardLayout.DoubleFaced
+        : card.IsFlip ? CardLayout.Flip
+        : card.IsSplit ? CardLayout.Split
+        : card.IsAdventure ? CardLayout.Adventure
+        : CardLayout.Normal;
+
+    private static string LayoutName(CardLayout l) => l switch
+    {
+        CardLayout.DoubleFaced => "double-faced",
+        CardLayout.Meld => "meld",
+        CardLayout.Flip => "flip",
+        CardLayout.Split => "split",
+        CardLayout.Adventure => "adventure",
+        _ => "normal",
+    };
+
+    /// <summary>Display label ↔ stored DfcStyle value for the corner mark dropdown.</summary>
     private sealed record DfcStyleOption(string Label, string Value) { public override string ToString() => Label; }
     private static readonly DfcStyleOption[] DfcStyleOptions =
     {
-        new("No indicator", "none"),
+        new("None", "none"),
         new("Flip arrow", "arrow"),
         new("Sun / moon", "sunmoon"),
         new("Meld", "meld"),
     };
 
-    private bool _syncingDfcControls;
+    private static readonly string[] MeldHalfOptions = { "top half", "bottom half" };
 
-    /// <summary>Syncs the DFC buttons + style dropdown to the selected card's state.</summary>
-    private void RefreshDfcControls()
+    private bool _syncingControls;
+
+    /// <summary>The preview shows the set's card back: Back is picked on a card with no back face of its own.</summary>
+    private bool _viewingCardBack;
+
+    /// <summary>The side (or half) the editor column edits: the shown face — its back face on Back, the other half of a
+    /// flip or split card once that half is picked — or null while the preview shows the set's card back.</summary>
+    public CardModel? EditedFace
     {
-        _syncingDfcControls = true;
-        try
+        get
         {
-            bool dfc = _selectedCard?.IsDoubleFaced == true;
-            DfcToggleBtn.Content = dfc ? "Remove back face" : "Make double-faced";
-            DfcToggleBtn.IsEnabled = dfc || _selectedCard?.OtherHalf == null;   // a flip/split card can't also have a back
-            DfcEditBackBtn.IsEnabled = dfc;
-            DfcFlipBtn.IsEnabled = dfc;
-            DfcStyleBox.IsEnabled = dfc;   // the indicator only draws on a double-faced card
-            DfcFlipBtn.Content = _viewingBack ? "Show front" : "Show back";
-            var style = (_selectedCard?.DfcStyle ?? "").Trim().ToLowerInvariant();
-            if (style.Length == 0) style = "none";
-            DfcStyleBox.SelectedItem = DfcStyleOptions.FirstOrDefault(o => o.Value == style) ?? DfcStyleOptions[0];
+            var c = _selectedCard;
+            if (c == null || _viewingCardBack) return null;
+            if (_viewingBack && c.BackFace != null) return c.BackFace;
+            if (c.OtherHalf != null && ((c.IsFlip && _viewingFlipped) || (c.IsSplit && _activeHalf))) return c.OtherHalf;
+            return c;
         }
-        finally { _syncingDfcControls = false; }
     }
 
-    private void OnToggleDfc(object sender, RoutedEventArgs e)
+    /// <summary>Syncs everything that shows the selected card's layout and the shown side: the layout dropdown and
+    /// its one row of options, the Front | Back switch, the half switch, the editor's heading.</summary>
+    private void RefreshCardControls()
     {
-        if (_selectedCard == null) return;
-        if (_selectedCard.IsDoubleFaced)
+        _syncingControls = true;
+        try
         {
-            if (ConfirmDialog.Show(this, "Remove back face",
-                    $"Remove the back face “{_selectedCard.BackFace!.Name}”? This can't be undone except with Undo.",
-                    affirmative: "Remove", cancel: "Cancel") != ConfirmResult.Affirmative)
-                return;
-            _selectedCard.BackFace = null;
-            _selectedCard.MeldHalf = "";
-            _viewingBack = false;
-            _viewingMelded = false;
+            var card = _selectedCard;
+            var layout = card == null ? CardLayout.Normal : LayoutOf(card);
+            LayoutBox.SelectedItem = LayoutOptions.First(o => o.Value == layout);
+
+            DfcOptions.Visibility = layout == CardLayout.DoubleFaced ? Visibility.Visible : Visibility.Collapsed;
+            var style = (card?.DfcStyle ?? "").Trim().ToLowerInvariant();
+            if (style.Length == 0) style = "none";
+            DfcStyleBox.SelectedItem = DfcStyleOptions.FirstOrDefault(o => o.Value == style) ?? DfcStyleOptions[0];
+
+            MeldOptions.Visibility = layout == CardLayout.Meld ? Visibility.Visible : Visibility.Collapsed;
+            MeldHalfBox.SelectedItem = card?.IsMeldBottom == true ? MeldHalfOptions[1] : MeldHalfOptions[0];
+            MeldPartnerBtn.IsEnabled = _meldPartner == null;
+            MeldPartnerBtn.Content = _meldPartner != null ? "Partner ✓" : "Add partner";
+            MeldPartnerBtn.ToolTip = _meldPartner != null
+                ? $"“{_meldPartner.Name}” is in the set: its back prints the other half"
+                : "Add the card that melds with this one, right after it: its back prints the other half";
+
+            RefreshHalfFrameBox();
+
+            LayoutHint.Text = layout switch
+            {
+                CardLayout.DoubleFaced => "Pick Back above the preview to write the back face.",
+                CardLayout.Meld => "The Back is the melded card — write it there; its partner shows it too.",
+                CardLayout.Flip => "Pick “Flipped half” above the preview to write the upside-down half.",
+                CardLayout.Split => "Pick a half above the preview, or click it, to write it and give it art."
+                                    + " Start the second half's rules with “Aftermath” for an aftermath card.",
+                CardLayout.Adventure => "Write the adventure — its name, cost, type and rules — in Edit details….",
+                _ => "",
+            };
+            LayoutHint.Visibility = LayoutHint.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            bool back = _viewingBack || _viewingCardBack;
+            FrontSeg.IsChecked = !back;
+            BackSeg.IsChecked = back;
+            BackSeg.ToolTip = layout switch
+            {
+                CardLayout.DoubleFaced => "Show and edit the back face",
+                CardLayout.Meld => "Show and edit the melded card: this card's back prints one half of it",
+                _ => "Show the back: the set's card back, which every card without a back face shares",
+            };
+
+            bool halves = !back && layout is CardLayout.Flip or CardLayout.Split && card != null;
+            HalfBar.Visibility = halves ? Visibility.Visible : Visibility.Collapsed;
+            FirstHalfSeg.Content = layout == CardLayout.Flip ? "Top half" : "First half";
+            OtherHalfSeg.Content = layout == CardLayout.Flip ? "Flipped half" : "Second half";
+            bool other = layout == CardLayout.Flip ? _viewingFlipped : _activeHalf;
+            FirstHalfSeg.IsChecked = !other;
+            OtherHalfSeg.IsChecked = other;
+            SidewaysBox.Visibility = halves && layout == CardLayout.Split ? Visibility.Visible : Visibility.Collapsed;
+            SidewaysBox.IsChecked = _readingSideways;
+            WholeMeldBox.Visibility = layout == CardLayout.Meld && _viewingBack ? Visibility.Visible : Visibility.Collapsed;
+            WholeMeldBox.IsChecked = _viewingMelded;
+
+            CardBackNote.Visibility = _viewingCardBack ? Visibility.Visible : Visibility.Collapsed;
+            FaceEditor.Visibility = _viewingCardBack ? Visibility.Collapsed : Visibility.Visible;
+            FaceFooter.Visibility = FaceEditor.Visibility;   // the checks and Export are about a face
+            var face = EditedFace;
+            NameLabel.Text = card == null || face == null || ReferenceEquals(face, card) ? "CARD NAME"
+                : ReferenceEquals(face, card.BackFace) ? (layout == CardLayout.Meld ? "MELDED CARD NAME" : "BACK FACE NAME")
+                : layout == CardLayout.Flip ? "FLIPPED HALF NAME" : "SECOND HALF NAME";
+            OnPropertyChanged(nameof(EditedFace));
+        }
+        finally { _syncingControls = false; }
+    }
+
+    private void OnLayoutChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingControls || _selectedCard == null || LayoutBox.SelectedItem is not LayoutOption pick) return;
+        if (!ChangeLayout(_selectedCard, pick.Value)) RefreshCardControls();   // cancelled: show the layout it still has
+    }
+
+    /// <summary>Something on a face worth asking about before it's thrown away.</summary>
+    private static bool FaceHasContent(CardModel? face) => face != null &&
+        (face.Name.Trim().Length > 0 || face.RulesText.Trim().Length > 0 || face.TypeLine.Trim().Length > 0
+         || face.ManaCost.Trim().Length > 0 || face.ArtPath.Trim().Length > 0);
+
+    /// <summary>Turns <paramref name="card"/> into a card of another layout, as one undo step. What both layouts use
+    /// is kept — the back face between double-faced and meld, the other half between flip and split — and anything
+    /// else that would be lost is asked about first (Undo brings it back). Returns false when the user cancels.</summary>
+    internal bool ChangeLayout(CardModel card, CardLayout target)
+    {
+        var from = LayoutOf(card);
+        if (from == target) return true;
+        bool keepBack = from is CardLayout.DoubleFaced or CardLayout.Meld && target is CardLayout.DoubleFaced or CardLayout.Meld;
+        bool keepHalf = from is CardLayout.Flip or CardLayout.Split && target is CardLayout.Flip or CardLayout.Split;
+
+        var lost = new List<string>();
+        if (card.BackFace != null && !keepBack && FaceHasContent(card.BackFace))
+            lost.Add(from == CardLayout.Meld ? $"its melded card “{card.BackFace.Name}”" : $"its back face “{card.BackFace.Name}”");
+        if (card.OtherHalf != null && !keepHalf && FaceHasContent(card.OtherHalf))
+            lost.Add($"its other half “{card.OtherHalf.Name}”");
+        if (from == CardLayout.Adventure && target != CardLayout.Adventure
+            && (card.AdventureName + card.AdventureText + card.AdventureCost).Trim().Length > 0)
+            lost.Add($"its adventure “{card.AdventureName}”");
+        if (lost.Count > 0 && ConfirmDialog.Show(this, "Change the layout",
+                $"Make this a {LayoutName(target)} card? It loses {string.Join(" and ", lost)}. Undo (Ctrl+Z) brings it back.",
+                affirmative: "Change", cancel: "Cancel") != ConfirmResult.Affirmative)
+            return false;
+
+        // Take off what the new layout doesn't use.
+        if (!keepBack && card.BackFace != null)
+        {
+            card.BackFace = null;
+            card.MeldHalf = "";
             _meldPartner = null;
-            SyncFramePicker();
-            Status = "Removed the back face.";
+        }
+        if (!keepHalf && card.OtherHalf != null)
+        {
+            card.OtherHalf = null;
+            card.HalfLayout = "";
+            card.HalfTemplateName = "";
+        }
+        if (from == CardLayout.Adventure)
+        {
+            card.AdventureName = card.AdventureCost = card.AdventureType = card.AdventureText = "";
+            if (string.Equals(card.Layout, "adventure", StringComparison.OrdinalIgnoreCase)) card.Layout = "";
+        }
+        if (target is not (CardLayout.DoubleFaced or CardLayout.Meld) && card.DfcStyle == "meld") card.DfcStyle = "";
+
+        // Put on what it needs.
+        string status;
+        switch (target)
+        {
+            case CardLayout.DoubleFaced:
+                EnsureBackFace(card);
+                card.MeldHalf = "";
+                if (string.IsNullOrWhiteSpace(card.DfcStyle) || card.DfcStyle is "meld" or "none") card.DfcStyle = "sunmoon";
+                status = "It's double-faced now — pick Back above the preview to write the back face.";
+                break;
+            case CardLayout.Meld:
+                EnsureBackFace(card);
+                if (!card.IsMeld) card.MeldHalf = "top";
+                if (string.IsNullOrWhiteSpace(card.DfcStyle) || card.DfcStyle is "none" or "sunmoon" or "arrow") card.DfcStyle = "meld";
+                _meldPartner = MeldPartner(card);
+                status = "It's a meld card now — its Back is the melded card, and prints its top half. "
+                         + "“Add partner” adds the card that prints the other half.";
+                break;
+            case CardLayout.Flip:
+            case CardLayout.Split:
+                card.OtherHalf ??= new CardModel { TemplateName = card.TemplateName };
+                card.HalfLayout = target == CardLayout.Flip ? "flip" : "split";
+                status = target == CardLayout.Flip
+                    ? "It's a flip card now — pick “Flipped half” above the preview to write the upside-down half."
+                    : "It's a split card now — pick “Second half” above the preview (or click it) to write it and give it art.";
+                break;
+            case CardLayout.Adventure:
+                card.Layout = "adventure";
+                if (card.AdventureType.Trim().Length == 0) card.AdventureType = "Sorcery — Adventure";
+                status = "It has an adventure now — write it in Edit details….";
+                break;
+            default:
+                status = "It's a normal card now.";
+                break;
+        }
+
+        _viewingBack = _viewingMelded = _viewingFlipped = _readingSideways = _activeHalf = _viewingCardBack = false;
+        MarkDirty();
+        CommitHistory();
+        SyncFramePicker();
+        RefreshCardControls();
+        RenderPreview();
+        Status = status;
+        return true;
+    }
+
+    /// <summary>Gives a card a blank back face, on its frame and with the set's details, unless it has one.</summary>
+    private void EnsureBackFace(CardModel card)
+    {
+        if (card.BackFace != null) return;
+        var back = new CardModel { TemplateName = card.TemplateName };
+        _setProfile.ApplyDefaults(back);
+        card.BackFace = back;
+    }
+
+    private void OnSideChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingControls || _selectedCard == null) return;
+        ShowSide(back: BackSeg.IsChecked == true);
+    }
+
+    /// <summary>Shows the front, or the back: the card's back face, or — when it has none — the set's card back.</summary>
+    internal void ShowSide(bool back)
+    {
+        var card = _selectedCard;
+        if (card == null) return;
+        if (back)
+        {
+            _viewingBack = card.BackFace != null;
+            _viewingCardBack = card.BackFace == null;
+            _viewingFlipped = _readingSideways = _activeHalf = false;
         }
         else
         {
-            // New blank back face inheriting the front's frame + set defaults, so it's ready to edit.
-            var back = new CardModel { TemplateName = _selectedCard.TemplateName };
-            _setProfile.ApplyDefaults(back);
-            if (string.IsNullOrWhiteSpace(_selectedCard.DfcStyle)) _selectedCard.DfcStyle = "sunmoon";   // a sensible default glyph
-            _selectedCard.BackFace = back;
-            Status = "Added a back face — use “Edit back face…”. Click “Show back” to preview it.";
+            _viewingBack = _viewingMelded = _viewingCardBack = false;
         }
-        MarkDirty();
-        CommitHistory();
-        RefreshDfcControls();
-        RefreshFlipControls();   // a double-faced card can't also be a flip card
-        RefreshMeldControls();
-        RenderPreview();
-    }
-
-    private void OnEditBackFace(object sender, RoutedEventArgs e)
-    {
-        if (_selectedCard?.BackFace == null) return;
-        ShowCardDialog(new DetailsWindow(_selectedCard.BackFace, _scryfall) { Owner = this });
-        // No MarkDirty here: Cancel restores the snapshot, so an unchanged card must stay clean.
-        // CommitHistory recomputes Dirty from the history position, which is accurate either way.
-        CommitHistory();
-        RenderPreview();
-    }
-
-    private void OnFlipPreview(object sender, RoutedEventArgs e)
-    {
-        if (_selectedCard?.BackFace == null) return;
-        _viewingBack = !_viewingBack;
-        if (!_viewingBack) _viewingMelded = false;
         SyncFramePicker();
-        RefreshDfcControls();
-        RefreshMeldControls();
+        RefreshCardControls();
         RenderPreview();
+    }
+
+    private void OnHalfChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingControls || _selectedCard == null) return;
+        ShowHalf(other: OtherHalfSeg.IsChecked == true);
+    }
+
+    /// <summary>Flip or split card: shows and edits the other half (a flip card's turns upside down to read it), or the
+    /// first.</summary>
+    internal void ShowHalf(bool other)
+    {
+        var card = _selectedCard;
+        if (card?.OtherHalf == null) return;
+        if (card.IsFlip) _viewingFlipped = other;
+        else if (card.IsSplit)
+        {
+            _activeHalf = other;
+            Status = $"Art now goes to “{ActiveFace?.Name}” — drag to move its art, scroll to zoom.";
+        }
+        RefreshCardControls();
+        RenderPreview();
+    }
+
+    private void OnSidewaysChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingControls || _selectedCard?.IsSplit != true) return;
+        _readingSideways = SidewaysBox.IsChecked == true;
+        RenderPreview();
+    }
+
+    private void OnWholeMeldChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingControls || _selectedCard?.IsMeld != true) return;
+        _viewingMelded = WholeMeldBox.IsChecked == true;
+        _viewingBack = true;   // the melded card is the back face's content
+        RenderPreview();
+    }
+
+    private void OnChangeCardBack(object sender, RoutedEventArgs e) => OnSetSettings(sender, e);
+
+    private void OnNewCardMenu(object sender, RoutedEventArgs e) => OpenMenu(NewCardBtn);
+    private void OnFrameMenu(object sender, RoutedEventArgs e) => OpenMenu(FrameMenuBtn);
+
+    private static void OpenMenu(System.Windows.Controls.Button button)
+    {
+        if (button.ContextMenu is not { } menu) return;
+        menu.PlacementTarget = button;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
     }
 
     private void OnDfcStyleChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        if (_syncingDfcControls || _selectedCard == null) return;
+        if (_syncingControls || _selectedCard == null) return;
         if (DfcStyleBox.SelectedItem is DfcStyleOption opt && _selectedCard.DfcStyle != opt.Value)
         {
             _selectedCard.DfcStyle = opt.Value;   // setter also syncs the back face
@@ -210,21 +448,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     // --- meld (two cards whose backs make one big card) --------------------------
-
-    /// <summary>Syncs the meld buttons to the selected card's state.</summary>
-    private void RefreshMeldControls()
-    {
-        var card = _selectedCard;
-        bool meld = card?.IsMeld == true;
-        MeldToggleBtn.Content = meld ? "Remove meld" : "Make meld card";
-        MeldToggleBtn.IsEnabled = card != null && card.OtherHalf == null;
-        MeldPartnerBtn.IsEnabled = meld && _meldPartner == null;
-        MeldPartnerBtn.Content = meld && _meldPartner != null ? "Partner in set ✓" : "Add meld partner";
-        MeldHalfBtn.IsEnabled = meld;
-        MeldHalfBtn.Content = card?.IsMeldBottom == true ? "Back: bottom half" : "Back: top half";
-        MeldShowBtn.IsEnabled = meld;
-        MeldShowBtn.Content = _viewingMelded ? "Show this half" : "Show melded card";
-    }
 
     /// <summary>The card in the set whose back prints the other half of <paramref name="card"/>'s melded card: another
     /// meld card with the opposite half and the same melded card (or named as its partner), or null.</summary>
@@ -248,51 +471,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             p.SetValue(other, p.GetValue(back));
     }
 
-    private void OnToggleMeld(object sender, RoutedEventArgs e)
-    {
-        var card = _selectedCard;
-        if (card == null || card.OtherHalf != null) return;
-        if (card.IsMeld)
-        {
-            // Back to a normal card: the melded card was this card's back, so it goes too. Leaving it behind as an
-            // ordinary back face made a double-faced card nobody asked for (and greyed out Make flip / split card).
-            if (ConfirmDialog.Show(this, "Remove meld",
-                    $"Make this a normal card again? Its back, the melded card “{card.BackFace!.Name}”, is removed (Undo brings it back)."
-                    + (_meldPartner != null ? $" “{_meldPartner.Name}” keeps its own copy." : ""),
-                    affirmative: "Remove", cancel: "Cancel") != ConfirmResult.Affirmative)
-                return;
-            card.BackFace = null;
-            card.MeldHalf = "";
-            if (card.DfcStyle == "meld") card.DfcStyle = "";
-            _viewingBack = false;
-            _viewingMelded = false;
-            _meldPartner = null;
-            SyncFramePicker();
-            Status = "It's a normal card again.";
-        }
-        else
-        {
-            if (card.BackFace == null)
-            {
-                var back = new CardModel { TemplateName = card.TemplateName };
-                _setProfile.ApplyDefaults(back);
-                card.BackFace = back;
-            }
-            card.MeldHalf = "top";
-            if (string.IsNullOrWhiteSpace(card.DfcStyle) || card.DfcStyle is "none" or "sunmoon" or "arrow") card.DfcStyle = "meld";
-            _meldPartner = MeldPartner(card);
-            Status = "Made a meld card — “Edit back face…” is the melded card; this card's back prints its top half. "
-                     + "Use “Add meld partner” for the card that prints the bottom half.";
-        }
-        MarkDirty();
-        CommitHistory();
-        RefreshDfcControls();
-        RefreshFlipControls();
-        RefreshMeldControls();
-        RenderPreview();
-    }
+    private void OnAddMeldPartner(object sender, RoutedEventArgs e) => AddMeldPartner();
 
-    private void OnAddMeldPartner(object sender, RoutedEventArgs e)
+    internal void AddMeldPartner()
     {
         var card = _selectedCard;
         if (card?.IsMeld != true || MeldPartner(card) != null) return;
@@ -305,7 +486,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _meldPartner = partner;
         MarkDirty();
         CommitHistory();
-        RefreshMeldControls();
+        RefreshCardControls();
         OnPropertyChanged(nameof(ProjectSummary));
         OnPropertyChanged(nameof(HasCards));
         Status = partner.Name.Length > 0
@@ -313,50 +494,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             : $"Added the meld partner after this card — its back prints the {partner.MeldHalf} half. Select it to fill in its front.";
     }
 
-    private void OnSwapMeldHalf(object sender, RoutedEventArgs e)
+    private void OnMeldHalfChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingControls || MeldHalfBox.SelectedItem is not string pick) return;
+        SetMeldHalf(bottom: pick == MeldHalfOptions[1]);
+    }
+
+    /// <summary>Which half of the melded card this card's back prints; its partner, if any, prints the other.</summary>
+    internal void SetMeldHalf(bool bottom)
     {
         var card = _selectedCard;
-        if (card?.IsMeld != true) return;
-        card.MeldHalf = card.IsMeldBottom ? "top" : "bottom";
-        if (_meldPartner != null) _meldPartner.MeldHalf = card.IsMeldBottom ? "top" : "bottom";
+        if (card?.IsMeld != true || card.IsMeldBottom == bottom) return;
+        card.MeldHalf = bottom ? "bottom" : "top";
+        if (_meldPartner != null) _meldPartner.MeldHalf = bottom ? "top" : "bottom";
         MarkDirty();
         CommitHistory();
-        RefreshMeldControls();
+        RefreshCardControls();
         RenderPreview();
         Status = $"This card's back now prints the {card.MeldHalf} half"
                  + (_meldPartner != null ? $"; “{_meldPartner.Name}” prints the other." : ".");
     }
 
-    private void OnShowMelded(object sender, RoutedEventArgs e)
-    {
-        if (_selectedCard?.IsMeld != true) return;
-        _viewingMelded = !_viewingMelded;
-        _viewingBack = true;   // the melded card is the back face's content
-        SyncFramePicker();
-        RefreshDfcControls();
-        RefreshMeldControls();
-        RenderPreview();
-    }
-
-    // --- flip cards (two-part, one side) ------------------------------------
-
-    /// <summary>Syncs the flip/split buttons to the selected card's state.</summary>
-    private void RefreshFlipControls()
-    {
-        bool hasHalf = _selectedCard?.OtherHalf != null;
-        bool split = _selectedCard?.IsSplit == true;
-        bool canAdd = _selectedCard != null && !hasHalf && !_selectedCard.IsDoubleFaced;   // one kind at a time
-        FlipToggleBtn.Content = hasHalf && !split ? "Remove flipped half" : "Make flip card";
-        FlipToggleBtn.IsEnabled = canAdd || (hasHalf && !split);
-        SplitToggleBtn.Content = split ? "Remove other half" : "Make split card";
-        SplitToggleBtn.IsEnabled = canAdd || split;
-        FlipEditBtn.IsEnabled = hasHalf;
-        FlipShowBtn.IsEnabled = hasHalf;
-        FlipEditBtn.Content = split ? "Edit other half…" : "Edit flipped half…";
-        FlipShowBtn.Content = split ? (_readingSideways ? "Show upright" : "Read sideways")
-                                    : (_viewingFlipped ? "Show upright" : "Show flipped");
-        RefreshHalfFrameBox();
-    }
+    // --- flip and split cards (two halves, one face) ------------------------
 
     /// <summary>The first entry of the other half's frame list: no frame of its own.</summary>
     internal const string SameFrameAsCard = "Same as the card";
@@ -393,82 +552,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                                   : $"“{_selectedCard.OtherHalf!.Name}” now has the {name} frame.";
         MarkDirty();
         QueueUndoCommit();
-        RenderPreview();
-    }
-
-    private void OnToggleFlip(object sender, RoutedEventArgs e)
-    {
-        if (_selectedCard == null) return;
-        if (_selectedCard.OtherHalf != null)
-        {
-            if (ConfirmDialog.Show(this, "Remove flipped half",
-                    $"Remove the flipped half “{_selectedCard.OtherHalf.Name}”? This can't be undone except with Undo.",
-                    affirmative: "Remove", cancel: "Cancel") != ConfirmResult.Affirmative)
-                return;
-            _selectedCard.OtherHalf = null;
-            _selectedCard.HalfLayout = "";
-            _viewingFlipped = false;
-            Status = "Removed the flipped half.";
-        }
-        else
-        {
-            if (_selectedCard.IsDoubleFaced || _selectedCard.OtherHalf != null) return;   // disabled for these; belt and braces
-            _selectedCard.HalfLayout = "flip";
-            _selectedCard.OtherHalf = new CardModel { TemplateName = _selectedCard.TemplateName };
-            Status = "Made a flip card — use “Edit flipped half…” for the upside-down half.";
-        }
-        MarkDirty();
-        CommitHistory();
-        RefreshFlipControls();
-        RefreshDfcControls();
-        RenderPreview();
-    }
-
-    private void OnToggleSplit(object sender, RoutedEventArgs e)
-    {
-        if (_selectedCard == null) return;
-        if (_selectedCard.IsSplit)
-        {
-            if (ConfirmDialog.Show(this, "Remove other half",
-                    $"Remove the other half “{_selectedCard.OtherHalf!.Name}”? This can't be undone except with Undo.",
-                    affirmative: "Remove", cancel: "Cancel") != ConfirmResult.Affirmative)
-                return;
-            _selectedCard.OtherHalf = null;
-            _selectedCard.HalfLayout = "";
-            _selectedCard.HalfTemplateName = "";
-            _readingSideways = false;
-            _activeHalf = false;
-            Status = "Removed the other half.";
-        }
-        else
-        {
-            if (_selectedCard.IsDoubleFaced || _selectedCard.OtherHalf != null) return;   // disabled for these
-            _selectedCard.HalfLayout = "split";
-            _selectedCard.OtherHalf = new CardModel { TemplateName = _selectedCard.TemplateName };
-            Status = "Made a split card — use “Edit other half…” for the second half (start its rules with "
-                     + "“Aftermath” for an aftermath card). Click a half in the preview to give it art or move its art.";
-        }
-        MarkDirty();
-        CommitHistory();
-        RefreshFlipControls();
-        RefreshDfcControls();
-        RenderPreview();
-    }
-
-    private void OnEditFlippedHalf(object sender, RoutedEventArgs e)
-    {
-        if (_selectedCard?.OtherHalf == null) return;
-        ShowCardDialog(new DetailsWindow(_selectedCard.OtherHalf, _scryfall, _selectedCard.HalfLayout) { Owner = this });
-        CommitHistory();   // recomputes Dirty from history, so a cancelled edit stays clean
-        RenderPreview();
-    }
-
-    private void OnShowFlipped(object sender, RoutedEventArgs e)
-    {
-        if (_selectedCard?.OtherHalf == null) return;
-        if (_selectedCard.IsSplit) _readingSideways = !_readingSideways;
-        else _viewingFlipped = !_viewingFlipped;
-        RefreshFlipControls();
         RenderPreview();
     }
 
@@ -532,8 +615,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void PickSplitHalfAt(System.Windows.Point p)
     {
         if (SplitHalfAt(p) is not { } other || other == _activeHalf) return;
-        _activeHalf = other;
-        Status = $"Art now goes to “{ActiveFace?.Name}” — drag to move its art, scroll to zoom.";
+        ShowHalf(other);
     }
 
     // --- bindable state -----------------------------------------------------
@@ -553,6 +635,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _readingSideways = false;
             _activeHalf = false;
             _viewingMelded = false;
+            _viewingCardBack = false;
             _meldPartner = _selectedCard != null ? MeldPartner(_selectedCard) : null;
             if (_selectedCard != null)
             {
@@ -562,9 +645,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasSelection));
             OnPropertyChanged(nameof(CanEditSelected));
-            RefreshDfcControls();
-            RefreshFlipControls();
-            RefreshMeldControls();
+            RefreshCardControls();
             RenderPreview();
         }
     }
@@ -578,7 +659,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// <summary>The part that art, pan and zoom go to: the shown side — or, on a split card, the other half
     /// once it has been clicked in the preview.</summary>
     private CardModel? ActiveFace =>
-        _activeHalf && PreviewSide is { IsSplit: true } s ? s.OtherHalf : PreviewSide;
+        _viewingCardBack ? null : _activeHalf && PreviewSide is { IsSplit: true } s ? s.OtherHalf : PreviewSide;
 
     /// <summary>The template a given face ACTUALLY renders with: its own frame (falling back to the current one),
     /// turned to its landscape layout when the face is a Battle/Plane. Resolving here means the CHECKS panel
@@ -1098,38 +1179,40 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             : $"Numbered {changed} card(s) (NNN/{total}).";
     }
 
-    /// <summary>Sets the same set code / artist / rarity / copyright / frame on all cards — or, when a subset
-    /// is multi-selected, just those (M14).</summary>
-    private void OnBulkEdit(object sender, RoutedEventArgs e)
+    /// <summary>"Set settings…": what the whole set shares — its printing details, the frame new cards get and the
+    /// card back — and whether they reach only new cards, fill the blanks on the cards already here, or replace the
+    /// values on all of them (or just the selected ones, when some but not all are selected).</summary>
+    private void OnSetSettings(object sender, RoutedEventArgs e)
     {
-        if (Cards.Count == 0) { Status = "No cards to edit."; return; }
-
-        // M14: when a subset is multi-selected, offer to target just those instead of the whole set.
-        IReadOnlyList<CardModel> targets = Cards.ToList();
         var selected = CardList.SelectedItems.Cast<CardModel>().ToList();
-        if (selected.Count > 1 && selected.Count < Cards.Count)
-        {
-            var choice = ConfirmDialog.Show(this, "Set fields",
-                $"Apply to the {selected.Count} selected card(s), or to all {Cards.Count}?",
-                affirmative: $"Selected ({selected.Count})", negative: $"All ({Cards.Count})", cancel: "Cancel");
-            if (choice == ConfirmResult.Cancel) return;
-            if (choice == ConfirmResult.Affirmative) targets = selected;
-        }
-
-        var dlg = new BulkEditWindow(Templates.Select(t => t.Name), targets.Count < Cards.Count ? targets.Count : null) { Owner = this };
+        int? some = selected.Count > 1 && selected.Count < Cards.Count ? selected.Count : null;
+        var dlg = new SetSettingsWindow(_setProfile, _defaultTemplate, Templates.Select(t => t.Name), _projectName, some) { Owner = this };
         if (dlg.ShowDialog() != true) return;
-
-        int n = ApplyBulkEdit(targets, dlg.SetCode, dlg.Artist, dlg.Rarity, dlg.Copyright, dlg.TemplateName, dlg.SetSymbolPath);
-        Status = $"Applied changes to {n} card(s).";
+        ApplySetSettings(dlg.Profile, dlg.DefaultFrame, dlg.Mode, dlg.OnlySelected ? selected : null,
+            dlg.ClearSetCode, dlg.ClearArtist, dlg.ClearCopyright, dlg.ClearSetSymbol);
     }
 
-    /// <summary>W1: edit the set's house defaults (inherited by new/imported cards), optionally applying them
-    /// to existing cards too. Unlike "Set fields on all", these persist on the project.</summary>
-    private void OnSetDefaults(object sender, RoutedEventArgs e)
+    /// <summary>Stores the set's settings and, for <see cref="SetSettingsMode.Replace"/>, puts every filled-in field
+    /// on <paramref name="targets"/> (null: every card) — a blank leaves the card's own value, a ticked clear empties
+    /// it — as one undo step.</summary>
+    internal void ApplySetSettings(SetProfile profile, string defaultFrame, SetSettingsMode mode,
+        IReadOnlyList<CardModel>? targets = null, bool clearSetCode = false, bool clearArtist = false,
+        bool clearCopyright = false, bool clearSetSymbol = false)
     {
-        var dlg = new SetDefaultsWindow(_setProfile, _defaultTemplate, Templates.Select(t => t.Name)) { Owner = this };
-        if (dlg.ShowDialog() != true) return;
-        ApplySetDefaults(dlg.Profile, dlg.DefaultFrame, dlg.ApplyToExisting);
+        if (mode != SetSettingsMode.Replace || Cards.Count == 0)
+        {
+            ApplySetDefaults(profile, defaultFrame, mode == SetSettingsMode.FillBlanks);
+            return;
+        }
+        _setProfile = profile;
+        _defaultTemplate = defaultFrame;
+        _metaDirty = true;
+        static string? Field(string value, bool clear) => clear ? "" : value.Length > 0 ? value : null;
+        var list = targets ?? Cards.ToList();
+        SetFields(list, Field(profile.SetCode, clearSetCode), Field(profile.Artist, clearArtist),
+            profile.Rarity.Length > 0 ? profile.Rarity : null, Field(profile.Copyright, clearCopyright),
+            defaultFrame.Length > 0 ? defaultFrame : null, Field(profile.SetSymbolPath, clearSetSymbol));
+        Status = $"Saved the set settings and put them on {list.Count} card{(list.Count == 1 ? "" : "s")}.";
     }
 
     /// <summary>Stores the set's house defaults (and fills blanks on existing cards if asked).</summary>
@@ -1170,6 +1253,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// the preview, and returns how many cards were targeted. A null value leaves that field unchanged;
     /// an empty string clears it.</summary>
     internal int ApplyBulkEdit(IReadOnlyList<CardModel> targets, string? setCode, string? artist, string? rarity,
+        string? copyright, string? templateName, string? setSymbolPath)
+        => SetFields(targets, setCode, artist, rarity, copyright, templateName, setSymbolPath);
+
+    private int SetFields(IReadOnlyList<CardModel> targets, string? setCode, string? artist, string? rarity,
         string? copyright, string? templateName, string? setSymbolPath)
     {
         foreach (var c in targets)
@@ -1232,6 +1319,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void RenderPreview(bool inspect)
     {
         EndLiveArt();   // a full render shows everything as it is now
+        if (_viewingCardBack && _selectedCard != null)
+        {
+            // The set's card back: what this card shows face down.
+            try { PreviewImage = BackRenderer.Render(_setProfile.CardBack, _projectName, _setProfile.SetSymbolPath, 1); }
+            catch (Exception ex) { Status = "Preview error: " + ex.Message; }
+            ValidationSummary = "The set's card back"; ValidationDetails = ""; HasValidationIssues = false;
+            return;
+        }
         var card = PreviewSide;
         if (card == null) { PreviewImage = null; UpdateValidation(null); return; }
         var template = TemplateFor(card);
@@ -1700,17 +1795,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     // --- import & batch -----------------------------------------------------
 
-    private async void OnImport(object sender, RoutedEventArgs e)
-    {
-        var dlg = new OpenFileDialog
-        {
-            Title = "Import card list (names, or CSV/TSV)",
-            Filter = "Card lists (*.txt;*.csv;*.tsv)|*.txt;*.csv;*.tsv|All files|*.*",
-        };
-        if (dlg.ShowDialog() != true) return;
-        await ImportListFile(dlg.FileName);
-    }
-
     private async Task ImportListFile(string filePath)
     {
         if (Busy) return;
@@ -1735,23 +1819,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         await AddImportedAsync(parsed.Cards, "that file", parsed.Skipped);
     }
 
-    /// <summary>Imports a deck: paste an exported list or fetch a Moxfield deck by link — both land as
-    /// text in the dialog and flow through the same parser (see <see cref="DeckListWindow"/>).</summary>
+    /// <summary>"Import cards…": a Moxfield deck by link, a list file, or a pasted list — all land as text in the
+    /// dialog and flow through the same parser (see <see cref="DeckListWindow"/>); a file's art paths are read from
+    /// beside it.</summary>
     private async void OnImportDeckList(object sender, RoutedEventArgs e)
     {
         if (Busy) return;
         var dlg = new DeckListWindow { Owner = this };
         if (dlg.ShowDialog() != true) return;
+        await ImportListText(dlg.DeckText, dlg.BaseDir, dlg.FileName);
+    }
 
-        var parsed = ImportService.ParseWithReport(dlg.DeckText, "", DefaultTemplateName);
+    internal async Task ImportListText(string text, string baseDir, string fileName)
+    {
+        var parsed = ImportService.ParseWithReport(text, baseDir, DefaultTemplateName);
         if (parsed.Cards.Count == 0)
         {
             Status = parsed.Skipped > 0
-                ? $"No cards found in the pasted list ({parsed.Skipped} line(s) couldn't be read)."
-                : "No cards found in the pasted list.";
+                ? $"No cards found in the list ({parsed.Skipped} line(s) couldn't be read)."
+                : "No cards found in the list.";
             return;
         }
-        await AddImportedAsync(parsed.Cards, "the deck list", parsed.Skipped);
+        if (baseDir.Length > 0) _artBaseDir = baseDir;   // only once the import produced cards
+        await AddImportedAsync(parsed.Cards, fileName.Length > 0 ? fileName : "the list", parsed.Skipped);
     }
 
     /// <summary>Adds parsed cards to the project and fills their blank fields + art from Scryfall,
@@ -2011,6 +2101,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var cardsSnapshot = Cards.Select(c => c.Clone()).ToList();
         var templatesSnapshot = Templates.ToList();
         var houseFrame = _defaultTemplate;
+        var backDesign = _setProfile.CardBack?.Clone();
+        var backName = _projectName;
+        var backSymbol = _setProfile.SetSymbolPath;
         var symbols = _symbols;
         var folder = dlg.FolderName;
 
@@ -2027,7 +2120,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var paths = await RunStaAsync(() =>
             {
                 var pages = doubleSided
-                    ? SheetExporter.ComposeDoubleSided(cardsSnapshot, templatesSnapshot, symbols, PageSpec.Letter, BackRenderer.Render(supersample: 1), strProgress, houseFrame)
+                    ? SheetExporter.ComposeDoubleSided(cardsSnapshot, templatesSnapshot, symbols, PageSpec.Letter, BackRenderer.Render(backDesign, backName, backSymbol, 1), strProgress, houseFrame)
                     // Single-sided: expand DFC cards so both faces get a printable slot.
                     : SheetExporter.Compose(BatchService.ExpandFaces(cardsSnapshot), templatesSnapshot, symbols, PageSpec.Letter, strProgress, houseFrame);
                 return SheetExporter.Save(pages, folder);
@@ -2049,10 +2142,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    /// <summary>Edits the side or half being shown (<see cref="EditedFace"/>): the card, its back face, or its other half.</summary>
     private void OnEditDetails(object sender, RoutedEventArgs e)
     {
-        if (_selectedCard == null) return;
-        ShowCardDialog(new DetailsWindow(_selectedCard, _scryfall) { Owner = this });
+        if (_selectedCard is not { } card || EditedFace is not { } face) return;
+        ShowCardDialog(ReferenceEquals(face, card.OtherHalf)
+            ? new DetailsWindow(face, _scryfall, card.HalfLayout) { Owner = this }
+            : new DetailsWindow(face, _scryfall) { Owner = this });
         CommitHistory();   // coalesce the dialog's edits into one undo step and refresh the preview
         RefreshCardShape();   // its lookup may have added a back face or another half
         RenderPreview();
@@ -2066,13 +2162,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_selectedCard is { } card)
         {
             if (card.BackFace == null) { _viewingBack = false; _viewingMelded = false; }
+            else if (_viewingCardBack) { _viewingCardBack = false; _viewingBack = true; }   // it has a back face of its own now
             if (card.OtherHalf == null) { _viewingFlipped = false; _readingSideways = false; _activeHalf = false; }
             _meldPartner = MeldPartner(card);
         }
         SyncFramePicker();
-        RefreshDfcControls();
-        RefreshFlipControls();
-        RefreshMeldControls();
+        RefreshCardControls();
     }
 
     private void OnHelp(object sender, RoutedEventArgs e)
@@ -2897,6 +2992,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         var image = files.FirstOrDefault(ImageIntake.LooksLikeImagePath);
         if (image == null) { Status = "That file type isn't an image, frame, project, or card list."; return; }
+        if (_viewingCardBack) { Status = "That's the card back — pick Front, then drop the art."; return; }
         if (ActiveFace == null) { Status = "Select a card first, then drop art onto it."; return; }
         PickSplitHalfAt(at);   // dropped onto a split card's half: that half
         SetArt(image);
