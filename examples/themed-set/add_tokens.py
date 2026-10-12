@@ -15,7 +15,7 @@ name and the real name on its subtitle plate, with the set's footer (set code an
 
 Tokens already in the set with the same show title are replaced, so running it again updates them; every other card
 is left exactly as it is. The set (default <workspace>/sets/<show>.cardinator) is backed up to sets/backups/ first.
-build_set.sh runs this too, so a rebuilt set keeps its tokens.
+build_set.sh runs this too, so a rebuilt set keeps its tokens. The name list (card_names.py) is written again after.
 """
 import json, os, re, shutil, sys, time
 
@@ -79,3 +79,7 @@ with open(tmp, "w", encoding="utf-8") as fh:
 os.replace(tmp, set_path)
 print(f"Added {len(tokens)} token(s) to {set_path} ({len(cards) - (len(kept) - len(tokens))} replaced); "
       f"the other {len(kept) - len(tokens)} cards are unchanged.")
+if not set_path.endswith(".building.cardinator"):   # build_set.sh writes the name list itself once the set is built
+    import subprocess
+    subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "card_names.py"), set_path,
+                    os.path.join(ws, "review", f"{show} card names.txt")], check=True)

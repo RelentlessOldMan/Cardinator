@@ -13,6 +13,7 @@ the workspace layout and the lessons learned are in [docs/THEMED-SETS.md](../../
 | `make_frames.py <workspace>` | Rebuilds every frame of a workspace from its settings (no OpenAI calls) |
 | `build_set.sh <workspace> <deck> <show> "<Frame>"` | Builds the set from the deck list (art, titles, footer, symbol) and renders it; `CARDS="A\|B"` previews just those |
 | `add_tokens.py <workspace> <deck> <show> "<Frame>"` | Adds the deck's tokens (`decks/<deck>/tokens.tsv`: real name, show title, type, p/t, rules, flavor, picture) to the set as show cards, leaving every other card as it is; `build_set.sh` runs it too |
+| `card_names.py <set.cardinator> <out.txt>` | Writes the name list: every show title and the real card it stands for, tokens too. `build_set.sh` and `add_tokens.py` write it to `review/<show> card names.txt` every time |
 | `contact_sheet.py review\|frames\|paints <workspace> <name>` | One image to look a set (or frames) over |
 | `art_list.py add\|make\|fetch\|check <workspace> <show>` | Keeps pictures as links (`art.tsv`) instead of files, and downloads them again |
 

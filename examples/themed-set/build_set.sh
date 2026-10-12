@@ -13,7 +13,8 @@
 #   4. optional art/<show>/set.json gives the set its own footer and set symbol:
 #      {"setCode": "XYZ", "collectorNumber": "001", "symbol": "symbol.png"}   (symbol: a file in the art folder),
 #   5. adds the deck's tokens from <workspace>/decks/<deck>/tokens.tsv, if there is one (see add_tokens.py),
-#   6. fails if any card is left without a show title, then renders the cards into <workspace>/review/<show>/
+#   6. writes the name list, <workspace>/review/<show> card names.txt (show title -> real card, see card_names.py),
+#   7. fails if any card is left without a show title, then renders the cards into <workspace>/review/<show>/
 #      (identical cards, like basic lands, once), with the frames in <workspace>/frames/ (no install needed).
 #
 #   CARDS="Card A|Card B"   render just these cards (by real or show name) - preview one card before the deck
@@ -83,6 +84,9 @@ if [ -f "$SET" ]; then
   mv "$SET" "$WS/sets/backups/$SHOW.$(date +%Y%m%d-%H%M%S).cardinator"
 fi
 mv "$NEW" "$SET"
+
+# The name list: every show title and the real card it stands for (review/<show> card names.txt).
+python "$(dirname "$0")/card_names.py" "$SET" "$WS/review/$SHOW card names.txt"
 
 mkdir -p "$OUT"
 rm -f "$OUT"/*.png   # empty it rather than delete it, so it can stay open in Explorer

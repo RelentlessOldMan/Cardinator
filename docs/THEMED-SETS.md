@@ -28,6 +28,7 @@ someone else's pictures.
   frames/<frame>/               the frames themselves (frame.png + template.json, flip/ and landscape/)
   sets/<show>.cardinator        built by build_set.sh, every run
   review/<show>/                the rendered cards; contact sheets in review/_sheets/
+  review/<show> card names.txt  every show title and the real card it stands for (written on every build)
 ```
 
 [`examples/themed-set/workspace-example/`](../examples/themed-set/workspace-example/) is a small starting point: a
