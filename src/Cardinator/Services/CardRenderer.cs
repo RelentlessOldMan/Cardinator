@@ -139,6 +139,17 @@ public sealed class CardRenderer
         return new ArtDrag(card, template, spec, overlay, art);
     }
 
+    /// <summary>The card exactly as <see cref="RenderToBitmap"/> draws it, kept as a drawing: what <see cref="LayoutAudit"/>
+    /// reads to see where every line of text landed.</summary>
+    internal DrawingGroup DrawToGroup(CardModel card, Template template)
+    {
+        template = TemplateService.ResolveFor(card, template);
+        var group = new DrawingGroup();
+        using (var dc = group.Open()) Draw(dc, card, template, previewHints: false);
+        group.Freeze();
+        return group;
+    }
+
     /// <summary>The card of <paramref name="drag"/> with its art where it is now, as a drawing: the preview shows it
     /// as it is, so the graphics card puts the art and the overlay together rather than this code painting a bitmap.</summary>
     public Drawing DrawArtDrag(ArtDrag drag)
@@ -260,7 +271,7 @@ public sealed class CardRenderer
         // "border" draws it on the black rim (after the border); "none" skips it.
         var footerPlacement = footer ? (spec.FooterPlacement ?? "frame").Trim().ToLowerInvariant() : "none";
         if (footerPlacement == "frame")
-            DrawFooter(dc, card, spec, onBorder: false);
+            DrawFooter(dc, card, spec, onBorder: false, template.FrameImage);
 
         dc.Pop();   // end rounded-card clip
 
@@ -888,7 +899,35 @@ public sealed class CardRenderer
 
     // --- footer (collector / rarity / set / artist) ------------------------
 
-    private static void DrawFooter(DrawingContext dc, CardModel card, TemplateSpec spec, bool onBorder)
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<BitmapSource, Dictionary<Rect, double?>> _underCache = new();
+
+    /// <summary>The average brightness (0–255) of the frame picture's opaque pixels inside <paramref name="area"/>, or
+    /// null when there's no picture or nothing opaque there. Remembered per frame and area.</summary>
+    internal static double? FrameLuminanceUnder(BitmapSource? frame, Rect area, TemplateSpec spec)
+    {
+        if (frame == null || frame.PixelWidth < 1 || spec.CanvasWidth < 1) return null;
+        var byArea = _underCache.GetOrCreateValue(frame);
+        lock (byArea)
+            if (byArea.TryGetValue(area, out var known)) return known;
+        double? result = null;
+        try
+        {
+            double sx = frame.PixelWidth / (double)spec.CanvasWidth, sy = frame.PixelHeight / (double)spec.CanvasHeight;
+            int x = Math.Clamp((int)(area.X * sx), 0, frame.PixelWidth - 1), y = Math.Clamp((int)(area.Y * sy), 0, frame.PixelHeight - 1);
+            int w = Math.Clamp((int)(area.Width * sx), 1, frame.PixelWidth - x), h = Math.Clamp((int)(area.Height * sy), 1, frame.PixelHeight - y);
+            var px = new byte[w * h * 4];
+            new FormatConvertedBitmap(new CroppedBitmap(frame, new Int32Rect(x, y, w, h)), PixelFormats.Bgra32, null, 0).CopyPixels(px, w * 4, 0);
+            double sum = 0; int n = 0;
+            for (int i = 0; i < px.Length; i += 4)
+                if (px[i + 3] > 200) { sum += 0.114 * px[i] + 0.587 * px[i + 1] + 0.299 * px[i + 2]; n++; }
+            if (n > w * h / 4) result = sum / n;
+        }
+        catch { /* the frame colour decides */ }
+        lock (byArea) byArea[area] = result;
+        return result;
+    }
+
+    private static void DrawFooter(DrawingContext dc, CardModel card, TemplateSpec spec, bool onBorder, BitmapSource? frame = null)
     {
         // "border" placement: a single tidy row sitting on the black bottom border (the border size is
         // NOT changed — the text just rides on the existing rim in light ink).
@@ -919,8 +958,10 @@ public sealed class CardRenderer
         // Pick a color that reads against the frame the footer sits on.
         if (!ArtText(spec))
         {
+            // What's really drawn under the footer decides — Crimson Red's band is pale pink although its frame
+            // colour is a dark red, and white ink there all but vanished. The frame colour is only the fallback.
             var bg = TemplateSpec.ParseColor(spec.Colors.Frame);
-            double lum = 0.299 * bg.R + 0.587 * bg.G + 0.114 * bg.B;
+            double lum = FrameLuminanceUnder(frame, bar, spec) ?? 0.299 * bg.R + 0.587 * bg.G + 0.114 * bg.B;
             if (lum < 120)
                 font = new FontSpec
                 {
@@ -1703,7 +1744,7 @@ public sealed class CardRenderer
     internal static Rect? RulesAvoid(CardModel card, TemplateSpec spec) =>
         card.HasDefense ? DefenseRect(spec) : card.HasPowerToughness ? PtRect(spec) : null;
 
-    private static bool ArtText(TemplateSpec spec) => spec.FullArt || IsBorderless(spec) || IsOverlay(spec) || IsFullBleedWindow(spec);
+    internal static bool ArtText(TemplateSpec spec) => spec.FullArt || IsBorderless(spec) || IsOverlay(spec) || IsFullBleedWindow(spec);
 
     private static bool IsComposable(TemplateSpec spec) =>
         string.Equals(spec.FrameStyle, "modern", StringComparison.OrdinalIgnoreCase) ||
@@ -1755,12 +1796,21 @@ public sealed class CardRenderer
     {
         var f = NumeralFont(spec.PtFont);
         var color = f.Color;
-        if (!ArtText(spec) && !IsComposable(spec) && PtInk(spec) is var ink && ink != TemplateSpec.ParseColor(f.Color))
-            color = $"#{ink.R:X2}{ink.G:X2}{ink.B:X2}";
+        bool shadow = f.Shadow;
+        // A composable frame's plate has a panel-coloured centre: Ironwrought Showcase drew its light, shadowed P/T
+        // ink on a cream centre, so the numbers looked hollow.
+        Color? ink = IsComposable(spec)
+            ? ReadableInk(TemplateSpec.ParseColor(f.Color), RelLum(TemplateSpec.ParseColor(spec.Colors.Panel)), MinPtContrast, spec)
+            : !ArtText(spec) ? PtInk(spec) : null;
+        if (ink is { } c && c != TemplateSpec.ParseColor(f.Color))
+        {
+            color = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            if (RelLum(c) < 0.2) shadow = false;   // a drop shadow under dark ink only smudges it
+        }
         return new FontSpec
         {
             Family = f.Family, Size = f.Size * sizeScale, Bold = f.Bold, Italic = f.Italic, Align = f.Align,
-            Color = color, Shadow = f.Shadow, ShadowColor = f.ShadowColor,
+            Color = color, Shadow = shadow, ShadowColor = f.ShadowColor,
         };
     }
 
@@ -3101,6 +3151,21 @@ public sealed class CardRenderer
     }
 
     private static double AdventureNameHeight(double size) => size * 2.0;
+
+    /// <summary>The rules size an adventure's pages or a leveler's bands fit at on <paramref name="spec"/> (the size they
+    /// all share), or the frame's own size for any other card. Measured with drawn symbols (only their size matters);
+    /// used to give such a card a taller box on a frame whose art fills the card.</summary>
+    internal static double FittedSize(CardModel card, TemplateSpec spec)
+    {
+        var measure = new CardRenderer(new SymbolService(drawnOnly: true));
+        if (card.IsAdventure)
+        {
+            Rect? avoid = card.HasDefense ? DefenseRect(spec) : card.HasPowerToughness ? PtRect(spec) : null;
+            return measure.AdventureLayout(card, spec, avoid).Size;
+        }
+        if (card.HasBands) return measure.LevelUpLayout(card, spec).Size;
+        return spec.RulesFont.Size;
+    }
 
     private void DrawAdventure(DrawingContext dc, CardModel card, TemplateSpec spec, Rect? ornament)
     {

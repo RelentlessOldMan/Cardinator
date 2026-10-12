@@ -342,12 +342,29 @@ public sealed class TemplateService
     internal static double ExtraTextRoom(CardModel card, TemplateSpec spec)
     {
         if (spec.CustomFrame || !spec.ArtFillsCard || spec.IsTokenLayout || spec.IsFlipLayout || spec.IsLandscape) return 0;
-        if (card.IsSplit || card.IsAdventure || card.HasBands) return 0;
-        int lines = TokenTextLines(card, spec);
-        int paragraphs = (card.RulesText ?? "").Split('\n').Count(p => p.Trim().Length > 0);
-        double lineH = spec.RulesFont.Size * 1.34;
-        double need = 36 + lines * lineH + System.Math.Max(0, paragraphs - 1) * lineH * 0.35;
-        if (need <= spec.TextBox.H * TallSlack) return 0;
+        if (card.IsSplit) return 0;
+        double need;
+        if (card.IsAdventure || card.HasBands)
+        {
+            // An adventure's two pages, or a leveler's (Station's, Case's) bands, share one size that shrinks until
+            // everything fits, so on a short box they all went down to the smallest size. Measured, not estimated:
+            // the box grows a step at a time until the layout reads at nearly the frame's own size.
+            double target = spec.RulesFont.Size * TallReadable;
+            double most = System.Math.Max(0, spec.TypeBar.Y - spec.CanvasHeight * TallTypeLineTop);
+            if (CardRenderer.FittedSize(card, spec) >= target) return 0;
+            double grow = TallStep;
+            for (; grow + TallStep <= most; grow += TallStep)
+                if (CardRenderer.FittedSize(card, spec.ToTaller(grow)) >= target) break;
+            return grow <= most ? grow : 0;
+        }
+        else
+        {
+            int lines = TokenTextLines(card, spec);
+            int paragraphs = (card.RulesText ?? "").Split('\n').Count(p => p.Trim().Length > 0);
+            double lineH = spec.RulesFont.Size * 1.34;
+            need = 36 + lines * lineH + System.Math.Max(0, paragraphs - 1) * lineH * 0.35;
+            if (need <= spec.TextBox.H * TallSlack) return 0;
+        }
         double room = System.Math.Max(0, spec.TypeBar.Y - spec.CanvasHeight * TallTypeLineTop);
         double extra = System.Math.Min(room, System.Math.Ceiling((need - spec.TextBox.H) / TallStep) * TallStep);
         return extra >= TallStep ? extra : 0;
@@ -356,6 +373,8 @@ public sealed class TemplateService
     /// <summary>Text this much taller than its box only shrinks a little, so the box stays as it is.</summary>
     internal const double TallSlack = 1.2;
     internal const double TallStep = 24;
+    /// <summary>The share of the frame's rules size a banded or adventure layout should keep before the box grows.</summary>
+    internal const double TallReadable = 0.85;
     internal const double TallTypeLineTop = 0.52;
 
     /// <summary>The frame laid out with a taller text box (<see cref="TemplateSpec.ToTaller"/>), drawn and cached in

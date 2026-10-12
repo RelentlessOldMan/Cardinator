@@ -295,6 +295,14 @@ These drive the fix backlog.
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
   mutation-checked.
+- ✅ **Graphics review (1.6.34)** — `--qa <dir> full` audits every layout case and stress card on every frame from the
+  drawing itself (`LayoutAudit`: text cut off, off the card, on text or a symbol, under the P/T box, outside its box,
+  on a frame line). Fixed what it and a look at every sheet found: the picture frames' credit line within a pixel of
+  their bottom border (raised 4px, sideways too); Crimson Red's footer in white on its pale band (the footer's ink now
+  follows the frame pixels under it); Ironwrought Showcase's P/T hollow white on cream (a composable frame's P/T ink
+  reads on its panel colour); an adventure's pages and a leveler's, Station's or Case's bands shrunk to a squint on the
+  frames whose art fills the card (the box now grows, measured, until they read at 85% of the frame's size).
+  `GraphicsReviewTests` (the audit on five frames is part of the suite); the docs images regenerated.
 - ✅ **Frames brought up to date, a fast art drag (1.6.33)** — a built-in frame an older version copied into the data
   folder is replaced by today's (its old files kept in `replaced-frames`), unless someone saved their own changes over
   it; dragging, zooming or nudging the art draws only the art under a once-drawn overlay, on the graphics card, at most

@@ -174,7 +174,9 @@ public partial class App : Application
 
         if (e.Args.Length > 1 && e.Args[0] == "--qa")
         {
-            int code = SelfTest.RunQa(e.Args[1]);
+            int code = e.Args.Length > 2 && e.Args[2] == "full"
+                ? SelfTest.RunQaFull(e.Args[1], e.Args.Skip(3).FirstOrDefault(x => x != "cards"), e.Args.Contains("cards"))
+                : SelfTest.RunQa(e.Args[1]);
             Shutdown(code);
             return;
         }
@@ -569,7 +571,7 @@ public partial class App : Application
                   Render one card across 32 composable-frame knob combinations.
               Cardinator.exe --uishot <outDir>
                   Render the app's own windows to PNGs off-screen (documentation screenshots).
-              Cardinator.exe --qa <outDir>
+              Cardinator.exe --qa <outDir> [full [<case>] [cards]]
                   Render every layout across the frames, run automated checks, and write
                   contact sheets (qa-layouts.png, qa-frames.png) + QA-REPORT.txt.
               Cardinator.exe --docs <outDir>

@@ -300,13 +300,22 @@ These render the app itself (its windows, a full QA pass, or the illustrated qui
 after any UI or frame change so the docs never drift from the code. They work off-screen, so they
 run even on a locked or headless machine.
 
-### `--qa <outDir>`
+### `--qa <outDir> [full [<case>] [cards]]`
 
 Renders **every layout across the frames**, runs automated checks, and writes two contact sheets
 (`qa-layouts.png`, `qa-frames.png`) plus a `QA-REPORT.txt` summary.
 
+`full` is the **layout audit**: every layout case and stress card (the longest name, cost, type line and rules, big
+and star P/T) on **every** installed frame, each checked for text that's cut off, runs off the card, lands on other
+text or a symbol, slides under the P/T box, sits outside the frame's boxes, or sits on one of the frame's own drawn
+lines. It writes one contact sheet per case (`audit-*.png`, all frames side by side) and `LAYOUT-AUDIT.txt`; exit 3
+when anything was found. A `<case>` word renders only the cases whose label contains it; `cards` also keeps every
+render (`cards/<case>/<frame>.jpg`).
+
 ```powershell
 Cardinator.exe --qa qa-out
+Cardinator.exe --qa audit full
+Cardinator.exe --qa audit full "Level up" cards
 ```
 
 ### `--docs <outDir>`

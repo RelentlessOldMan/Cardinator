@@ -690,6 +690,89 @@ public static class SelfTest
         catch (Exception ex) { Console.Error.WriteLine("QA FAILED: " + ex); return 1; }
     }
 
+    /// <summary>
+    /// The full layout audit (<c>--qa &lt;outDir&gt; full</c>): every layout case and stress card on EVERY installed frame,
+    /// each checked by <see cref="LayoutAudit"/> for text that's cut off, off the card, on other text or a symbol, under
+    /// the P/T box or outside its box. Writes one contact sheet per case (every frame side by side) and
+    /// LAYOUT-AUDIT.txt. Returns 0 when nothing was found, 3 when something was.
+    /// </summary>
+    public static int RunQaFull(string outDir, string? only = null, bool keepCards = false)
+    {
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var templates = new TemplateService().LoadAll().Where(t => !t.Spec.IsLandscape).ToList();
+            if (templates.Count == 0) { Console.Error.WriteLine("QA: no templates."); return 2; }
+            var renderer = new CardRenderer(new SymbolService(drawnOnly: true));
+            var artPath = Path.Combine(outDir, "_qa_art.png");
+            MakeSolidArt(artPath);
+
+            var report = new List<string>();
+            int renders = 0, flagged = 0;
+            var cases = QaLayoutCards(artPath).Select(c => c.label).Concat(QaStressCards(artPath).Select(c => c.label)).ToList();
+            foreach (var label in cases)
+            {
+                if (only != null && !label.Contains(only, StringComparison.OrdinalIgnoreCase)) continue;
+                var results = new List<QaResult>();
+                foreach (var tpl in templates)
+                {
+                    // A fresh card per frame: rendering sets its frame.
+                    var card = QaLayoutCards(artPath).Concat(QaStressCards(artPath)).First(c => c.label == label).card;
+                    card.TemplateName = tpl.Name;
+                    var resolved = TemplateService.ResolveFor(card, tpl);
+                    var drawing = renderer.DrawToGroup(card, tpl);
+                    var findings = LayoutAudit.Inspect(drawing, card, resolved.Spec, resolved.FrameImage);
+                    var bmp = renderer.RenderToBitmap(card, tpl, supersample: 1);
+                    if (keepCards)
+                    {
+                        var dir = Directory.CreateDirectory(Path.Combine(outDir, "cards", TextUtil.Slug(label))).FullName;
+                        CardExporter.Save(bmp, Path.Combine(dir, TextUtil.Slug(tpl.Name) + ".jpg"));
+                    }
+                    var issues = findings.Select(f => new ValidationIssue(IssueSeverity.Warning, f.Kind, f.ToString())).ToList();
+                    results.Add(new QaResult(tpl.Name, tpl.Name, bmp, issues));
+                    renders++;
+                    if (findings.Count > 0)
+                    {
+                        flagged++;
+                        report.Add($"{label}  [{tpl.Name}]");
+                        report.AddRange(findings.Select(f => "    " + f));
+                        report.Add("");
+                    }
+                }
+                BuildContactSheet(results, Path.Combine(outDir, "audit-" + TextUtil.Slug(label) + ".png"), label);
+            }
+            report.Insert(0, $"CARDINATOR LAYOUT AUDIT — {renders} renders, {flagged} with findings");
+            report.Insert(1, "");
+            File.WriteAllText(Path.Combine(outDir, "LAYOUT-AUDIT.txt"), string.Join("\n", report));
+            Console.WriteLine($"Layout audit: {renders} renders, {flagged} with findings. Wrote LAYOUT-AUDIT.txt and the sheets to {outDir}.");
+            return flagged > 0 ? 3 : 0;
+        }
+        catch (Exception ex) { Console.Error.WriteLine("QA FAILED: " + ex); return 1; }
+    }
+
+    /// <summary>Cards that push a layout to its limits: the longest name, cost, type line and rules a card can carry.</summary>
+    internal static List<(CardModel card, string tplName, string label)> QaStressCards(string art)
+    {
+        int n = 500;
+        CardModel C(string name, string mana, string type, string rules, string pow = "", string tou = "", string flavor = "", string artPath = "") => new()
+        {
+            Name = name, ManaCost = mana, TypeLine = type, RulesText = rules, FlavorText = flavor, Power = pow, Toughness = tou,
+            ArtPath = artPath, SetCode = "QAS", CollectorNumber = (++n).ToString(), Rarity = "M", Artist = "QA Harness With A Long Name",
+        };
+        return new()
+        {
+            (C("Ixhelotl, Unbroken Scion of the Last Eternal Dawn", "{2}{W}{U}", "Legendary Creature — Human Cleric", "Vigilance", "3", "4", artPath: art), "", "Stress: very long name"),
+            (C("Prismatic Omen", "{X}{X}{2}{W}{U}{B}{R}{G}", "Sorcery", "Each player draws X cards.", artPath: art), "", "Stress: very long cost"),
+            (C("Long Lineage", "{3}{B}", "Legendary Snow Artifact Creature — Phyrexian Praetor Horror Construct", "Menace", "5", "5", artPath: art), "", "Stress: very long type line"),
+            (C("Wall of Words", "{3}{U}{U}", "Creature — Sphinx",
+                "Flying, ward {2}\nWhenever Wall of Words enters or attacks, draw two cards, then discard a card. If you discarded a land card this way, create a 2/2 blue Drake creature token with flying.\nAt the beginning of your end step, if you've drawn three or more cards this turn, each opponent mills three cards and you gain 3 life.\n{4}{U}: Return target nonland permanent to its owner's hand.",
+                "4", "6", "Knowledge outlives the knower.", art), "", "Stress: wall of rules text"),
+            (C("Towering Colossus", "{8}", "Artifact Creature — Golem", "Trample", "12", "12", artPath: art), "", "Stress: two-digit P/T"),
+            (C("Mirror Mob", "{2}{G}", "Creature — Elemental", "Mirror Mob's power and toughness are each equal to the number of creatures you control.", "*", "*+1", artPath: art), "", "Stress: star P/T"),
+            (C("Flavor Only", "{1}{G}", "Creature — Bear", "", "2", "2", "A bear. Just a bear. It has been a bear for a very long time and intends to remain one."), "", "Stress: flavor only, no art"),
+        };
+    }
+
     private static QaResult RenderAndInspect(CardRenderer renderer, CardModel card, Template tpl, string label, IReadOnlyCollection<CardModel> project)
     {
         card.TemplateName = tpl.Name;
@@ -703,7 +786,7 @@ public static class SelfTest
         return new QaResult(label, tpl.Name, bmp, issues);
     }
 
-    private static List<(CardModel card, string tplName, string label)> QaLayoutCards(string art)
+    internal static List<(CardModel card, string tplName, string label)> QaLayoutCards(string art)
     {
         int n = 0;
         CardModel C(string name, string mana, string type, string rules, string art2 = "",
