@@ -12,6 +12,7 @@ the workspace layout and the lessons learned are in [docs/THEMED-SETS.md](../../
 | `frame_variants.py <frame folder>...` | Makes the flip and sideways versions of a picture frame from its own pixels |
 | `make_frames.py <workspace>` | Rebuilds every frame of a workspace from its settings (no OpenAI calls) |
 | `build_set.sh <workspace> <deck> <show> "<Frame>"` | Builds the set from the deck list (art, titles, footer, symbol) and renders it; `CARDS="A\|B"` previews just those |
+| `add_tokens.py <workspace> <deck> <show> "<Frame>"` | Adds the deck's tokens (`decks/<deck>/tokens.tsv`: real name, show title, type, p/t, rules, flavor, picture) to the set as show cards, leaving every other card as it is; `build_set.sh` runs it too |
 | `contact_sheet.py review\|frames\|paints <workspace> <name>` | One image to look a set (or frames) over |
 | `art_list.py add\|make\|fetch\|check <workspace> <show>` | Keeps pictures as links (`art.tsv`) instead of files, and downloads them again |
 

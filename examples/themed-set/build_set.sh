@@ -12,7 +12,8 @@
 #      its real name goes on the subtitle plate, and its rules text calls it by the show title),
 #   4. optional art/<show>/set.json gives the set its own footer and set symbol:
 #      {"setCode": "XYZ", "collectorNumber": "001", "symbol": "symbol.png"}   (symbol: a file in the art folder),
-#   5. fails if any card is left without a show title, then renders the cards into <workspace>/review/<show>/
+#   5. adds the deck's tokens from <workspace>/decks/<deck>/tokens.tsv, if there is one (see add_tokens.py),
+#   6. fails if any card is left without a show title, then renders the cards into <workspace>/review/<show>/
 #      (identical cards, like basic lands, once), with the frames in <workspace>/frames/ (no install needed).
 #
 #   CARDS="Card A|Card B"   render just these cards (by real or show name) - preview one card before the deck
@@ -70,6 +71,11 @@ bare = sorted({g(f, "subtitle") for f in faces if not g(f, "artpath")})
 if bare: sys.exit("No picture in the art folder for: " + "; ".join(bare) + " (art_list.py fetch?)")
 print(f"All {len(faces)} faces have show titles and pictures.")
 PY
+
+# The deck's tokens (decks/<deck>/tokens.tsv, optional) go in as show cards too - see add_tokens.py.
+if [ -f "$WS/decks/$DECK/tokens.tsv" ]; then
+  python "$(dirname "$0")/add_tokens.py" "$WS" "$DECK" "$SHOW" "$FRAME" "$NEW"
+fi
 
 # The set there now (with anything changed in the app since) is kept as a backup the app can open, named like
 # its own backups so it's listed and pruned with them; then the new one takes its place.

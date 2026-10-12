@@ -20,6 +20,7 @@ someone else's pictures.
   art/<show>/                   one picture per card, named after the REAL card ("Sol Ring.png";
                                 a double-faced card's back under its own name; one "Wastes.png" for all of them)
   art/<show>/titles.tsv         real name <TAB> show title, one line per card face
+  decks/<deck>/tokens.tsv       optional: the tokens the deck makes, as show cards (add_tokens.py)
   art/<show>/set.json           optional: {"setCode": "CCV", "collectorNumber": "001", "symbol": "symbol.png"}
   art/<show>/art.tsv            optional: where each picture came from (see "Back it up as links")
   themes/<theme>.json           a frame's settings: its kind, style brief or layers, colours and fonts
