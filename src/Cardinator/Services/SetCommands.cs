@@ -266,11 +266,21 @@ public static class SetCommands
             }
             int matched = artDir != null ? MatchArt(cards, artDir) : 0;
             int retitled = titlesFile != null ? Retitle(cards, File.ReadAllLines(titlesFile)) : 0;
+            // A titles file that retitles nothing is a mistake (the wrong file, or names that don't match): stop before
+            // saving, as for no matching cards, rather than report success.
+            if (titlesFile != null && retitled == 0)
+            { Console.Error.WriteLine($"Restyle: no card matched a name in '{titlesFile}' — nothing saved."); return 3; }
             foreach (var face in cards.SelectMany(c => c.Parts()))
             {
                 if (setCode != null) face.SetCode = setCode;
                 if (number != null) face.CollectorNumber = number;
                 if (symbol != null) face.SetSymbolPath = Path.GetFullPath(symbol);
+            }
+            // The whole set: its settings too, so the next new or imported card gets the same set code and symbol.
+            if (only == null)
+            {
+                if (setCode != null) project.Profile.SetCode = setCode;
+                if (symbol != null) project.Profile.SetSymbolPath = Path.GetFullPath(symbol);
             }
 
             ProjectWriter.Write(setPath, project.Cards, project.Name, project.ArtBaseDir, project.DefaultTemplate, project.Profile);

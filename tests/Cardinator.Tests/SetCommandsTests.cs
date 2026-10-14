@@ -226,6 +226,12 @@ public class SetCommandsTests
 
             // only= still finds a retitled card by its real name.
             Assert.Equal(new[] { "The Archivist" }, SetCommands.Only(CardProject.Load(set).Cards, "hero").Select(c => c.Name));
+
+            // A file whose names match no card is an error, and nothing is saved — not even the frame given with it.
+            File.WriteAllText(titles, "Nobody\tThe Stranger\n");
+            var before = File.ReadAllText(set);
+            Assert.Equal(3, SetCommands.RunRestyle(set, new[] { "titles=" + titles, "frame=" + Frame(1) }));
+            Assert.Equal(before, File.ReadAllText(set));
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }
@@ -252,6 +258,14 @@ public class SetCommandsTests
                 Assert.Equal(("JA", "666"), (c.SetCode, c.CollectorNumber));
                 Assert.True(File.Exists(c.SetSymbolPath), c.SetSymbolPath);
             });
+            // The set's settings follow, so the next new or imported card gets them too.
+            var profile = CardProject.LoadResolved(set, out _).Profile;
+            Assert.Equal("JA", profile.SetCode);
+            Assert.True(File.Exists(profile.SetSymbolPath), profile.SetSymbolPath);
+
+            // Restyling only some cards leaves the set's settings alone.
+            Assert.Equal(0, SetCommands.RunRestyle(set, new[] { "setcode=XX", "only=hero" }));
+            Assert.Equal("JA", CardProject.Load(set).Profile.SetCode);
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }

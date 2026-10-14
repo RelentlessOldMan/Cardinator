@@ -295,6 +295,9 @@ These drive the fix backlog.
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
   mutation-checked.
+- ✅ **Restyle leftovers (1.7.1)** — `--restyle setcode=`/`symbol=` on the whole set also sets the set's settings
+  (so the next new or imported card gets them; `only=` leaves them alone), and a `titles=` file that retitles no card
+  exits 3 with nothing saved instead of reporting success. `SetCommandsTests`, both mutation-checked.
 - ✅ **The redesign (1.7.0 — agreed minor bump)** — one **Card layout** picker (Normal, Double-faced, Meld, Flip,
   Split, Adventure) replaces the scattered DFC / meld / flip / split / adventure controls (`ChangeLayout` keeps a back
   face between double-faced and meld and a second half between flip and split, and asks only when content would be
