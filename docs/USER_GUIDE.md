@@ -322,6 +322,8 @@ The **WHOLE SET** group:
   already here* (leave a field blank to keep each card's own; tick boxes empty the set code, artist, copyright or set
   symbol instead). With cards **multi-selected** in the list, *Only the N selected cards* applies to just those. A
   new frame goes on each card's back face too, unless that back face has a frame of its own. Saved with the project.
+
+  ![Set settings](images/app-set-settings.png)
 - **Number cards** — assigns collector numbers in list order, zero-padded to the set's size: `1/9` … `9/9`
   for a set of 9, `01/12` … `12/12` for 12, `001/120` … for 120 — so a whole set is numbered in one click.
 - **Check all cards** — runs the CHECKS across the whole set and lists every card that needs attention

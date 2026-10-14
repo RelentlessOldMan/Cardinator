@@ -295,6 +295,18 @@ These drive the fix backlog.
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
   mutation-checked.
+- ✅ **The redesign (1.7.0 — agreed minor bump)** — one **Card layout** picker (Normal, Double-faced, Meld, Flip,
+  Split, Adventure) replaces the scattered DFC / meld / flip / split / adventure controls (`ChangeLayout` keeps a back
+  face between double-faced and meld and a second half between flip and split, and asks only when content would be
+  lost); a **Front | Back** switch over the preview, the back of a one-sided card being the set's **card back**
+  (`SetProfile.CardBack`, `BackRenderer`, used by print sheets too); the left side regrouped into CARDS / ADD MANY
+  CARDS / WHOLE SET / EXPORT and the middle into CHECKS / EXPORT THIS CARD; **Set settings…** replaces Set defaults and
+  Bulk edit (new-cards-only, fill blanks, or replace on every or only the selected cards — one undo step); **Import
+  cards** opens a file too; **Fill in blanks** keeps the card's own name. Themed-set scripts: `add_tokens.py` (a deck's
+  tokens as show cards) and `card_names.py` (the show-name list, written on every build). `CardLayoutTests` (15),
+  `SetSettingsTests` (11), and `UiStateFuzzTests` — seeded random clicking (160 steps, `CARDINATOR_FUZZ_SEEDS` for
+  more) checking a fresh window is clean and every undo lands on a state seen before; it found the window starting
+  dirty, a meld card turned double-faced still copying onto its old partner, and hidden boxes still changing.
 - ✅ **Graphics review (1.6.34)** — `--qa <dir> full` audits every layout case and stress card on every frame from the
   drawing itself (`LayoutAudit`: text cut off, off the card, on text or a symbol, under the P/T box, outside its box,
   on a frame line). Fixed what it and a look at every sheet found: the picture frames' credit line within a pixel of
