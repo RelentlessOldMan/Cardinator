@@ -68,6 +68,7 @@ public class UiStateFuzzTests
                 {
                     var (name, act) = actions[rng.Next(actions.Count)];
                     int repeat = rng.Next(10) switch { 0 => 3, < 3 => 2, _ => 1 };   // double and triple clicks
+                    var before = Snap();
                     for (int r = 0; r < repeat; r++)
                     {
                         log.Add($"{step}: {name}{(repeat > 1 ? $" (click {r + 1} of {repeat})" : "")}");
@@ -81,6 +82,15 @@ public class UiStateFuzzTests
                         if (name.StartsWith("undo") || name.StartsWith("redo"))
                             Assert.True(seen.Contains(Snap()), "undo/redo landed on a state the set was never in:\n" + Snap()
                                 + "\nseen:\n" + string.Join("\n", seen));
+                        if (name == "undo" && repeat == 1 && Snap() != before)
+                        {
+                            // One undo and one redo are a round trip: back exactly where it was, then the undo again.
+                            var undone = Snap();
+                            main.Redo();
+                            Assert.True(Snap() == before, "redo after an undo didn't come back to where it was:\n" + Snap() + "\nwas:\n" + before);
+                            main.Undo();
+                            Assert.True(Snap() == undone, "undo, redo, undo landed somewhere else:\n" + Snap() + "\nnot:\n" + undone);
+                        }
                         main.CommitHistory();
                         seen.Add(Snap());
                     }

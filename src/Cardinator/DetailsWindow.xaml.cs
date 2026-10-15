@@ -143,11 +143,11 @@ public partial class DetailsWindow : Window
                 extra = $" Its back is the {_card.MeldHalf} half of the melded card “{_card.BackFace!.Name}”"
                         + (_card.MeldWith.Length > 0 ? $" (the other half goes on “{_card.MeldWith}”)." : ".");
             else if (canTakeABack && _card.IsDoubleFaced)
-                extra = $" Added the back face “{_card.BackFace!.Name}” — use “Show back” to preview it.";
+                extra = $" Added the back face “{_card.BackFace!.Name}” — click Back above the preview to see it.";
             else if (canTakeABack && _card.IsSplit)
                 extra = $" Made it a split card with “{_card.OtherHalf!.Name}” as the other half.";
             else if (canTakeABack && _card.OtherHalf != null)
-                extra = $" Added the flipped half “{_card.OtherHalf.Name}” — use “Show flipped” to preview it.";
+                extra = $" Added the flipped half “{_card.OtherHalf.Name}” — click Flipped half above the preview to see it.";
             else if (faces.Count > 1)
                 extra = $" (“{f.Name}” has another half: look it up from the main window to add it.)";
             // "Also use its art": the looked-up card's art replaces this card's (and fills a new back/half's).

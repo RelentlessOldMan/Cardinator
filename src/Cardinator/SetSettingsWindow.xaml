@@ -57,7 +57,7 @@
                              Content="…and replace them on every card already here"/>
                 <StackPanel x:Name="ReplacePanel" Margin="24,2,0,0" Visibility="Collapsed">
                     <CheckBox x:Name="OnlySelectedBox" Margin="0,2,0,6" Visibility="Collapsed"/>
-                    <TextBlock Text="A blank field above leaves the cards' own value. To empty it on them, tick it here:"
+                    <TextBlock Text="Only the fields you change here go on the cards; the rest keep each card's own. To empty one on them, tick it here:"
                                Foreground="{StaticResource Subtle}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,4"/>
                     <WrapPanel>
                         <CheckBox x:Name="ClearSetBox" Content="Set code" Margin="0,0,12,0"/>

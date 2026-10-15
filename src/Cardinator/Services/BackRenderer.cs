@@ -114,7 +114,7 @@ public static class BackRenderer
             double sw = symbol.PixelWidth * fit, sh = symbol.PixelHeight * fit;
             dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(70, 0, 0, 0)), new Pen(new SolidColorBrush(gold), 3), new Point(cx, cy), s * 1.02, s * 1.02);
             dc.DrawImage(symbol, new Rect(cx - sw / 2, cy - sh / 2, sw, sh));
-            DrawWordmark(dc, wordmark, cx, cy + s + 40, W, gold);
+            DrawWordmark(dc, wordmark, cx, cy + s + 40, W, gold, mid, deep);
             return;
         }
         var diamond = new StreamGeometry();
@@ -143,15 +143,20 @@ public static class BackRenderer
         inner.Freeze();
         dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), null, inner);
 
-        DrawWordmark(dc, wordmark, cx, cy + s + 40, W, gold);
+        DrawWordmark(dc, wordmark, cx, cy + s + 40, W, gold, mid, deep);
     }
 
-    /// <summary>The wordmark beneath the emblem, in a light tint of the accent, shrunk to fit inside the keylines.</summary>
-    private static void DrawWordmark(DrawingContext dc, string wordmark, double cx, double y, double W, Color gold)
+    /// <summary>The wordmark beneath the emblem, shrunk to fit inside the keylines: a light tint of the accent on a dark
+    /// panel, a dark shade of it on a light one (a pale designed back made a pale wordmark all but vanish — and that
+    /// back prints behind every card).</summary>
+    private static void DrawWordmark(DrawingContext dc, string wordmark, double cx, double y, double W, Color gold,
+        Color mid, Color deep)
     {
         if (string.IsNullOrWhiteSpace(wordmark)) return;
         var face = new Typeface(new FontFamily("Georgia"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
-        var ink = new SolidColorBrush(Lighten(gold, 0.65));
+        // The panel there is between its middle and its darker rim.
+        double under = (Luminance(mid) + Luminance(deep)) / 2;
+        var ink = new SolidColorBrush(under > 0.45 ? Darken(gold, 0.75) : Lighten(gold, 0.65));
         double size = 44;
         FormattedText ft;
         do
@@ -160,6 +165,13 @@ public static class BackRenderer
             size -= 2;
         } while (ft.Width > W - 120 && size > 14);
         dc.DrawText(ft, new Point(cx - ft.Width / 2, y));
+    }
+
+    /// <summary>Relative luminance, 0 (black) to 1 (white).</summary>
+    internal static double Luminance(Color c)
+    {
+        static double Lin(byte v) { double x = v / 255.0; return x <= 0.03928 ? x / 12.92 : Math.Pow((x + 0.055) / 1.055, 2.4); }
+        return 0.2126 * Lin(c.R) + 0.7152 * Lin(c.G) + 0.0722 * Lin(c.B);
     }
 
     private static Rect Inset(Rect r, double by)

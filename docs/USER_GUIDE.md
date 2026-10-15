@@ -65,8 +65,8 @@ the live preview that updates as you type.*
    output folder** opens that same place. Or click **Copy image** to drop the finished card straight
    onto your clipboard for pasting into Discord/chat. For print services that need a **bleed margin**
    or a specific **DPI**, use the `--render` command-line options (see the
-   [command-line reference](CLI.md)); there's also a **card back** for double-sided printing
-   (`--cardback`).
+   [command-line reference](CLI.md)); there's also a **card back** for double-sided printing:
+   design the set's own in **Set settings…** (see below), or render the default one with `--cardback`.
 
 > **Mana symbols** use the real Scryfall artwork. The first time you use a symbol it's downloaded
 > and cached; after that it works offline. Before it's cached (or with no internet), Cardinator
@@ -319,8 +319,8 @@ The **WHOLE SET** group:
   new cards**, and the set's **card back** (see [Special card types](#special-card-types)). **Use these for**
   chooses how far they reach: *New and imported cards only* (each new card takes them for any field it doesn't
   already have), *…and fill in the cards already here that leave them blank*, or *…and replace them on every card
-  already here* (leave a field blank to keep each card's own; tick boxes empty the set code, artist, copyright or set
-  symbol instead). With cards **multi-selected** in the list, *Only the N selected cards* applies to just those. A
+  already here* (only the fields you change in this visit go on the cards — the rest keep each card's own; tick boxes
+  empty the set code, artist, copyright or set symbol instead). With cards **multi-selected** in the list, *Only the N selected cards* applies to just those. A
   new frame goes on each card's back face too, unless that back face has a frame of its own. Saved with the project.
 
   ![Set settings](images/app-set-settings.png)

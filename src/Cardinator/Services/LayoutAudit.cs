@@ -123,18 +123,33 @@ public static class LayoutAudit
                     found.Add(new("on a frame line", $"“{Short(t.Text)}” at {Fmt(t.Ink.X)},{Fmt(t.Ink.Y)}"));
                 var ink = t.Ink;
                 bool inPt = pt.Contains(new Point(ink.X + ink.Width / 2, ink.Y + ink.Height / 2));
-                if (hasPt && !inPt && Clash(ink, pt, 0.2) && !IsFooter(t, spec))
+                if (hasPt && !inPt && Clash(ink, pt, 0.2) && !IsFooter(t, spec, card))
                     found.Add(new("under the P/T box", $"“{Short(t.Text)}”"));
                 // The footer may use the whole band under the text box (picture frames draw it below their credit box).
-                if (!CardRenderer.ArtText(spec) && !boxes.Any(b => Inflate(b, 3).Contains(ink)) && !IsFooter(t, spec))
+                if (!CardRenderer.ArtText(spec) && !boxes.Any(b => Inflate(b, 3).Contains(ink)) && !IsFooter(t, spec, card))
                     found.Add(new("outside its box", $"“{Short(t.Text)}” at {Fmt(ink.X)},{Fmt(ink.Y)} {Fmt(ink.Width)}×{Fmt(ink.Height)}"));
             }
         }
         return found.Distinct().ToList();
     }
 
-    private static bool IsFooter(TextRun t, TemplateSpec spec)
-        => t.Ink.Top >= Math.Min(spec.CreditBar.Y, spec.EffectiveTextBox.Y + spec.EffectiveTextBox.H) - 2;
+    /// <summary>The footer (collector number, set, artist, copyright) may sit anywhere under the text box — but a line
+    /// of the card's own rules or flavor down there has overflowed the box, and is never the footer.</summary>
+    private static bool IsFooter(TextRun t, TemplateSpec spec, CardModel card)
+        => t.Ink.Top >= Math.Min(spec.CreditBar.Y, spec.EffectiveTextBox.Y + spec.EffectiveTextBox.H) - 2
+           && !FromTheTextBox(t.Text, card);
+
+    /// <summary>A run (four characters or more) found in the card's rules or flavor, and not in its footer's words.</summary>
+    internal static bool FromTheTextBox(string run, CardModel card)
+    {
+        // Symbols are drawn as pictures, not glyphs, and the renderer may break or join lines: compare words only.
+        static string Words(string s) => string.Join(" ", System.Text.RegularExpressions.Regex.Replace(s, @"\{[^}]*\}", " ")
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+        var r = Words(run);
+        if (r.Count(char.IsLetterOrDigit) < 4) return false;
+        var footer = Words($"{card.Artist} {card.Copyright} {card.SetCode} {card.CollectorNumber}");
+        return Words($"{card.RulesText} {card.FlavorText}").Contains(r) && !footer.Contains(r);
+    }
 
     /// <summary>
     /// A frame picture's pixels, to tell whether text sits on one of its drawn lines (a panel's border, a rule). A

@@ -601,7 +601,8 @@ public sealed class TemplateService
             var framePath = Path.Combine(dir, "frame.png");
 
             // An older version's copy of this built-in is brought up to date (kept in replaced-frames first).
-            try { UpgradeBuiltIn(dir, spec, ReplacedFramesDir); } catch { /* best effort: keep what's there */ }
+            try { if (UpgradeBuiltIn(dir, spec, ReplacedFramesDir, out var kept)) lock (ReplacedBuiltIns) ReplacedBuiltIns.Add((spec.Name, dir, kept!)); }
+            catch { /* best effort: keep what's there */ }
 
             // Rewrite a missing OR corrupt built-in spec so a truncated file self-heals.
             bool specOk = File.Exists(specPath) && TryLoadSpec(specPath, out _);
@@ -617,6 +618,22 @@ public sealed class TemplateService
     /// <summary>Next to a built-in frame's template.json when someone saved their own changes over it (Frame Design's
     /// "Overwrite built-in", or <c>--editframe</c>): that frame is theirs now and never brought up to date.</summary>
     internal const string UserEditedTag = "template.json.user-edited";
+
+    /// <summary>The built-in frames brought up to date since the window last said so (a copy someone changed before
+    /// <see cref="UserEditedTag"/> existed looks just like an old version's, so the window tells them where it went).</summary>
+    internal static readonly List<(string Name, string Dir, string Kept)> ReplacedBuiltIns = new();
+
+    /// <summary>Puts a replaced built-in frame's old copy (from <see cref="UpgradeBuiltIn"/>'s backup) back in its folder
+    /// and marks it as someone's own (<see cref="UserEditedTag"/>), so it's never brought up to date again.</summary>
+    internal static void RestoreReplaced(string dir, string kept)
+    {
+        File.Copy(Path.Combine(kept, "template.json"), Path.Combine(dir, "template.json"), overwrite: true);
+        var framePath = Path.Combine(dir, "frame.png");
+        SafeDelete(framePath + ".hash");   // the old frame.png had none: drawn by hand, or redrawn from its own spec
+        if (File.Exists(Path.Combine(kept, "frame.png"))) File.Copy(Path.Combine(kept, "frame.png"), framePath, overwrite: true);
+        else SafeDelete(framePath);
+        File.WriteAllText(Path.Combine(dir, UserEditedTag), "Put back from " + kept);
+    }
 
     /// <summary>Where a built-in frame's old files go when a newer version replaces them.</summary>
     internal static string ReplacedFramesDir => Path.Combine(AppPaths.DataDir, "replaced-frames");
@@ -635,8 +652,13 @@ public sealed class TemplateService
     /// </list>
     /// Returns true when it replaced the frame.
     /// </summary>
-    internal static bool UpgradeBuiltIn(string dir, TemplateSpec builtIn, string backupRoot)
+    internal static bool UpgradeBuiltIn(string dir, TemplateSpec builtIn, string backupRoot) =>
+        UpgradeBuiltIn(dir, builtIn, backupRoot, out _);
+
+    /// <param name="kept">The folder the old files were copied into, when it replaced the frame.</param>
+    internal static bool UpgradeBuiltIn(string dir, TemplateSpec builtIn, string backupRoot, out string? kept)
     {
+        kept = null;
         var specPath = Path.Combine(dir, "template.json");
         var framePath = Path.Combine(dir, "frame.png");
         if (!File.Exists(specPath) || File.Exists(Path.Combine(dir, UserEditedTag))) return false;
@@ -651,6 +673,7 @@ public sealed class TemplateService
         builtIn.Save(specPath);
         SafeDelete(framePath);
         SafeDelete(framePath + ".hash");
+        kept = backup;
         return true;
     }
 

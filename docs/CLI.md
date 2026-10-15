@@ -133,7 +133,8 @@ Query syntax is Scryfall's (`t:` type, `c:` color, `set:`, `cmc=`, `r:` rarity, 
 
 ## `--cardback <out.png> ["Wordmark"]`
 
-Renders the decorative **card back** (for double-sided printing). Optional wordmark text.
+Renders the default decorative **card back** (for double-sided printing). Optional wordmark text. A set's own
+back (designed or a picture) is made in the app: **Set settings…** → **Save the card back as an image…**.
 
 ```powershell
 Cardinator.exe --cardback back.png "My Set"
@@ -278,8 +279,10 @@ Beyond's flavor names: each line is `card name<TAB>new title`, and the card show
 name on the subtitle plate (running it again finds a retitled card by that real name). Its rules text names it
 by the new title too ("Whenever Ulamog attacks" becomes "Whenever Adam attacks"). `setcode=` and `number=`
 set the footer's set code and collector number on every card (a custom set's own, e.g. `666 R • JA • EN`,
-instead of each real card's printing), and `symbol=<image>` puts that picture on the type line as the set symbol. `only=` limits it to
-those cards, by name or real name. The previous file is backed up first. Like `--import`, it refuses a file in a
+instead of each real card's printing), and `symbol=<image>` puts that picture on the type line as the set symbol; for the
+whole set, the set code and symbol also go into its set settings, so cards added later get them. `only=` limits it to
+those cards, by name or real name. A `titles=` file that retitles no card at all (a wrong file, or none of its names
+in the set) is an error (exit 3) and nothing is saved. The previous file is backed up first. Like `--import`, it refuses a file in a
 `backups` folder and a set a newer version saved.
 
 ### `--info <set.cardinator> [templates=<dir>]`
@@ -307,10 +310,11 @@ Renders **every layout across the frames**, runs automated checks, and writes tw
 
 `full` is the **layout audit**: every layout case and stress card (the longest name, cost, type line and rules, big
 and star P/T) on **every** installed frame, each checked for text that's cut off, runs off the card, lands on other
-text or a symbol, slides under the P/T box, sits outside the frame's boxes, or sits on one of the frame's own drawn
+text or a symbol, slides under the P/T box, sits outside the frame's boxes (rules that overflowed below the text box count, even down in the footer;
+frames whose text sits on the art aren't checked for this), or sits on one of the frame's own drawn
 lines. It writes one contact sheet per case (`audit-*.png`, all frames side by side) and `LAYOUT-AUDIT.txt`; exit 3
-when anything was found. A `<case>` word renders only the cases whose label contains it; `cards` also keeps every
-render (`cards/<case>/<frame>.jpg`).
+when anything was found. A `<case>` word renders only the cases whose label contains it (one matching none is an error, exit 2, listing
+the cases); `cards` also keeps every render (`cards/<case>/<frame>.jpg`).
 
 ```powershell
 Cardinator.exe --qa qa-out
@@ -328,13 +332,16 @@ them, into `<outDir>` (images go in `<outDir>/images`).
 Cardinator.exe --docs docs-out
 ```
 
-### `--uishot <outDir>`
+### `--uishot <outDir> [layouts]`
 
-Renders the app's own windows (main, details, frame design, bulk edit, help) to PNGs — the raw
-documentation screenshots, without the QUICKSTART wrapper.
+Renders the app's own windows (main, details, help, frame design, set settings, deck list, confirm, search)
+to PNGs — the raw documentation screenshots, without the QUICKSTART wrapper. With `layouts`, it instead renders
+the main window in each card layout and side (front, back face, the set's card back, a split card's other half,
+a meld card's melded card) and the Set settings window — for reviewing the layout UI.
 
 ```powershell
 Cardinator.exe --uishot shots
+Cardinator.exe --uishot shots layouts
 ```
 
 ### `--appshot <list.csv> <artDir> <out.png> ["name"]`

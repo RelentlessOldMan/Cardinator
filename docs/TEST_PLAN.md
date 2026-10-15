@@ -295,6 +295,16 @@ These drive the fix backlog.
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
   mutation-checked.
+- ✅ **Seventh independent review (1.7.2)** — Set settings' **Replace** puts only the fields changed in that visit
+  on the cards (it wrote every shown field over each card's own rarity, frame and the rest), and saving a new card
+  back redraws it on the Back side; meld cards with no melded name pair by their partners' names (and **Add partner**
+  names a blank melded card); built-in frames an upgrade replaces are named once at start-up, with **Put my copies
+  back**; the arrow keys on the closed Card layout dropdown open it instead of changing the layout at every press; a
+  back face or half holding only flavor, P/T, loyalty or defense is asked about before it's dropped; an opened list
+  file's folder no longer sticks to a list pasted or fetched over it; a pale designed card back gets dark lettering;
+  the layout audit no longer takes overflowed rules under the text box for the footer, and `--qa … full <case>` with
+  a case matching nothing exits 2. `add_tokens.py`: the set symbol, "Token" on every token's type line, and only the
+  set code and number all the cards share. `Review7Tests` (17), each mutation-checked; `--qa full` still 0 findings.
 - ✅ **Restyle leftovers (1.7.1)** — `--restyle setcode=`/`symbol=` on the whole set also sets the set's settings
   (so the next new or imported card gets them; `only=` leaves them alone), and a `titles=` file that retitles no card
   exits 3 with nothing saved instead of reporting success. `SetCommandsTests`, both mutation-checked.

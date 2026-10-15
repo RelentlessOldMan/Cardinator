@@ -534,8 +534,8 @@ public partial class App : Application
         3. Click **Fill in blanks from Scryfall** if you left fields blank, and **Add art from a folder…** to
            attach a folder of images by filename.
         4. Use **Set settings…** to give every card one frame (and/or set code, artist, rarity, copyright) —
-           pick *…and replace them on every card already here*; blank fields are left unchanged, so you can
-           re-frame a whole set in one step. Choose the set's **card back** there too.
+           pick *…and replace them on every card already here*; only the fields you change go on the cards, so you
+           can re-frame a whole set in one step. Choose the set's **card back** there too.
         5. **All as images…** writes every card to a PNG, or **Print sheets…** lays them out at real card size
            on Letter pages with cut marks, ready to print (A4 pages and print bleed are on the
            [command line](CLI.md)).
@@ -640,14 +640,15 @@ public partial class App : Application
               Cardinator.exe --newtemplate "<name>" <frame.png | url> [fullart]
                   Create a custom template from your own frame image (local file or URL).
               Cardinator.exe --cardback <out.png> ["Wordmark"]
-                  Render the decorative card back (for double-sided printing).
+                  Render the default card back (for double-sided printing); a set's own is made in Set settings.
               Cardinator.exe --frames <outDir> [nosym] [builtin]
                   Render one sample card on every installed frame (a style showcase).
                   builtin=only the frames that ship with the app.
               Cardinator.exe --permute <card.json> <outDir>
                   Render one card across 32 composable-frame knob combinations.
-              Cardinator.exe --uishot <outDir>
+              Cardinator.exe --uishot <outDir> [layouts]
                   Render the app's own windows to PNGs off-screen (documentation screenshots).
+                  layouts=the main window in each card layout and side, instead.
               Cardinator.exe --qa <outDir> [full [<case>] [cards]]
                   Render every layout across the frames, run automated checks, and write
                   contact sheets (qa-layouts.png, qa-frames.png) + QA-REPORT.txt.
@@ -675,7 +676,9 @@ public partial class App : Application
                   templates=<dir> also uses frames from a folder without installing them.
               Cardinator.exe --restyle <set.cardinator> [frame=<name>] [art=<dir>] [titles=<file>] [setcode=<code>] [number=<n>] [symbol=<image>] [only=<name|name>] [templates=<dir>]
                   Change cards' frame, art and/or titles in a saved set (the old file is backed up first).
-                  titles=<file>: "card name<TAB>new title" lines; the real name becomes the subtitle.
+                  titles=<file>: "card name<TAB>new title" lines; the real name becomes the subtitle
+                  (exit 3, nothing saved, when it retitles no card). For the whole set, setcode= and
+                  symbol= also go into the set's settings.
               Cardinator.exe --info <set.cardinator> [templates=<dir>]
                   List a set's cards with their frame and art status (tab-separated).
               Cardinator.exe --listframes [templates=<dir>]

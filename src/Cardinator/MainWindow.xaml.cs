@@ -66,6 +66,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _renderer = new CardRenderer(_symbols);
         InitializeComponent();
         DataContext = this;
+        ContentRendered += (_, _) => TellAboutReplacedFrames();
         // The lists go in before the first card is selected: filling one later picks an item, and that change
         // would land on the card as an edit (a fresh window opened with a corner mark of "none" and an undo step).
         LayoutBox.ItemsSource = LayoutOptions;
@@ -258,10 +259,26 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!ChangeLayout(_selectedCard, pick.Value)) RefreshCardControls();   // cancelled: show the layout it still has
     }
 
+    /// <summary>On the closed layout dropdown the arrow keys would change the card's layout at every press (each a real
+    /// change, some asking to throw a face away, and a cancel leaving the card on the layout before): open the list
+    /// instead, where the arrows only move the highlight and Enter picks.</summary>
+    private void OnLayoutKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (LayoutBox.IsDropDownOpen) return;
+        if (e.Key is System.Windows.Input.Key.Up or System.Windows.Input.Key.Down or System.Windows.Input.Key.Home
+            or System.Windows.Input.Key.End or System.Windows.Input.Key.PageUp or System.Windows.Input.Key.PageDown)
+        {
+            LayoutBox.IsDropDownOpen = true;
+            e.Handled = true;
+        }
+    }
+
     /// <summary>Something on a face worth asking about before it's thrown away.</summary>
     private static bool FaceHasContent(CardModel? face) => face != null &&
         (face.Name.Trim().Length > 0 || face.RulesText.Trim().Length > 0 || face.TypeLine.Trim().Length > 0
-         || face.ManaCost.Trim().Length > 0 || face.ArtPath.Trim().Length > 0);
+         || face.ManaCost.Trim().Length > 0 || face.ArtPath.Trim().Length > 0 || face.FlavorText.Trim().Length > 0
+         || face.Power.Trim().Length > 0 || face.Toughness.Trim().Length > 0 || face.Loyalty.Trim().Length > 0
+         || face.Defense.Trim().Length > 0);
 
     /// <summary>Turns <paramref name="card"/> into a card of another layout, as one undo step. What both layouts use
     /// is kept — the back face between double-faced and meld, the other half between flip and split — and anything
@@ -459,9 +476,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     internal CardModel? MeldPartner(CardModel card)
     {
         if (!card.IsMeld) return null;
-        var others = Cards.Where(c => !ReferenceEquals(c, card) && c.IsMeld && c.IsMeldBottom != card.IsMeldBottom).ToList();
-        return others.FirstOrDefault(c => string.Equals(c.BackFace!.Name.Trim(), card.BackFace!.Name.Trim(), StringComparison.OrdinalIgnoreCase))
-            ?? others.FirstOrDefault(c => card.MeldWith.Length > 0 && string.Equals(c.Name.Trim(), card.MeldWith.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (PairedByMeldedName(card) is { } byName) return byName;
+        // Named as its partner — unless that card's melded card already pairs it with another.
+        if (card.MeldWith.Trim().Length == 0) return null;
+        return Cards.FirstOrDefault(c => !ReferenceEquals(c, card) && c.IsMeld && c.IsMeldBottom != card.IsMeldBottom
+            && string.Equals(c.Name.Trim(), card.MeldWith.Trim(), StringComparison.OrdinalIgnoreCase)
+            && PairedByMeldedName(c) is var taken && (taken == null || ReferenceEquals(taken, card)));
+    }
+
+    /// <summary>The partner whose back names the same melded card. Several pairs can share a melded card (a duplicated
+    /// meld card), so the cards pair up in list order: the second top half with that melded card goes with the second
+    /// bottom half. A blank melded card pairs with nothing — two new meld cards aren't each other's halves just because
+    /// neither has a name yet.</summary>
+    private CardModel? PairedByMeldedName(CardModel card)
+    {
+        var melded = card.BackFace!.Name.Trim();
+        if (melded.Length == 0) return null;
+        bool Same(CardModel c) => c.IsMeld && string.Equals(c.BackFace!.Name.Trim(), melded, StringComparison.OrdinalIgnoreCase);
+        int rank = Cards.Where(c => Same(c) && c.IsMeldBottom == card.IsMeldBottom).TakeWhile(c => !ReferenceEquals(c, card)).Count();
+        return Cards.Where(c => Same(c) && c.IsMeldBottom != card.IsMeldBottom).Skip(rank).FirstOrDefault();
     }
 
     /// <summary>Copies one changed property of the selected meld card's back (the melded card) onto its partner's
@@ -482,6 +515,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var card = _selectedCard;
         if (card?.IsMeld != true || MeldPartner(card) != null) return;
+        // The two halves find each other by their melded card's name, and a blank one pairs with nothing: give it a
+        // name no other card's melded card has (shown on the back, to be typed over).
+        if (card.BackFace!.Name.Trim().Length == 0)
+            card.BackFace.Name = Enumerable.Range(1, int.MaxValue).Select(i => $"Melded card {i}")
+                .First(n => !Cards.Any(c => c.IsMeld && string.Equals(c.BackFace!.Name.Trim(), n, StringComparison.OrdinalIgnoreCase)));
         var partner = new CardModel { Name = card.MeldWith, TemplateName = card.TemplateName, DfcStyle = card.DfcStyle };
         _setProfile.ApplyDefaults(partner);
         partner.BackFace = card.BackFace!.Clone();
@@ -619,6 +657,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// when that changes.</summary>
     private void PickSplitHalfAt(System.Windows.Point p)
     {
+        if (_viewingCardBack) return;   // the set's card back is showing, not the card's halves
         if (SplitHalfAt(p) is not { } other || other == _activeHalf) return;
         ShowHalf(other);
     }
@@ -1197,9 +1236,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             dlg.ClearSetCode, dlg.ClearArtist, dlg.ClearCopyright, dlg.ClearSetSymbol);
     }
 
-    /// <summary>Stores the set's settings and, for <see cref="SetSettingsMode.Replace"/>, puts every filled-in field
-    /// on <paramref name="targets"/> (null: every card) — a blank leaves the card's own value, a ticked clear empties
-    /// it — as one undo step.</summary>
+    /// <summary>Stores the set's settings and, for <see cref="SetSettingsMode.Replace"/>, puts the fields changed in
+    /// this visit on <paramref name="targets"/> (null: every card) — a ticked clear empties it — as one undo step. A field
+    /// left as the set already had it isn't stamped on the cards: the window opens filled in with the set's settings,
+    /// so changing just the artist must not also put the set's rarity and frame on every card.</summary>
     internal void ApplySetSettings(SetProfile profile, string defaultFrame, SetSettingsMode mode,
         IReadOnlyList<CardModel>? targets = null, bool clearSetCode = false, bool clearArtist = false,
         bool clearCopyright = false, bool clearSetSymbol = false)
@@ -1209,15 +1249,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ApplySetDefaults(profile, defaultFrame, mode == SetSettingsMode.FillBlanks);
             return;
         }
+        var was = _setProfile;
+        var wasFrame = _defaultTemplate;
         _setProfile = profile;
         _defaultTemplate = defaultFrame;
         _metaDirty = true;
-        static string? Field(string value, bool clear) => clear ? "" : value.Length > 0 ? value : null;
+        // A changed, filled-in field goes on the cards; a ticked clear empties it on them; anything else is left alone.
+        static string? Field(string value, string before, bool clear) =>
+            clear ? "" : value.Length > 0 && !string.Equals(value, before, StringComparison.Ordinal) ? value : null;
         var list = targets ?? Cards.ToList();
-        SetFields(list, Field(profile.SetCode, clearSetCode), Field(profile.Artist, clearArtist),
-            profile.Rarity.Length > 0 ? profile.Rarity : null, Field(profile.Copyright, clearCopyright),
-            defaultFrame.Length > 0 ? defaultFrame : null, Field(profile.SetSymbolPath, clearSetSymbol));
-        Status = $"Saved the set settings and put them on {list.Count} card{(list.Count == 1 ? "" : "s")}.";
+        string? setCode = Field(profile.SetCode, was.SetCode, clearSetCode), artist = Field(profile.Artist, was.Artist, clearArtist),
+            rarity = Field(profile.Rarity, was.Rarity, false), copyright = Field(profile.Copyright, was.Copyright, clearCopyright),
+            frame = Field(defaultFrame, wasFrame, false), symbol = Field(profile.SetSymbolPath, was.SetSymbolPath, clearSetSymbol);
+        int fields = new[] { setCode, artist, rarity, copyright, frame, symbol }.Count(f => f != null);
+        SetFields(list, setCode, artist, rarity, copyright, frame, symbol);   // one undo step, and redraws
+        Status = fields == 0
+            ? "Saved the set settings — nothing changed to put on the cards."
+            : $"Saved the set settings and put the {fields} changed field{(fields == 1 ? "" : "s")} on {list.Count} card{(list.Count == 1 ? "" : "s")}.";
     }
 
     /// <summary>Stores the set's house defaults (and fills blanks on existing cards if asked).</summary>
@@ -1237,14 +1285,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     c.TemplateName = _defaultTemplate;
             CommitHistory();
             RenderPreview();
-            Status = $"Saved set defaults and filled blanks on {changed} existing card(s).";
+            Status = $"Saved the set settings and filled blanks on {changed} existing card(s).";
         }
         else
         {
             CommitHistory();
+            RenderPreview();   // the card back lives in the set's settings: no card changed, so nothing else redraws it
             Status = _setProfile.IsEmpty && string.IsNullOrWhiteSpace(_defaultTemplate)
-                ? "Cleared set defaults."
-                : "Saved set defaults — new and imported cards will inherit them.";
+                ? "Cleared the set settings."
+                : "Saved the set settings — new and imported cards will get them.";
         }
     }
 
@@ -2030,7 +2079,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            Status = "Export all failed: " + ex.Message;
+            Status = "All as images failed: " + ex.Message;
         }
         finally
         {
@@ -2542,13 +2591,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             RefreshCardShape();
             Status = card.IsMeld
                 ? $"Loaded “{f.Name}” from Scryfall as a meld card: its back is the {card.MeldHalf} half of “{card.BackFace!.Name}”."
-                  + (MeldPartner(card) == null && card.MeldWith.Length > 0 ? $" Use “Add meld partner” for “{card.MeldWith}”." : "") + artNote
+                  + (MeldPartner(card) == null && card.MeldWith.Length > 0 ? $" Use “Add partner” for “{card.MeldWith}”." : "") + artNote
                 : card.IsDoubleFaced
-                ? $"Loaded “{f.Name}” from Scryfall as one double-faced card — use Show back to flip.{artNote}"
+                ? $"Loaded “{f.Name}” from Scryfall as one double-faced card — click Back above the preview to see its back.{artNote}"
                 : card.IsSplit
                 ? $"Loaded “{f.Name} // {card.OtherHalf!.Name}” from Scryfall as one split card.{artNote}"
                 : card.IsFlip
-                ? $"Loaded “{f.Name}” from Scryfall as one flip card — use Show flipped to read the other half.{artNote}"
+                ? $"Loaded “{f.Name}” from Scryfall as one flip card — click Flipped half above the preview to read it.{artNote}"
                 : faces.Count > 1
                     ? $"Loaded “{f.Name}” details from Scryfall (+{faces.Count - 1} card for the other half).{artNote}"
                     : $"Loaded “{f.Name}” details from Scryfall.{artNote}";
@@ -2844,6 +2893,40 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     private static double Clamp(double v, double lo, double hi) => Math.Max(lo, Math.Min(hi, v));
+
+    /// <summary>Once, when the window first shows: the built-in frames this version brought up to date, and where
+    /// their old copies are — a copy someone changed by hand in an older version is replaced too, so they can get
+    /// it back.</summary>
+    internal void TellAboutReplacedFrames()
+    {
+        List<(string Name, string Dir, string Kept)> replaced;
+        lock (TemplateService.ReplacedBuiltIns)
+        {
+            replaced = TemplateService.ReplacedBuiltIns.ToList();
+            TemplateService.ReplacedBuiltIns.Clear();
+        }
+        if (replaced.Count == 0) return;
+        var names = string.Join(", ", replaced.Select(r => r.Name).Distinct());
+        var answer = ConfirmDialog.Show(this, "Built-in frames updated",
+            $"This version brought these built-in frames up to date: {names}.\n\n"
+            + "If you had changed any of them yourself in an older version, put your copies back — they'll stay "
+            + "yours from now on. Otherwise keep the new ones (they fix how text sits on the frame).\n\n"
+            + "The old copies are kept in " + TemplateService.ReplacedFramesDir + " either way.",
+            "Keep the new ones", "Put my copies back");
+        if (answer != ConfirmResult.Negative)
+        {
+            Status = $"Brought {replaced.Count} built-in frame(s) up to date; the old copies are in {TemplateService.ReplacedFramesDir}.";
+            return;
+        }
+        try
+        {
+            foreach (var r in replaced) TemplateService.RestoreReplaced(r.Dir, r.Kept);
+            RefreshTemplates();
+            RenderPreview();
+            Status = $"Put back your copies of {names}.";
+        }
+        catch (Exception ex) { Status = "Couldn't put the frames back: " + ex.Message; }
+    }
 
     private void OnOpenOutput(object sender, RoutedEventArgs e)
     {

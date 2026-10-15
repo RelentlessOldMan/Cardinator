@@ -15,10 +15,24 @@ public partial class DeckListWindow : Window
 
     /// <summary>The folder of the list file opened into the box (its art paths are relative to it); "" when the list
     /// was pasted or fetched.</summary>
-    public string BaseDir { get; private set; } = "";
+    public string BaseDir => StillTheOpenedFile ? _baseDir : "";
 
     /// <summary>The name of the list file opened into the box, for the status line; "" otherwise.</summary>
-    public string FileName { get; private set; } = "";
+    public string FileName => StillTheOpenedFile ? _fileName : "";
+
+    private string _baseDir = "", _fileName = "", _openedText = "";
+
+    /// <summary>The box still holds the opened file's list, perhaps touched up — not a pasted or fetched one put over
+    /// it (none of the file's lines left).</summary>
+    private bool StillTheOpenedFile
+    {
+        get
+        {
+            if (_openedText.Length == 0) return false;
+            var now = DeckBox.Text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToHashSet();
+            return _openedText.Split('\n').Select(l => l.Trim()).Any(l => l.Length > 0 && now.Contains(l));
+        }
+    }
 
     public DeckListWindow()
     {
@@ -47,6 +61,7 @@ public partial class DeckListWindow : Window
                 StatusText.Text = "That deck came back empty — check the link, or paste the exported list.";
                 return;
             }
+            _openedText = "";   // a fetched deck isn't the file opened before (its card lines may well overlap)
             DeckBox.Text = list;
             StatusText.Text = "Loaded — review the list, then Import.";
         }
@@ -77,8 +92,9 @@ public partial class DeckListWindow : Window
         try
         {
             DeckBox.Text = ImportService.ReadListFile(path);
-            BaseDir = System.IO.Path.GetDirectoryName(path) ?? "";
-            FileName = System.IO.Path.GetFileName(path);
+            _openedText = DeckBox.Text;
+            _baseDir = System.IO.Path.GetDirectoryName(path) ?? "";
+            _fileName = System.IO.Path.GetFileName(path);
             StatusText.Text = $"Opened {FileName} — check the list, then Import.";
         }
         catch (Exception ex) { StatusText.Text = "Couldn't open that file: " + ex.Message; }

@@ -710,6 +710,12 @@ public static class SelfTest
             var report = new List<string>();
             int renders = 0, flagged = 0;
             var cases = QaLayoutCards(artPath).Select(c => c.label).Concat(QaStressCards(artPath).Select(c => c.label)).ToList();
+            // A case name that matches nothing (a typo) audited nothing — not a clean pass.
+            if (only != null && !cases.Any(l => l.Contains(only, StringComparison.OrdinalIgnoreCase)))
+            {
+                Console.Error.WriteLine($"QA: no case matches “{only}”. The cases are: {string.Join(", ", cases)}.");
+                return 2;
+            }
             foreach (var label in cases)
             {
                 if (only != null && !label.Contains(only, StringComparison.OrdinalIgnoreCase)) continue;

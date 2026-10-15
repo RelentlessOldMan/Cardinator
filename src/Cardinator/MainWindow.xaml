@@ -149,7 +149,7 @@
 
                     <TextBlock Text="CARD LAYOUT" Style="{StaticResource SectionLabel}"/>
                     <StackPanel Margin="0,0,0,14">
-                        <ComboBox x:Name="LayoutBox" SelectionChanged="OnLayoutChanged"
+                        <ComboBox x:Name="LayoutBox" SelectionChanged="OnLayoutChanged" PreviewKeyDown="OnLayoutKeyDown"
                                   ToolTip="What kind of card this is: one face, two faces, a meld half, two halves on one face, or a creature with an adventure"/>
                         <!-- The one row of options for the chosen layout. -->
                         <Grid x:Name="DfcOptions" Margin="0,8,0,0" Visibility="Collapsed">

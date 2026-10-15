@@ -68,8 +68,8 @@ deleted afterwards.
 3. Click **Fill in blanks from Scryfall** if you left fields blank, and **Add art from a folder…** to
    attach a folder of images by filename.
 4. Use **Set settings…** to give every card one frame (and/or set code, artist, rarity, copyright) —
-   pick *…and replace them on every card already here*; blank fields are left unchanged, so you can
-   re-frame a whole set in one step. Choose the set's **card back** there too.
+   pick *…and replace them on every card already here*; only the fields you change go on the cards, so you
+   can re-frame a whole set in one step. Choose the set's **card back** there too.
 5. **All as images…** writes every card to a PNG, or **Print sheets…** lays them out at real card size
    on Letter pages with cut marks, ready to print (A4 pages and print bleed are on the
    [command line](CLI.md)).
