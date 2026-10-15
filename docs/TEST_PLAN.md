@@ -295,6 +295,10 @@ These drive the fix backlog.
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
   mutation-checked.
+- ✅ **Review 7 loose ends (1.7.3)** — Set settings' Replace gains *Put the frame above on every card, even if
+  unchanged* (re-picking the set's own frame no longer did nothing); tests for a click on a split card's card back
+  (the window laid out off-screen) and a Moxfield deck dropping the opened file's folder. `Review7Tests` (21), the
+  new ones mutation-checked.
 - ✅ **Seventh independent review (1.7.2)** — Set settings' **Replace** puts only the fields changed in that visit
   on the cards (it wrote every shown field over each card's own rarity, frame and the rest), and saving a new card
   back redraws it on the Back side; meld cards with no melded name pair by their partners' names (and **Add partner**

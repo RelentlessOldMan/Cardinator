@@ -215,6 +215,83 @@ public class Review7Tests
             finally { try { Directory.Delete(dir, true); } catch { } }
         });
 
+    [Fact]
+    public void AFetchedDeck_DropsTheOpenedFilesFolder_EvenSharingItsCards()
+        => OnAppThread(() =>
+        {
+            var dir = TempRoot("fetchdir");
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var file = Path.Combine(dir, "list.txt");
+                File.WriteAllText(file, "1 Sol Ring\n1 Island\n");
+                var w = new DeckListWindow();
+                w.LoadFile(file);
+                Assert.Equal(dir, w.BaseDir);
+                w.ShowFetched("1 Sol Ring\n1 Island\n1 Forest\n");   // overlapping lines: still not the file's list
+                Assert.Equal("", w.BaseDir);
+                Assert.Equal("", w.FileName);
+            }
+            finally { try { Directory.Delete(dir, true); } catch { } }
+        });
+
+    [Fact]
+    public void Replace_FrameOnEveryCard_ReframesEvenWithTheSetsOwnFrame()
+        => OnAppThread(() =>
+        {
+            var main = NewMain();
+            var frames = main.Templates.Select(t => t.Name).ToList();
+            main.ApplySetSettings(new SetProfile(), frames[0], SetSettingsMode.NewCardsOnly);
+            var a = new CardModel { Name = "A", TemplateName = frames[1] };
+            main.Cards.Add(a);
+            main.SelectedCard = a;
+            main.ApplySetSettings(new SetProfile(), frames[0], SetSettingsMode.Replace);
+            Assert.Equal(frames[1], a.TemplateName);   // unchanged, so not stamped
+            main.ApplySetSettings(new SetProfile(), frames[0], SetSettingsMode.Replace, frameOnEveryCard: true);
+            Assert.Equal(frames[0], a.TemplateName);
+
+            var w = new SetSettingsWindow(new SetProfile(), frames[0], frames, "S");
+            w.ModeReplace.IsChecked = true;
+            w.FrameOnEveryCardBox.IsChecked = true;
+            w.Collect();
+            Assert.True(w.FrameOnEveryCard);
+            w.ModeNew.IsChecked = true;
+            w.Collect();
+            Assert.False(w.FrameOnEveryCard);   // only for Replace
+        });
+
+    [Fact]
+    public void ClickingASplitCardsCardBack_DoesNotPickAHalf()
+        => OnAppThread(() =>
+        {
+            var main = new Cardinator.MainWindow { SuppressClosePrompt = true };
+            var card = main.SelectedCard!;
+            main.ChangeLayout(card, Layout.Split);
+            var root = (FrameworkElement)main.Content;
+            var size = new Size(1240, 820);
+            root.Measure(size);
+            root.Arrange(new Rect(size));
+            root.UpdateLayout();
+            var img = main.PreviewImageControl;
+            Assert.True(img.ActualWidth > 0);
+            var pick = typeof(Cardinator.MainWindow).GetMethod("PickSplitHalfAt", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            bool OtherHalfPicked() => (bool)typeof(Cardinator.MainWindow).GetField("_activeHalf", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(main)!;
+            IEnumerable<Point> Grid() => from i in Enumerable.Range(1, 9) from j in Enumerable.Range(1, 9)
+                                         select new Point(img.ActualWidth * i / 10, img.ActualHeight * j / 10);
+
+            main.ShowSide(back: true);
+            foreach (var p in Grid())
+            {
+                pick.Invoke(main, new object[] { p });
+                Assert.False(OtherHalfPicked(), $"a click at {p} on the card back picked the other half");
+                Assert.Null(main.EditedFace);
+            }
+
+            main.ShowSide(back: false);   // the front: a click on the other half does pick it (the test can click)
+            foreach (var p in Grid()) { pick.Invoke(main, new object[] { p }); if (OtherHalfPicked()) break; }
+            Assert.True(OtherHalfPicked());
+        });
+
     // --- the designed card back -------------------------------------------------------------------------------
 
     [Theory]

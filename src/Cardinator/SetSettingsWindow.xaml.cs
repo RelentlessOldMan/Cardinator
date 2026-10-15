@@ -34,6 +34,8 @@ public partial class SetSettingsWindow : Window
     public bool ClearArtist { get; private set; }
     public bool ClearCopyright { get; private set; }
     public bool ClearSetSymbol { get; private set; }
+    /// <summary>Replace mode: the frame goes on the cards even when it's the one the set already had.</summary>
+    public bool FrameOnEveryCard { get; private set; }
 
     /// <param name="selectedCount">How many cards are selected in the list when that's some but not all of them
     /// (Replace can then stick to those); null otherwise.</param>
@@ -140,6 +142,7 @@ public partial class SetSettingsWindow : Window
         ClearArtist = replace && ClearArtistBox.IsChecked == true;
         ClearCopyright = replace && ClearCopyrightBox.IsChecked == true;
         ClearSetSymbol = replace && ClearSymbolBox.IsChecked == true;
+        FrameOnEveryCard = replace && FrameOnEveryCardBox.IsChecked == true && DefaultFrame.Length > 0;
     }
 
     private static string? PickImage(string title)

@@ -61,9 +61,7 @@ public partial class DeckListWindow : Window
                 StatusText.Text = "That deck came back empty — check the link, or paste the exported list.";
                 return;
             }
-            _openedText = "";   // a fetched deck isn't the file opened before (its card lines may well overlap)
-            DeckBox.Text = list;
-            StatusText.Text = "Loaded — review the list, then Import.";
+            ShowFetched(list);
         }
         catch (MoxfieldException ex) { StatusText.Text = ex.Message; }
         catch (Exception ex) { StatusText.Text = "Moxfield fetch failed: " + ex.Message; }
@@ -73,6 +71,15 @@ public partial class DeckListWindow : Window
             GetMoxButton.IsEnabled = true;
             ImportButton.IsEnabled = true;
         }
+    }
+
+    /// <summary>Puts a deck fetched from Moxfield in the box: no longer the file opened before, even where its card
+    /// lines overlap (its art paths aren't relative to that folder).</summary>
+    internal void ShowFetched(string list)
+    {
+        _openedText = "";
+        DeckBox.Text = list;
+        StatusText.Text = "Loaded — review the list, then Import.";
     }
 
     private void OnOpenFile(object sender, RoutedEventArgs e)

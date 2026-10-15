@@ -320,7 +320,8 @@ The **WHOLE SET** group:
   chooses how far they reach: *New and imported cards only* (each new card takes them for any field it doesn't
   already have), *…and fill in the cards already here that leave them blank*, or *…and replace them on every card
   already here* (only the fields you change in this visit go on the cards — the rest keep each card's own; tick boxes
-  empty the set code, artist, copyright or set symbol instead). With cards **multi-selected** in the list, *Only the N selected cards* applies to just those. A
+  empty the set code, artist, copyright or set symbol instead, and *Put the frame above on every card* re-frames
+  them all even when the frame is the one the set already had). With cards **multi-selected** in the list, *Only the N selected cards* applies to just those. A
   new frame goes on each card's back face too, unless that back face has a frame of its own. Saved with the project.
 
   ![Set settings](images/app-set-settings.png)

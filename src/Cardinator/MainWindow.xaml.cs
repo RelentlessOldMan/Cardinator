@@ -1233,16 +1233,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var dlg = new SetSettingsWindow(_setProfile, _defaultTemplate, Templates.Select(t => t.Name), _projectName, some) { Owner = this };
         if (dlg.ShowDialog() != true) return;
         ApplySetSettings(dlg.Profile, dlg.DefaultFrame, dlg.Mode, dlg.OnlySelected ? selected : null,
-            dlg.ClearSetCode, dlg.ClearArtist, dlg.ClearCopyright, dlg.ClearSetSymbol);
+            dlg.ClearSetCode, dlg.ClearArtist, dlg.ClearCopyright, dlg.ClearSetSymbol, dlg.FrameOnEveryCard);
     }
 
     /// <summary>Stores the set's settings and, for <see cref="SetSettingsMode.Replace"/>, puts the fields changed in
     /// this visit on <paramref name="targets"/> (null: every card) — a ticked clear empties it — as one undo step. A field
     /// left as the set already had it isn't stamped on the cards: the window opens filled in with the set's settings,
-    /// so changing just the artist must not also put the set's rarity and frame on every card.</summary>
+    /// so changing just the artist must not also put the set's rarity and frame on every card. <paramref name="frameOnEveryCard"/>
+    /// puts the frame on them even when it's the one the set already had (re-framing a set whose cards drifted).</summary>
     internal void ApplySetSettings(SetProfile profile, string defaultFrame, SetSettingsMode mode,
         IReadOnlyList<CardModel>? targets = null, bool clearSetCode = false, bool clearArtist = false,
-        bool clearCopyright = false, bool clearSetSymbol = false)
+        bool clearCopyright = false, bool clearSetSymbol = false, bool frameOnEveryCard = false)
     {
         if (mode != SetSettingsMode.Replace || Cards.Count == 0)
         {
@@ -1260,7 +1261,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var list = targets ?? Cards.ToList();
         string? setCode = Field(profile.SetCode, was.SetCode, clearSetCode), artist = Field(profile.Artist, was.Artist, clearArtist),
             rarity = Field(profile.Rarity, was.Rarity, false), copyright = Field(profile.Copyright, was.Copyright, clearCopyright),
-            frame = Field(defaultFrame, wasFrame, false), symbol = Field(profile.SetSymbolPath, was.SetSymbolPath, clearSetSymbol);
+            frame = frameOnEveryCard && defaultFrame.Length > 0 ? defaultFrame : Field(defaultFrame, wasFrame, false), symbol = Field(profile.SetSymbolPath, was.SetSymbolPath, clearSetSymbol);
         int fields = new[] { setCode, artist, rarity, copyright, frame, symbol }.Count(f => f != null);
         SetFields(list, setCode, artist, rarity, copyright, frame, symbol);   // one undo step, and redraws
         Status = fields == 0
