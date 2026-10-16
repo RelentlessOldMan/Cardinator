@@ -604,8 +604,11 @@ public class WindowSmokeTests
             main.ApplySetDefaults(new SetProfile { SetCode = "ABC" }, "", applyToExisting: false);
             Assert.True(main.Dirty, "changing the set defaults didn't mark the set unsaved");
             main.CommitHistory();   // any later no-op commit (a cancelled dialog, an undo flush)…
-            main.Undo();
             Assert.True(main.Dirty, "the set-defaults change was forgotten by a no-op commit — closing wouldn't prompt");
+            main.Undo();            // 1.7.4: the settings are in the undo history — Undo takes the change back
+            Assert.False(main.Dirty);
+            main.Redo();
+            Assert.True(main.Dirty);
         });
 
     [Fact]

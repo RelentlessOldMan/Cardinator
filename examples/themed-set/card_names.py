@@ -8,6 +8,7 @@ tokens, then the counts. build_set.sh and add_tokens.py write it to <workspace>/
 they change the set, so it always matches the cards.
 """
 import json, os, sys
+sys.stdout.reconfigure(errors="replace")   # a show name the console can't show doesn't crash it
 
 if len(sys.argv) != 3:
     sys.exit(__doc__)

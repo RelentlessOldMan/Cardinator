@@ -17,14 +17,17 @@ namespace Cardinator.Services;
 public static class ProjectWriter
 {
     /// <summary>Writes the set to <paramref name="path"/>. Returns how many images exist but could not be
-    /// copied into the set folder (they stay absolute and won't travel with it).</summary>
+    /// copied into the set folder (they stay absolute and won't travel with it). <paramref name="previousFolder"/> is
+    /// the folder the set was opened from, when it may have been moved since (see <see cref="SetFolder.LocalizeImages"/>).
+    /// <paramref name="unknown"/>: the loaded set's <see cref="CardProject.Unknown"/>.</summary>
     public static int Write(string path, IReadOnlyList<CardModel> cards, string name,
-        string artBaseDir, string defaultTemplate, SetProfile profile, string? timestamp = null)
+        string artBaseDir, string defaultTemplate, SetProfile profile, string? timestamp = null, string? previousFolder = null,
+        Dictionary<string, System.Text.Json.JsonElement>? unknown = null)
     {
         var projFolder = Path.GetDirectoryName(Path.GetFullPath(path))!;
 
         // 1. Self-contained: external art + set symbols (both faces) are copied into <set>\art.
-        int stranded = SetFolder.LocalizeImages(cards, projFolder, profile);
+        int stranded = SetFolder.LocalizeImages(cards, projFolder, profile, previousFolder);
         try { Directory.CreateDirectory(Path.Combine(projFolder, "out")); } catch { /* best effort */ }
 
         // 2. Portable: the set symbol in the profile travels with the folder like card art.
@@ -39,6 +42,7 @@ public static class ProjectWriter
             DefaultTemplate = defaultTemplate,
             Profile = savedProfile,
             Cards = cards.Select(c => CloneWithRelativeArt(c, projFolder)).ToList(),
+            Unknown = unknown,   // the set's fields a newer Cardinator wrote, kept as they were
         };
 
         // 3. Roll the PREVIOUS good file aside, then 4. write atomically. Order matters: see the summary.

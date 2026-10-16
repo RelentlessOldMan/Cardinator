@@ -82,7 +82,8 @@ the live preview that updates as you type.*
 > no art yet, two cards with the same name. "✓ No issues" means you're clear.
 
 > **Undo/redo:** every edit is undoable — use the header **Undo** / **Redo** buttons or **Ctrl+Z** /
-> **Ctrl+Y** (**Ctrl+Shift+Z** also redoes).
+> **Ctrl+Y** (**Ctrl+Shift+Z** also redoes). That includes **Set settings…**: one Undo takes back the settings and
+> what they did to the cards. Undo keeps the preview on the face you're looking at (a back face stays the back).
 
 ---
 
@@ -279,7 +280,8 @@ the same way: put the "Token …" type line in its `type` column. [Example 05](.
 **Subtitle** (a small plate under the title, on any card), the **Adventure** half (name/cost/type/text —
 filling the name turns on the storybook text box), or a land's **big mana symbols** (`{R}{G}`) and how they're
 arranged (`row`, `splitv`, `splith`, `pie`, `yinyang`). Planeswalker/Saga/Class still come from the type
-line + rules-text syntax. Everything in Edit details… can be backed out with **Cancel**.
+line + rules-text syntax. Everything in Edit details… can be backed out with **Cancel**. Closing it with the
+window's **X** after changing something asks whether to keep the changes, discard them, or keep editing.
 
 See the [gallery in the README](../README.md#gallery) for examples of each.
 
@@ -319,7 +321,8 @@ The **WHOLE SET** group:
   new cards**, and the set's **card back** (see [Special card types](#special-card-types)). **Use these for**
   chooses how far they reach: *New and imported cards only* (each new card takes them for any field it doesn't
   already have), *…and fill in the cards already here that leave them blank*, or *…and replace them on every card
-  already here* (only the fields you change in this visit go on the cards — the rest keep each card's own; tick boxes
+  already here* (only the fields you change in this visit go on the cards — retyping or re-picking a value counts as
+  a change, so it goes on every card even if the set already had it; picking rarity *(none)* clears it; tick boxes
   empty the set code, artist, copyright or set symbol instead, and *Put the frame above on every card* re-frames
   them all even when the frame is the one the set already had). With cards **multi-selected** in the list, *Only the N selected cards* applies to just those. A
   new frame goes on each card's back face too, unless that back face has a frame of its own. Saved with the project.
@@ -333,7 +336,10 @@ The **WHOLE SET** group:
 The **EXPORT** group:
 
 - **All as images…** — renders every card to PNGs (600 DPI, real card size) in a folder you choose. Runs
-  in the background with a progress bar so the window stays responsive, even for 100 cards.
+  in the background with a progress bar so the window stays responsive, even for 100 cards. Card pictures an
+  earlier export left in that folder (of cards you've since deleted or moved) are removed, so the folder holds just
+  this set; other files are left alone. The status line says which card couldn't be exported, and how many have
+  art that's missing or can't be read.
 - **Print sheets…** — lays cards out **9 per page (3×3) at real size (2.5″×3.5″, 300 DPI)** on
   Letter pages with cut marks — one PNG per page, ready to print and cut. (A4 pages are on the command line:
   `--sheet … a4`.) It first asks

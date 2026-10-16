@@ -7,11 +7,15 @@ namespace Cardinator.Services;
 public static class TextUtil
 {
     /// <summary>Lowercase kebab slug for folder/file names: "Gold Multicolor" -> "gold-multicolor".</summary>
+    private const int MaxSlug = 80, MaxFileName = 100;
+
     public static string Slug(string? s)
     {
         var chars = (s ?? "").ToLowerInvariant()
             .Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray();
         var slug = Regex.Replace(new string(chars), "-{2,}", "-").Trim('-');   // collapse runs in one pass
+        // Capped: a 300-letter card name made a file name Windows refuses, and that card was left out of the export.
+        if (slug.Length > MaxSlug) slug = slug[..MaxSlug].TrimEnd('-');
         return string.IsNullOrEmpty(slug) ? "card" : slug;
     }
 
@@ -33,6 +37,7 @@ public static class TextUtil
             .Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
         // Trailing dots/spaces are silently dropped by Windows — remove them so "Foo." and "Foo" don't collide.
         clean = clean.TrimEnd('.', ' ');
+        if (clean.Length > MaxFileName) clean = clean[..MaxFileName].TrimEnd('.', ' ');   // a name Windows can still make
         if (string.IsNullOrEmpty(clean)) return fallback;
         // A reserved device name, with or without an extension, is unsafe — prefix it.
         var stem = clean.Contains('.') ? clean[..clean.IndexOf('.')] : clean;

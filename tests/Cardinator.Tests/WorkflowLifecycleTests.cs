@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Cardinator.Models;
 using Cardinator.Services;
@@ -36,6 +37,11 @@ public class WorkflowLifecycleTests
                 if (a != null) AssertSamePersistedFields((CardModel)a, (CardModel)b!, where + "." + p.Name);
                 continue;
             }
+            if (p.PropertyType == typeof(Dictionary<string, JsonElement>))   // fields from a newer version, kept as written
+            {
+                Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+                continue;
+            }
             Assert.Equal(a, b);
         }
     }
@@ -53,6 +59,8 @@ public class WorkflowLifecycleTests
             else if (p.PropertyType == typeof(int)) p.SetValue(card, 1000 + i);
             else if (p.PropertyType == typeof(CardModel))
                 p.SetValue(card, new CardModel { Name = $"back-{i}", TypeLine = "Creature — Back" });
+            else if (p.PropertyType == typeof(Dictionary<string, JsonElement>))
+                p.SetValue(card, new Dictionary<string, JsonElement> { [$"future{i}"] = JsonDocument.Parse($"{{\"v\":{i}}}").RootElement });
             else
                 throw new Xunit.Sdk.XunitException(
                     $"{p.Name} is persisted as {p.PropertyType.Name}, which this test doesn't populate — "

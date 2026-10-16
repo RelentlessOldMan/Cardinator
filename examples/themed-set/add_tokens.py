@@ -20,6 +20,7 @@ Cardinator). The set (default <workspace>/sets/<show>.cardinator) is backed up t
 build_set.sh runs this too, so a rebuilt set keeps its tokens. The name list (card_names.py) is written again after.
 """
 import json, os, re, shutil, sys, time
+sys.stdout.reconfigure(errors="replace")   # a show name the console can't show doesn't crash it
 
 if len(sys.argv) not in (5, 6):
     sys.exit(__doc__)

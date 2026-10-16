@@ -47,7 +47,7 @@ public static class ProjectBackup
             var dest = UniquePath(Path.Combine(dir, $"{name}.{timestamp}{ext}"));
             File.Copy(projectPath, dest);
 
-            Prune(projectPath, keep, keepDays);
+            Prune(projectPath, keep, keepDays, justMade: dest);
             return dest;
         }
         catch { return null; }   // never let backup trouble block a save
@@ -90,7 +90,10 @@ public static class ProjectBackup
         return Path.Combine(Path.GetDirectoryName(dir) ?? dir, m.Groups[1].Value + Path.GetExtension(full));
     }
 
-    /// <summary>Existing backups for a project, most-recent (by write time) first.</summary>
+    /// <summary>Existing backups for a project, the most recently made first: by the time in each one's name (when it
+    /// was made). The file's own time is the set file's as it was copied — old for a set restored from a zip — so ranking
+    /// by it pruned a new backup the moment it was made. A name dated in the future was made while the clock ran ahead:
+    /// it's older than anything made now, so it ranks after them instead of holding the top places for good.</summary>
     public static IReadOnlyList<string> ListBackups(string projectPath)
     {
         var dir = BackupDir(projectPath);
@@ -105,19 +108,22 @@ public static class ProjectBackup
             "^" + System.Text.RegularExpressions.Regex.Escape(name) + @"\.\d{8}-\d{6}(-\d+)?"
             + System.Text.RegularExpressions.Regex.Escape(ext) + "$",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var future = System.DateTime.Now.AddDays(1).ToString("yyyyMMdd-HHmmss");
         return Directory.EnumerateFiles(dir, $"{name}.*{ext}")
             .Where(p => stamped.IsMatch(Path.GetFileName(p)))
-            .Select(p => new FileInfo(p))
-            .OrderByDescending(f => f.LastWriteTimeUtc)
-            .ThenByDescending(f => f.Name, System.StringComparer.Ordinal)
-            .Select(f => f.FullName)
+            .Select(p => (path: p, stamp: StampOf(p) ?? ""))
+            .OrderBy(b => string.CompareOrdinal(b.stamp, future) > 0)   // the clock was ahead: after the rest
+            .ThenByDescending(b => b.stamp, System.StringComparer.Ordinal)
+            .ThenByDescending(b => Path.GetFileName(b.path), System.StringComparer.Ordinal)
+            .Select(b => Path.GetFullPath(b.path))
             .ToList();
     }
 
     /// <summary>Deletes this project's backups except the most recent <paramref name="keep"/> and the FIRST
     /// backup of each of the <paramref name="keepDays"/> most recent days (by the date in its name) — the
     /// state the set was in before that day's saves, which is what you want back after a bad day.</summary>
-    public static void Prune(string projectPath, int keep = DefaultKeep, int keepDays = DefaultKeepDays)
+    /// <param name="justMade">The backup this save just made: never pruned, whatever the clock says.</param>
+    public static void Prune(string projectPath, int keep = DefaultKeep, int keepDays = DefaultKeepDays, string? justMade = null)
     {
         if (keep < 0) keep = 0;
         var backups = ListBackups(projectPath);
@@ -129,8 +135,9 @@ public static class ProjectBackup
             .Take(System.Math.Max(0, keepDays))
             .Select(g => g.OrderBy(b => b.stamp, System.StringComparer.Ordinal).First().path)
             .ToHashSet(System.StringComparer.OrdinalIgnoreCase);
+        var spare = justMade == null ? null : Path.GetFullPath(justMade);
         foreach (var old in backups.Skip(keep))
-            if (!dailyFirsts.Contains(old))
+            if (!dailyFirsts.Contains(old) && !string.Equals(old, spare, System.StringComparison.OrdinalIgnoreCase))
                 try { File.Delete(old); } catch { /* best effort */ }
     }
 

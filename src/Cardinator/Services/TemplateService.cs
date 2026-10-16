@@ -609,7 +609,7 @@ public sealed class TemplateService
             if (!specOk)
             {
                 spec.Save(specPath);
-                SafeDelete(framePath);   // spec changed → frame must be regenerated
+                if (!IsHandMade(framePath, framePath + ".hash")) SafeDelete(framePath);   // spec changed → frame must be regenerated
             }
             EnsureFrame(TemplateSpec.Load(specPath), framePath);
         }
@@ -761,7 +761,9 @@ public sealed class TemplateService
                     // next pass (silent, permanent loss from one transient decode/read error). Set it aside
                     // instead and skip the template this run. Procedural and composed frames are reproducible,
                     // so for those the old delete-and-regenerate is still right.
-                    if (spec.CustomFrame && !CustomFrameComposer.HasSource(spec))
+                    // A frame.png drawn by hand over a procedural frame (no .hash, or newer than it) is just as
+                    // irreplaceable: it's never redrawn, so it's never deleted either.
+                    if ((spec.CustomFrame && !CustomFrameComposer.HasSource(spec)) || IsHandMade(framePath, framePath + ".hash"))
                     {
                         SafeSetAside(framePath);
                         return null;

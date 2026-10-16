@@ -37,6 +37,13 @@ public partial class SetSettingsWindow : Window
     /// <summary>Replace mode: the frame goes on the cards even when it's the one the set already had.</summary>
     public bool FrameOnEveryCard { get; private set; }
 
+    public const string SetCodeField = "setCode", ArtistField = "artist", RarityField = "rarity", CopyrightField = "copyright",
+        SymbolField = "setSymbol", FrameField = "frame";
+    private readonly HashSet<string> _touched = new();
+    /// <summary>The fields set in this visit (<see cref="SetCodeField"/>, …), even back to the value they had: Replace
+    /// puts those on the cards although the set already had them.</summary>
+    public IReadOnlyCollection<string> Touched => _touched;
+
     /// <param name="selectedCount">How many cards are selected in the list when that's some but not all of them
     /// (Replace can then stick to those); null otherwise.</param>
     public SetSettingsWindow(SetProfile current, string currentFrame, IEnumerable<string> templateNames, string setName,
@@ -82,6 +89,12 @@ public partial class SetSettingsWindow : Window
         }).IsChecked = true;
 
         _ready = true;
+        SetBox.TextChanged += (_, _) => _touched.Add(SetCodeField);
+        ArtistBox.TextChanged += (_, _) => _touched.Add(ArtistField);
+        CopyrightBox.TextChanged += (_, _) => _touched.Add(CopyrightField);
+        SetSymbolBox.TextChanged += (_, _) => _touched.Add(SymbolField);
+        RarityBox.SelectionChanged += (_, _) => _touched.Add(RarityField);
+        FrameBox.SelectionChanged += (_, _) => _touched.Add(FrameField);
         RefreshBack();
     }
 

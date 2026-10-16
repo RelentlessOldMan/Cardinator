@@ -104,6 +104,11 @@ public static class SetCommands
             var frame = Opt(opts, "frame");
             var artDir = Opt(opts, "art");
             if (artDir != null && !Directory.Exists(artDir)) { Console.Error.WriteLine($"Import: art folder '{artDir}' not found."); return 2; }
+            if (Directory.Exists(setPath) || setPath.EndsWith('\\') || setPath.EndsWith('/'))
+            {
+                Console.Error.WriteLine($"Import: '{setPath}' is a folder — give the set's file, e.g. \"{Path.Combine(setPath, "My Set.cardinator")}\".");
+                return 2;
+            }
             if (File.Exists(setPath) && !append)
             {
                 Console.Error.WriteLine($"Import: {setPath} already exists. Pass append to add to it, or choose another file.");
@@ -126,11 +131,16 @@ public static class SetCommands
 
             if (WontWrite(setPath, null) is { } whyNotPath) { Console.Error.WriteLine("Import: " + whyNotPath); return 2; }
             var templates = Templates(Opt(opts, "templates"));
+            var setDir = Path.GetDirectoryName(Path.GetFullPath(setPath));
+            if (!string.IsNullOrEmpty(setDir)) Directory.CreateDirectory(setDir);
+            using var setLock = TakeLock(setPath, "Import");
+            if (setLock == null) return 1;
             CardProject? existing = append && File.Exists(setPath) ? CardProject.LoadResolved(setPath, out _) : null;
             if (existing != null && WontWrite(setPath, existing) is { } whyNot) { Console.Error.WriteLine("Import: " + whyNot); return 2; }
+            frame = InstalledName(templates, frame);
             var houseFrame = frame ?? (existing?.DefaultTemplate is { Length: > 0 } d ? d : templates.FirstOrDefault()?.Name ?? "");
-            if (frame != null && templates.All(t => t.Name != frame))
-                Console.WriteLine($"Note: frame “{frame}” isn't installed — the cards keep its name, but draw on another until it is.");
+            if (frame != null && !IsInstalled(templates, frame))
+                Console.Error.WriteLine($"Note: frame “{frame}” isn't installed — the cards keep its name, but draw on another until it is.");
 
             var parsed = ImportService.ParseWithReport(content, listDir, houseFrame);
             var imported = parsed.Cards;
@@ -145,8 +155,14 @@ public static class SetCommands
             var profile = existing?.Profile ?? new SetProfile();
             foreach (var item in imported) profile.ApplyDefaults(item.Card);   // inherit the set's shared details
             Console.WriteLine($"Read {imported.Count} card(s); filling from Scryfall…");
-            var report = Task.Run(() => BatchService.FillFromScryfallAsync(imported, new Progress<string>(Console.WriteLine), downloadArt: !noArt))
+            var report = Task.Run(() => BatchService.FillFromScryfallAsync(imported, new ConsoleProgress(), downloadArt: !noArt))
                              .GetAwaiter().GetResult();
+            if (report.Offline)
+            {
+                // Saving now would make a set of blank, name-only cards and report success.
+                Console.Error.WriteLine($"Import: couldn't reach Scryfall for {report.NotFound.Count} card(s) — nothing saved. Check the connection and run it again.");
+                return 1;
+            }
             foreach (var item in imported)
                 if (item.Card.BackFace is { } back) profile.ApplyDefaults(back);   // backs the lookup attached
 
@@ -156,9 +172,7 @@ public static class SetCommands
             var cards = (existing?.Cards ?? new List<CardModel>()).Concat(added).ToList();
             // name= names the set (a build that writes beside the real file, then swaps it in, keeps the real name).
             var name = Opt(opts, "name") ?? (existing?.Name is { Length: > 0 } n ? n : Path.GetFileNameWithoutExtension(setPath));
-            var dir = Path.GetDirectoryName(Path.GetFullPath(setPath));
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            int stranded = ProjectWriter.Write(setPath, cards, name, existing?.ArtBaseDir ?? listDir, houseFrame, profile);
+            int stranded = ProjectWriter.Write(setPath, cards, name, existing?.ArtBaseDir ?? listDir, houseFrame, profile, unknown: existing?.Unknown);
 
             Console.WriteLine($"Saved {setPath}: {added.Count} card(s) added ({cards.Count} in the set). "
                 + $"Scryfall filled {report.Filled}"
@@ -167,6 +181,12 @@ public static class SetCommands
                 + (skippedDupes > 0 ? $"; {skippedDupes} already in the set" : "")
                 + (parsed.Skipped > 0 ? $"; {parsed.Skipped} unreadable line(s)" : "")
                 + (stranded > 0 ? $"; {stranded} picture(s) couldn't be copied into the set" : "") + ".");
+            if (report.NotFound.Count > 0)
+            {
+                // Saved, but those cards are only names: a script has to know (exit 4), and which ones.
+                Console.Error.WriteLine($"Import: {report.NotFound.Count} card(s) not found on Scryfall (saved as names only): {string.Join("; ", report.NotFound)}");
+                return 4;
+            }
             return 0;
         }
         catch (Exception ex)
@@ -189,12 +209,15 @@ public static class SetCommands
         {
             if (MissingTemplatesDir(opts) is { } noDir) { Console.Error.WriteLine("RenderSet: " + noDir); return 2; }
             var project = CardProject.LoadResolved(setPath, out _);
-            var cards = Only(project.Cards, Opt(opts, "only"));
+            var only = Opt(opts, "only");
+            var cards = Only(project.Cards, only);
             if (cards.Count == 0) { Console.Error.WriteLine("RenderSet: no cards to render."); return 3; }
             var templates = Templates(Opt(opts, "templates"));
             if (templates.Count == 0) { Console.Error.WriteLine("RenderSet: no frames available."); return 2; }
-            var missing = FramesUsed(cards).Where(f => templates.All(t => t.Name != f)).ToList();
-            if (missing.Count > 0) Console.WriteLine($"Not installed (drawn on the house frame): {string.Join(", ", missing)}");
+            var missing = FramesUsed(cards).Where(f => !IsInstalled(templates, f)).ToList();
+            if (missing.Count > 0)
+                Console.Error.WriteLine($"Note: not installed, drawn on {BatchService.FallbackFrame(templates, project.DefaultTemplate).Name}: {string.Join(", ", missing)}");
+            foreach (var note in ArtCheck.Notes(cards)) Console.Error.WriteLine("Note: " + note);
 
             var symbols = new SymbolService();
             if (!Has(opts, "nosym"))
@@ -211,7 +234,10 @@ public static class SetCommands
                 Console.WriteLine($"Rendered {cards.Count} card(s) on {paths.Count} sheet page(s) to {outDir}.");
                 return 0;
             }
-            var result = BatchService.ExportAll(cards, templates, outDir, symbols, houseFrame: project.DefaultTemplate);
+            // only= re-renders some cards over their own files: each keeps its number in the whole set.
+            var numbers = cards.Select(c => project.Cards.IndexOf(c) + 1).ToList();
+            var result = BatchService.ExportAll(cards, templates, outDir, symbols, houseFrame: project.DefaultTemplate,
+                numbers: numbers, wholeSet: only == null);
             foreach (var err in result.Errors) Console.Error.WriteLine("  ! " + err);
             Console.WriteLine($"Rendered {result.Exported}/{cards.Count - result.Repeats} card(s) to {outDir}"
                 + (result.Repeats > 0 ? $" ({result.Repeats} repeated card(s) rendered once)." : "."));
@@ -252,6 +278,8 @@ public static class SetCommands
             if (titlesFile != null && !File.Exists(titlesFile)) { Console.Error.WriteLine($"Restyle: titles file '{titlesFile}' not found."); return 2; }
             if (artDir != null && !Directory.Exists(artDir)) { Console.Error.WriteLine($"Restyle: art folder '{artDir}' not found."); return 2; }
 
+            using var setLock = TakeLock(setPath, "Restyle");
+            if (setLock == null) return 1;
             var project = CardProject.LoadResolved(setPath, out _);
             if (WontWrite(setPath, project) is { } whyNot) { Console.Error.WriteLine("Restyle: " + whyNot); return 2; }
             var cards = Only(project.Cards, only);
@@ -259,13 +287,16 @@ public static class SetCommands
 
             if (frame != null)
             {
+                var templates = Templates(Opt(opts, "templates"));
+                frame = InstalledName(templates, frame)!;   // "midnight" is the installed "Midnight"
                 foreach (var c in cards) SetFrame(c, frame);
                 if (only == null) project.DefaultTemplate = frame;
-                if (Templates(Opt(opts, "templates")).All(t => t.Name != frame))
-                    Console.WriteLine($"Note: frame “{frame}” isn't installed — the cards keep its name, but draw on another until it is.");
+                if (!IsInstalled(templates, frame))
+                    Console.Error.WriteLine($"Note: frame “{frame}” isn't installed — the cards keep its name, but draw on another until it is.");
             }
             int matched = artDir != null ? MatchArt(cards, artDir) : 0;
-            int retitled = titlesFile != null ? Retitle(cards, File.ReadAllLines(titlesFile)) : 0;
+            // Read as a list file is: UTF-8, or the ANSI code page PowerShell 5's Set-Content writes ("Épée" stays "Épée").
+            int retitled = titlesFile != null ? Retitle(cards, ImportService.ReadListFile(titlesFile).Split('\n').Select(l => l.TrimEnd('\r'))) : 0;
             // A titles file that retitles nothing is a mistake (the wrong file, or names that don't match): stop before
             // saving, as for no matching cards, rather than report success.
             if (titlesFile != null && retitled == 0)
@@ -283,7 +314,7 @@ public static class SetCommands
                 if (symbol != null) project.Profile.SetSymbolPath = Path.GetFullPath(symbol);
             }
 
-            ProjectWriter.Write(setPath, project.Cards, project.Name, project.ArtBaseDir, project.DefaultTemplate, project.Profile);
+            ProjectWriter.Write(setPath, project.Cards, project.Name, project.ArtBaseDir, project.DefaultTemplate, project.Profile, unknown: project.Unknown);
             Console.WriteLine($"Saved {setPath}: {cards.Count} card(s)"
                 + (frame != null ? $" on “{frame}”" : "")
                 + (artDir != null ? $"; {matched} picture(s) from {artDir}" : "")
@@ -309,7 +340,7 @@ public static class SetCommands
             var project = CardProject.LoadResolved(setPath, out var folder);
             var installed = Templates(Opt(opts, "templates")).Select(t => t.Name).ToHashSet();
             string FrameOf(string? f) => string.IsNullOrEmpty(f) ? "-" : installed.Contains(f) ? f : f + " (not installed)";
-            string ArtOf(CardModel c) => string.IsNullOrWhiteSpace(c.ArtPath) ? "none" : File.Exists(c.ArtPath) ? "ok" : "missing";
+            string ArtOf(CardModel c) => string.IsNullOrWhiteSpace(c.ArtPath) ? "none" : ArtCheck.Problem(c.ArtPath) ?? "ok";
 
             Console.WriteLine($"Set\t{project.Name}");
             Console.WriteLine($"Folder\t{folder}");
@@ -430,6 +461,23 @@ public static class SetCommands
         if (!string.IsNullOrWhiteSpace(extraDir)) list.AddRange(service.LoadFrom(extraDir));
         list.AddRange(service.LoadAll().Where(t => list.All(x => x.Name != t.Name)));
         return list;
+    }
+
+    /// <summary>The installed frame's own spelling of <paramref name="frame"/> (frame names are matched ignoring case, as
+    /// the window and --rendercards do), or <paramref name="frame"/> itself when none is installed.</summary>
+    internal static string? InstalledName(IEnumerable<Template> templates, string? frame) =>
+        frame == null ? null : templates.FirstOrDefault(t => string.Equals(t.Name, frame, StringComparison.OrdinalIgnoreCase))?.Name ?? frame;
+
+    private static bool IsInstalled(IEnumerable<Template> templates, string frame) =>
+        templates.Any(t => string.Equals(t.Name, frame, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Takes <see cref="SetLock"/> on the set, saying so while another command has it. Null (after printing why)
+    /// when it couldn't be had in time.</summary>
+    private static SetLock? TakeLock(string setPath, string command)
+    {
+        var held = SetLock.Take(setPath, () => Console.Error.WriteLine($"{command}: waiting for another Cardinator command to finish with {setPath}…"));
+        if (held == null) Console.Error.WriteLine($"{command}: another Cardinator command is still changing {setPath} — nothing saved. Run it again when that one's done.");
+        return held;
     }
 
     private static IEnumerable<string> FramesUsed(IEnumerable<CardModel> cards) =>

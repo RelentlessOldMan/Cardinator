@@ -71,9 +71,20 @@ public static class CardValidator
             issues.Add(new(IssueSeverity.Info, "no-art", "No artwork assigned.", nameof(card.ArtPath)));
         else
         {
-            try { if (!File.Exists(Path.GetFullPath(card.ArtPath))) issues.Add(new(IssueSeverity.Error, "art-missing", $"Artwork file not found: {card.ArtPath}", nameof(card.ArtPath))); }
+            try
+            {
+                if (!File.Exists(Path.GetFullPath(card.ArtPath))) issues.Add(new(IssueSeverity.Error, "art-missing", $"Artwork file not found: {card.ArtPath}", nameof(card.ArtPath)));
+                else if (ArtCheck.Problem(card.ArtPath) == ArtCheck.Unreadable)
+                    issues.Add(new(IssueSeverity.Error, "art-unreadable", $"The artwork file can't be read (damaged, empty, or not a picture) — it prints as an empty art window: {card.ArtPath}", nameof(card.ArtPath)));
+            }
             catch { issues.Add(new(IssueSeverity.Error, "art-badpath", $"Artwork path is invalid: {card.ArtPath}", nameof(card.ArtPath))); }
         }
+
+        // Only a name: what an import leaves for a card Scryfall didn't find (a typo in the list) — it would print blank.
+        if (!string.IsNullOrWhiteSpace(card.Name) && string.IsNullOrWhiteSpace(card.TypeLine)
+            && string.IsNullOrWhiteSpace(card.RulesText) && string.IsNullOrWhiteSpace(card.ManaCost))
+            issues.Add(new(IssueSeverity.Warning, "name-only", "This card is only a name — no type line, cost or text. "
+                + "If it came from an import, Scryfall didn't find it: fix the name and use Fill in blanks from Scryfall, or type the details in.", nameof(card.TypeLine)));
 
         // Set symbol: if one is assigned but the file is gone, the card silently falls back to a drawn pip.
         if (!string.IsNullOrWhiteSpace(card.SetSymbolPath))

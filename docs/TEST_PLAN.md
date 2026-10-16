@@ -295,6 +295,20 @@ These drive the fix backlog.
   `art_list.py` takes web links and plain file names only, reads a BOM; `drawing_frame.py` no longer deletes frames
   first; `make_frames.py` and `contact_sheet.py` report what they couldn't do. `Review4Tests` (20), each fix
   mutation-checked.
+- ✅ **Eighth independent review (1.7.4)** — manual flow, new users, scripts and edge cases. **Data:** Save As
+  after the set folder moved finds its art in the new place; a hand-made frame on a drawn spec is set aside, never
+  deleted; fields a newer Cardinator wrote (cards, set, profile, card back) survive a save, a `--restyle` and the
+  window; backups rank by the time in their names (a clock that was ahead can't push the good copies out) and the
+  one just made is never pruned; two commands on one set take turns (`SetLock`). **Scripts:** strict arguments
+  (empty `only=`, a bad number, an extra word, a non-mode first argument: exit 2); `--import` exit 4 for cards not
+  found (saved as names only), exit 1 and nothing saved offline, refuses a folder; `--batch`/`--sheet` check the
+  art folder (exit 2), exit 4 / 1 likewise; notes go to stderr; frame names ignore case; whole-set
+  `--renderset` and Export all remove stale card pictures and `--sheet` stale pages, and `only=` keeps each card's
+  set number; art that won't decode is `unreadable` in `--info`, a CHECK and a note; long names are capped in file
+  names. **Window:** Undo covers Set settings and stays on the back face; Fill/Replace reach back faces; Replace
+  re-applies a re-picked value and rarity *(none)* clears it; the details window's X asks; an unsaved set's card
+  back isn't stamped "Untitled Project"; status lines name the cards not found and the card not exported.
+  `Review8Tests` (39), each fix mutation-checked.
 - ✅ **Review 7 loose ends (1.7.3)** — Set settings' Replace gains *Put the frame above on every card, even if
   unchanged* (re-picking the set's own frame no longer did nothing); tests for a click on a split card's card back
   (the window laid out off-screen) and a Moxfield deck dropping the opened file's folder. `Review7Tests` (21), the

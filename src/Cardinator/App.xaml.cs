@@ -210,9 +210,10 @@ public partial class App : Application
             return;
         }
 
-        // Anything else that looks like an option (a mode given too few arguments, or a misspelled one) is a usage
-        // error (exit 2), never the window: a script waiting on it would hang.
-        if (e.Args.Length > 0 && e.Args[0].StartsWith('-') && !(e.Args[0] == "--editframe" && e.Args.Length > 1))
+        // Anything else on the command line (a mode given too few arguments, a misspelled one, one typed without its
+        // dashes — "info x.cardinator" — or with a pasted dash, "—info") is a usage error (exit 2), never the window:
+        // the window opens no files from the command line, and a script waiting on it would hang.
+        if (e.Args.Length > 0 && !(e.Args[0] == "--editframe" && e.Args.Length > 1))
         {
             Console.Error.WriteLine($"{e.Args[0]}: unknown option, or missing arguments - run Cardinator --help, or see docs/CLI.md.");
             Shutdown(2);
@@ -248,8 +249,10 @@ public partial class App : Application
             var tpl = LoadTemplateDir(e.Args[1]);
             if (tpl == null)
             {
-                MessageBox.Show($"Couldn't load a template from:\n{e.Args[1]}\n\nExpected a folder with template.json + frame.png.",
-                    "Cardinator", MessageBoxButton.OK, MessageBoxImage.Warning);
+                var why = $"Couldn't load a template from:\n{e.Args[1]}\n\nExpected a folder with template.json + frame.png.";
+                // A script (its error output captured) gets the message there, not a box nobody will click.
+                if (Console.IsErrorRedirected) Console.Error.WriteLine("--editframe: " + why.Replace("\n\n", " ").Replace("\n", " "));
+                else MessageBox.Show(why, "Cardinator", MessageBoxButton.OK, MessageBoxImage.Warning);
                 Shutdown(2);
                 return;
             }

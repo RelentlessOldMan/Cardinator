@@ -24,12 +24,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private Template? _selectedTemplate;
     private BitmapSource? _previewImage;
     private string _status = "";
-    private string _projectName = "Untitled Project";
+    private const string Untitled = "Untitled Project";
+    private string _projectName = Untitled;
+    /// <summary>The name a designed card back prints when its words are left blank: the set's — none while the set has
+    /// never been named, so its backs don't print "UNTITLED PROJECT".</summary>
+    private string BackSetName => _projectPath.Length == 0 && _projectName == Untitled ? "" : _projectName;
     private string _artBaseDir = "";
     private string _projectPath = "";     // last saved/opened file, so Ctrl+S can re-save silently
     private string? _projectFolder;       // the set folder (holds the project file + art/ + out/); null until saved/opened
     private string? _lastExportDir;       // where the last PNG/sheet went, so "Open output folder" opens there
     private string _defaultTemplate = ""; // the set's saved house frame, inherited by new/imported cards
+    private Dictionary<string, System.Text.Json.JsonElement>? _projectUnknown;   // the set's fields from a newer Cardinator
     private SetProfile _setProfile = new();  // the set's shared metadata defaults (W1), inherited by new/imported cards
     private bool _viewingBack;                // DFC: preview is showing the back face (preview-only flip)
     private bool _viewingFlipped;             // flip card: preview is turned upside down to read the other half
@@ -1065,7 +1070,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     private int SelectedIndex() => _selectedCard != null ? Cards.IndexOf(_selectedCard) : -1;
-    private string SnapshotJson() => System.Text.Json.JsonSerializer.Serialize(Cards.ToList(), SnapOpts);
+    /// <summary>One undo step: the cards and what the set shares (its settings and house frame) — Set settings is an
+    /// edit like any other, and Ctrl+Z after it used to undo an earlier card edit instead.</summary>
+    private sealed record Snapshot(List<CardModel> Cards, SetProfile Profile, string DefaultTemplate);
+    private string SnapshotJson() => System.Text.Json.JsonSerializer.Serialize(new Snapshot(Cards.ToList(), _setProfile, _defaultTemplate), SnapOpts);
 
     /// <summary>Restart the debounce so a burst of edits becomes a single undo step.</summary>
     /// <summary>Shows a dialog that edits a card live (Edit details…), holding back the undo timer meanwhile: the
@@ -1127,12 +1135,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _restoring = true;
         try
         {
-            var cards = System.Text.Json.JsonSerializer.Deserialize<List<CardModel>>(snap.json, SnapOpts) ?? new();
+            var state = System.Text.Json.JsonSerializer.Deserialize<Snapshot>(snap.json, SnapOpts);
+            var cards = state?.Cards ?? new();
+            _setProfile = state?.Profile ?? new SetProfile();
+            _defaultTemplate = state?.DefaultTemplate ?? "";
+            // Undo stays on the side and half being edited: it jumped back to the front, so the next thing typed
+            // landed on the wrong face.
+            int wasIndex = SelectedIndex();
+            var view = (_viewingBack, _viewingFlipped, _readingSideways, _activeHalf, _viewingMelded, _viewingCardBack);
             DetachCardEvents(_selectedCard);
             Cards.Clear();
             foreach (var c in cards) Cards.Add(c);
             _selectedCard = null;
             SelectedCard = (snap.sel >= 0 && snap.sel < Cards.Count) ? Cards[snap.sel] : Cards.FirstOrDefault();
+            if (_selectedCard != null && SelectedIndex() == wasIndex)
+            {
+                (_viewingBack, _viewingFlipped, _readingSideways, _activeHalf, _viewingMelded, _viewingCardBack) = view;
+                RefreshCardShape();   // drops a side or half the restored card no longer has
+                RenderPreview();
+            }
         }
         finally { _restoring = false; }
         OnPropertyChanged(nameof(ProjectSummary));
@@ -1230,10 +1251,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var selected = CardList.SelectedItems.Cast<CardModel>().ToList();
         int? some = selected.Count > 1 && selected.Count < Cards.Count ? selected.Count : null;
-        var dlg = new SetSettingsWindow(_setProfile, _defaultTemplate, Templates.Select(t => t.Name), _projectName, some) { Owner = this };
+        var dlg = new SetSettingsWindow(_setProfile, _defaultTemplate, Templates.Select(t => t.Name), BackSetName, some) { Owner = this };
         if (dlg.ShowDialog() != true) return;
         ApplySetSettings(dlg.Profile, dlg.DefaultFrame, dlg.Mode, dlg.OnlySelected ? selected : null,
-            dlg.ClearSetCode, dlg.ClearArtist, dlg.ClearCopyright, dlg.ClearSetSymbol, dlg.FrameOnEveryCard);
+            dlg.ClearSetCode, dlg.ClearArtist, dlg.ClearCopyright, dlg.ClearSetSymbol, dlg.FrameOnEveryCard, dlg.Touched);
     }
 
     /// <summary>Stores the set's settings and, for <see cref="SetSettingsMode.Replace"/>, puts the fields changed in
@@ -1243,7 +1264,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// puts the frame on them even when it's the one the set already had (re-framing a set whose cards drifted).</summary>
     internal void ApplySetSettings(SetProfile profile, string defaultFrame, SetSettingsMode mode,
         IReadOnlyList<CardModel>? targets = null, bool clearSetCode = false, bool clearArtist = false,
-        bool clearCopyright = false, bool clearSetSymbol = false, bool frameOnEveryCard = false)
+        bool clearCopyright = false, bool clearSetSymbol = false, bool frameOnEveryCard = false,
+        IReadOnlyCollection<string>? touched = null)
     {
         if (mode != SetSettingsMode.Replace || Cards.Count == 0)
         {
@@ -1254,14 +1276,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var wasFrame = _defaultTemplate;
         _setProfile = profile;
         _defaultTemplate = defaultFrame;
-        _metaDirty = true;
-        // A changed, filled-in field goes on the cards; a ticked clear empties it on them; anything else is left alone.
-        static string? Field(string value, string before, bool clear) =>
-            clear ? "" : value.Length > 0 && !string.Equals(value, before, StringComparison.Ordinal) ? value : null;
+        // A changed, filled-in field goes on the cards — changed meaning a value other than the set's, or one set again
+        // in this visit (giving more cards the rarity the set already has); a ticked clear empties it on them, and so
+        // does picking rarity "(none)"; anything else is left alone.
+        bool Touched(string field) => touched?.Contains(field) == true;
+        string? Field(string value, string before, bool clear, string field) =>
+            clear ? "" : value.Length > 0 && (Touched(field) || !string.Equals(value, before, StringComparison.Ordinal)) ? value : null;
         var list = targets ?? Cards.ToList();
-        string? setCode = Field(profile.SetCode, was.SetCode, clearSetCode), artist = Field(profile.Artist, was.Artist, clearArtist),
-            rarity = Field(profile.Rarity, was.Rarity, false), copyright = Field(profile.Copyright, was.Copyright, clearCopyright),
-            frame = frameOnEveryCard && defaultFrame.Length > 0 ? defaultFrame : Field(defaultFrame, wasFrame, false), symbol = Field(profile.SetSymbolPath, was.SetSymbolPath, clearSetSymbol);
+        string? setCode = Field(profile.SetCode, was.SetCode, clearSetCode, SetSettingsWindow.SetCodeField),
+            artist = Field(profile.Artist, was.Artist, clearArtist, SetSettingsWindow.ArtistField),
+            rarity = Field(profile.Rarity, was.Rarity, profile.Rarity.Length == 0 && Touched(SetSettingsWindow.RarityField), SetSettingsWindow.RarityField),
+            copyright = Field(profile.Copyright, was.Copyright, clearCopyright, SetSettingsWindow.CopyrightField),
+            frame = frameOnEveryCard && defaultFrame.Length > 0 ? defaultFrame : Field(defaultFrame, wasFrame, false, SetSettingsWindow.FrameField),
+            symbol = Field(profile.SetSymbolPath, was.SetSymbolPath, clearSetSymbol, SetSettingsWindow.SymbolField);
         int fields = new[] { setCode, artist, rarity, copyright, frame, symbol }.Count(f => f != null);
         SetFields(list, setCode, artist, rarity, copyright, frame, symbol);   // one undo step, and redraws
         Status = fields == 0
@@ -1274,16 +1301,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         _setProfile = profile;
         _defaultTemplate = defaultFrame;   // "" clears the house frame
-        _metaDirty = true;   // not part of the card history, so CommitHistory alone would clear the ●
-        MarkDirty();
+        MarkDirty();                       // the settings are in the undo history, so undoing back to the saved set clears ●
 
         if (applyToExisting && Cards.Count > 0)
         {
-            int changed = Cards.Count(c => _setProfile.ApplyDefaults(c));
+            // Every part of a card: a double-faced card's back and a split card's other half are printed with it.
+            int changed = Cards.Count(c => c.Parts().Aggregate(false, (any, part) => _setProfile.ApplyDefaults(part) | any));
             // The default frame fills cards that don't already have one.
             if (!string.IsNullOrWhiteSpace(_defaultTemplate))
-                foreach (var c in Cards.Where(c => string.IsNullOrWhiteSpace(c.TemplateName)))
-                    c.TemplateName = _defaultTemplate;
+                foreach (var part in Cards.SelectMany(c => c.Parts()).Where(p => string.IsNullOrWhiteSpace(p.TemplateName)))
+                    part.TemplateName = _defaultTemplate;
             CommitHistory();
             RenderPreview();
             Status = $"Saved the set settings and filled blanks on {changed} existing card(s).";
@@ -1316,12 +1343,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         foreach (var c in targets)
         {
-            if (setCode != null) c.SetCode = setCode;
-            if (artist != null) c.Artist = artist;
-            if (rarity != null) c.Rarity = rarity;
-            if (copyright != null) c.Copyright = copyright;
             if (templateName != null) SetFrame(c, templateName);
-            if (setSymbolPath != null) c.SetSymbolPath = setSymbolPath;
+            // The printing details go on every part — a double-faced card's back printed the old set code and artist.
+            foreach (var part in c.Parts())
+            {
+                if (setCode != null) part.SetCode = setCode;
+                if (artist != null) part.Artist = artist;
+                if (rarity != null) part.Rarity = rarity;
+                if (copyright != null) part.Copyright = copyright;
+                if (setSymbolPath != null) part.SetSymbolPath = setSymbolPath;
+            }
         }
         MarkDirty();
         CommitHistory();
@@ -1377,7 +1408,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_viewingCardBack && _selectedCard != null)
         {
             // The set's card back: what this card shows face down.
-            try { PreviewImage = BackRenderer.Render(_setProfile.CardBack, _projectName, _setProfile.SetSymbolPath, 1); }
+            try { PreviewImage = BackRenderer.Render(_setProfile.CardBack, BackSetName, _setProfile.SetSymbolPath, 1); }
             catch (Exception ex) { Status = "Preview error: " + ex.Message; }
             ValidationSummary = "The set's card back"; ValidationDetails = ""; HasValidationIssues = false;
             return;
@@ -1528,6 +1559,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SetProjectFolder(null);   // ad-hoc until the first Save sets up a set folder
         _defaultTemplate = "";
         _setProfile = new SetProfile();
+        _projectUnknown = null;
         _artBaseDir = "";
         AddAndSelect(SampleCards.Blank(DefaultTemplateName));
         _loading = false;
@@ -1589,6 +1621,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _defaultTemplate = project.DefaultTemplate ?? "";
             // Restore the set's shared metadata defaults (W1); LoadResolved already made its symbol path absolute.
             _setProfile = project.Profile;
+            _projectUnknown = project.Unknown;
             SelectedCard = Cards.FirstOrDefault();
             _loading = false;
             Dirty = false;
@@ -1711,7 +1744,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 Title = "Save project",
                 Filter = "Cardinator project (*.cardinator)|*.cardinator|JSON (*.json)|*.json",
                 FileName = SafeName(_projectName) + ".cardinator",
-                InitialDirectory = AppPaths.SamplesDir,
+                InitialDirectory = SaveDialogFolder(),
             };
             if (dlg.ShowDialog() != true) return false;
             path = dlg.FileName;
@@ -1744,7 +1777,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             // Localize art → relative paths → back up the previous good file → atomic write. That exact
             // order is the data-safety guarantee, so it lives in ProjectWriter where it can be tested.
-            int stranded = ProjectWriter.Write(path, Cards.ToList(), name, _artBaseDir, _defaultTemplate, _setProfile);
+            int stranded = ProjectWriter.Write(path, Cards.ToList(), name, _artBaseDir, _defaultTemplate, _setProfile,
+                previousFolder: _projectFolder, unknown: _projectUnknown);
+            int missing = SetFolder.CountMissingArt(Cards);
             // Writing copied outside art into the set and re-pointed the cards at the copies. That's what's on disk
             // now, so it's what this history position holds — not a new edit that brings the ● straight back.
             _undoTimer.Stop();
@@ -1756,9 +1791,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             MarkSavedPoint();   // this history position now matches disk (undo past it re-marks dirty)
             OnPropertyChanged(nameof(ProjectSummary));
             OnPropertyChanged(nameof(WindowTitle));
-            Status = stranded == 0
-                ? $"Saved project ({Cards.Count} cards) to {Path.GetFileName(path)}. Art in \\art, exports go to \\out."
-                : $"Saved project ({Cards.Count} cards), but {stranded} image(s) couldn't be copied into the set — they won't travel if you move the folder.";
+            Status = stranded > 0
+                ? $"Saved project ({Cards.Count} cards), but {stranded} image(s) couldn't be copied into the set — they won't travel if you move the folder."
+                : missing > 0
+                    ? $"Saved project ({Cards.Count} cards) to {Path.GetFileName(path)}, but {missing} card face(s) point at art that isn't there — use Restore… if the set's folder was moved."
+                    : $"Saved project ({Cards.Count} cards) to {Path.GetFileName(path)}. Art in \\art, exports go to \\out.";
             return true;
         }
         catch (Exception ex)
@@ -1766,6 +1803,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = "Couldn't save project: " + ex.Message;
             return false;
         }
+    }
+
+    /// <summary>Where the Save dialog opens: the set's own folder, or — when that folder was moved or renamed — the
+    /// folder it was in, so "Save as… to where the set is now" starts next to it; the samples folder for a new set.</summary>
+    private string SaveDialogFolder()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(_projectFolder))
+            {
+                if (Directory.Exists(_projectFolder)) return _projectFolder;
+                var parent = Path.GetDirectoryName(Path.GetFullPath(_projectFolder).TrimEnd(Path.DirectorySeparatorChar));
+                if (parent != null && Directory.Exists(parent)) return parent;
+            }
+        }
+        catch { }
+        return AppPaths.SamplesDir;
     }
 
     private (string Path, DateTime Written, long Length)? _diskStamp;   // the set file as opened / last saved here
@@ -1946,7 +2000,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             int dfc = imported.Count(i => i.Card.IsDoubleFaced);   // DFCs now import as one card with a back face
             Status = $"Imported {imported.Count} card(s). Scryfall filled {report.Filled}"
                      + (dfc > 0 ? $" ({dfc} double-faced)" : "")
-                     + (report.NotFound.Count > 0 ? $"; {report.NotFound.Count} not found" : "")
+                     + (report.Offline ? "; couldn't reach Scryfall, so some are names only — Fill in blanks from Scryfall when you're online" : "")
+                     + (report.NotFound.Count > 0 && !report.Offline ? $"; not found: {NameList(report.NotFound)}" : "")
                      + (skipped > 0 ? $"; skipped {skipped} unreadable line(s)" : "")
                      + ".";
         }
@@ -2032,7 +2087,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             int dfc = items.Count(i => i.Card.IsDoubleFaced);   // DFCs fill as one card with a back face
             Status = $"Filled {report.Filled} card(s)"
                      + (dfc > 0 ? $" ({dfc} double-faced)" : "")
-                     + (report.NotFound.Count > 0 ? $"; {report.NotFound.Count} not found." : ".");
+                     + (report.Offline ? "; couldn't reach Scryfall for the rest — try again when you're online."
+                        : report.NotFound.Count > 0 ? $"; not found: {NameList(report.NotFound)}." : ".");
         }
         catch (Exception ex)
         {
@@ -2040,6 +2096,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         finally { ProgressIndeterminate = true; Busy = false; }
     }
+
+    /// <summary>"A; B; C; D; E and 3 more" — names in a status line, without it running off the window.</summary>
+    internal static string NameList(IReadOnlyList<string> names, int show = 5) =>
+        string.Join("; ", names.Take(show)) + (names.Count > show ? $" and {names.Count - show} more" : "");
+
+    /// <summary>" 2 card face(s) have art that's missing or can't be read …" after an export, or "".</summary>
+    private static string ArtProblemNote(int faces) => faces == 0 ? ""
+        : $" {faces} card face(s) have art that's missing or can't be read — their art windows are empty (Check all cards lists them).";
 
     private async void OnExportAll(object sender, RoutedEventArgs e)
     {
@@ -2070,13 +2134,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var pctProgress = new Progress<double>(p => ExportProgress = p * 100);
 
             // Rendering needs an STA thread; run it off the UI thread so the window stays responsive.
+            // Every card of the set: pictures an earlier export left (of cards since deleted or moved) go.
             var result = await RunStaAsync(() =>
-                BatchService.ExportAll(cardsSnapshot, templatesSnapshot, folder, symbols, strProgress, pctProgress, houseFrame));
+                BatchService.ExportAll(cardsSnapshot, templatesSnapshot, folder, symbols, strProgress, pctProgress, houseFrame, wholeSet: true));
 
             _lastExportDir = folder;   // so "Open output folder" follows an Export-all
+            int artProblems = ArtCheck.Notes(cardsSnapshot).Count;
             Status = $"Exported {result.Exported}/{cardsSnapshot.Count - result.Repeats} to {folder}."
                      + (result.Repeats > 0 ? $" {result.Repeats} repeated card(s) exported once." : "")
-                     + (result.Errors.Count > 0 ? $" {result.Errors.Count} error(s)." : "");
+                     + (result.Errors.Count > 0 ? $" {result.Errors.Count} not exported — {result.Errors[0]}{(result.Errors.Count > 1 ? " …" : "")}" : "")
+                     + ArtProblemNote(artProblems);
         }
         catch (Exception ex)
         {
@@ -2157,7 +2224,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var templatesSnapshot = Templates.ToList();
         var houseFrame = _defaultTemplate;
         var backDesign = _setProfile.CardBack?.Clone();
-        var backName = _projectName;
+        var backName = BackSetName;
         var backSymbol = _setProfile.SetSymbolPath;
         var symbols = _symbols;
         var folder = dlg.FolderName;
@@ -2182,9 +2249,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             });
             ExportProgress = 100;
             _lastExportDir = folder;   // so "Open output folder" opens where the sheet went
-            Status = doubleSided
+            Status = (doubleSided
                 ? $"Saved {paths.Count} page(s) — front+back, {folder}."
-                : $"Saved {paths.Count} sheet page(s) (3x3) to {folder}.";
+                : $"Saved {paths.Count} sheet page(s) (3x3) to {folder}.") + ArtProblemNote(ArtCheck.Notes(cardsSnapshot).Count);
         }
         catch (Exception ex)
         {

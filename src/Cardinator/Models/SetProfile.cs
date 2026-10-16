@@ -19,6 +19,10 @@ public sealed class SetProfile
     /// <summary>The back every single-faced card in the set shows (null in older sets: Cardinator's default back).</summary>
     public CardBackDesign? CardBack { get; set; }
 
+    /// <summary>Whatever a newer Cardinator stored here that this one doesn't know, written back unchanged on save.</summary>
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? Unknown { get; set; }
+
     /// <summary>True when nothing is set — so we can skip applying/saving an all-blank profile.</summary>
     public bool IsEmpty =>
         string.IsNullOrWhiteSpace(SetCode)
@@ -56,5 +60,6 @@ public sealed class SetProfile
     {
         SetCode = SetCode, Rarity = Rarity, Copyright = Copyright, Artist = Artist, SetSymbolPath = SetSymbolPath,
         CardBack = CardBack?.Clone(),
+        Unknown = Unknown == null ? null : new(Unknown),
     };
 }

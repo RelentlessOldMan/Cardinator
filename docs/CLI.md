@@ -8,7 +8,14 @@ All output paths are created if they don't exist. Exit code is `0` on success, n
 Cardinator doesn't know, or one given too few arguments, is exit code `2` (it never opens the window). The same
 goes for the options of `--render`, `--rendercards` and the set commands: a mistyped one (`fram=Midnight`), or an
 option where a path belongs (a missing path, so `only=X` would have been taken for the folder), stops with exit
-code `2` and says which options it takes. A `templates=` folder that isn't there is exit code `2` too.
+code `2` and says which options it takes. A `templates=` folder that isn't there is exit code `2` too. So is an
+option with nothing after the `=` (`only=` from a script variable that was never set — it used to mean "all
+cards"), a number out of range (`scale=9`), an extra word after a command's arguments, and a first argument that
+isn't a `--mode` at all (a file name dropped on the command line): none of them opens the window.
+
+Notes and warnings (a frame that isn't installed, art that's missing or can't be read, cards Scryfall didn't find)
+go to the **error output**, so a script reading the normal output gets only results. Frame names are matched
+ignoring case (`frame=midnight` is the installed "Midnight").
 
 What Cardinator prints is UTF-8 with plain `\n` line ends, so accented card and set names reach a script intact.
 
@@ -186,10 +193,16 @@ Cardinator.exe --batch examples/02-custom-set/cards.csv out examples/02-custom-s
 Cardinator.exe --batch names.txt out C:\myart      # also match art from a folder
 ```
 
+An `artDir` that isn't there is exit code `2`. Cards Scryfall didn't find are named on the error output and
+drawn with what the list gave; it finishes and exits `4`, so a script can tell. When Scryfall can't be reached
+for cards that need it, it stops with exit code `1` instead of drawing blank cards.
+
 ## `--sheet <list.csv> <outDir> [artDir] [a4]`
 
 Same input as `--batch`, but composes **printable 3×3 sheet pages** (real card size, 300 DPI, with
-cut marks) instead of individual cards — one PNG per page. Add `a4` for A4 paper (default Letter).
+cut marks) instead of individual cards — one PNG per page. Add `a4` for A4 paper (default Letter). The art
+folder, cards not found (exit `4`) and Scryfall offline (exit `1`) work as for `--batch`. Pages an earlier, longer
+run left in the folder (`sheet_page_04.png` beside a 3-page deck) are removed.
 
 ```powershell
 Cardinator.exe --sheet examples/01-real-cards-custom-art/deck.csv sheets examples/01-real-cards-custom-art
@@ -203,7 +216,11 @@ Cardinator.exe --sheet examples/02-custom-set/cards.csv sheets examples/02-custo
 These script what you'd otherwise do in the window: get a deck, make a set from it, try frames and art,
 render it. They use the same code the window does, so a set made this way opens in the app exactly as if
 you'd made it there (art copied into the set's `art` folder, the previous file backed up on every save).
-Exit codes: `0` done, `1` failed, `2` bad arguments, `3` nothing to do (no cards matched).
+Exit codes: `0` done, `1` failed, `2` bad arguments, `3` nothing to do (no cards matched), `4` done but some
+cards weren't found on Scryfall (`--import`: they're saved as names only, and named on the error output).
+Two commands changing the same set at once take turns: the second waits for the first to finish (it says so on
+the error output) and gives up without saving after 5 minutes (exit `1`). A set made by a newer Cardinator keeps
+the fields this one doesn't know when it's saved again.
 A whole themed set (show art, show titles, a custom footer and an OpenAI-painted frame) built from these:
 [THEMED-SETS.md](THEMED-SETS.md) and the scripts in `examples/themed-set/`.
 
@@ -258,7 +275,11 @@ Makes a **set from a deck** — a Moxfield link or id, or any list/CSV the app i
   doesn't already have (a retitled card counts under its real name too).
 - A picture already copied into the set's folder (same name, same bytes) is reused, not copied again.
 - It won't save into a set's `backups` folder (open a backup in the app to restore it), or over a set a newer
-  version of Cardinator saved (exit code 2).
+  version of Cardinator saved (exit code 2). The set's path must be a file, not a folder (exit code 2).
+- Cards Scryfall didn't find (a typo in the list) are saved as names only — fix them in the app with **Fill in
+  blanks from Scryfall** — and named on the error output, exit code `4`. A build script with `set -e` stops
+  there, which is the point: the set isn't finished. When Scryfall can't be reached, **nothing is saved** (exit
+  code `1`): run it again when you're online.
 
 ### `--renderset <set.cardinator> <outDir> [sheet] [a4] [only=<name|name>] [templates=<dir>] [nosym]`
 
@@ -267,7 +288,10 @@ a card whose frame isn't installed on the set's frame. Identical cards (a deck's
 printed sheet still gets every copy. `sheet` makes printable 3×3 pages instead (`a4` for
 A4). `only=` renders just the cards whose name contains one of the `|`-separated parts (`|` because card names
 have commas). `templates=<dir>` also uses frames straight from a folder without installing them (they win
-over an installed frame of the same name).
+over an installed frame of the same name). Rendering the whole set removes card pictures (`NNN_name.png`) an
+earlier render left in the folder — of cards since deleted, moved or repeated — so "print everything in the
+folder" never prints an old card; other files are left alone. With `only=`, each card keeps its number in the
+whole set, so it writes over its own picture. Art that's missing or can't be read is named on the error output.
 
 ### `--restyle <set.cardinator> [frame=<name>] [art=<dir>] [titles=<file>] [setcode=<code>] [number=<n>] [symbol=<image>] [only=<name|name>] [templates=<dir>]`
 
@@ -275,7 +299,8 @@ Changes a **saved set in place**: `frame=` puts the cards on that frame (for the
 the set's frame); `art=<dir>` gives each card — and a double-faced card's back — the picture in that folder
 named exactly after it (cards without one keep their art; near names are noted, not used, as for `--import`).
 `templates=<dir>` works as for `--import`. `titles=<file>` retitles cards, like Universes
-Beyond's flavor names: each line is `card name<TAB>new title`, and the card shows the new title with its real
+Beyond's flavor names: each line is `card name<TAB>new title` (UTF-8, or the Windows code page PowerShell 5's
+`Set-Content` writes), and the card shows the new title with its real
 name on the subtitle plate (running it again finds a retitled card by that real name). Its rules text names it
 by the new title too ("Whenever Ulamog attacks" becomes "Whenever Adam attacks"). `setcode=` and `number=`
 set the footer's set code and collector number on every card (a custom set's own, e.g. `666 R • JA • EN`,
@@ -288,7 +313,8 @@ in the set) is an error (exit 3) and nothing is saved. The previous file is back
 ### `--info <set.cardinator> [templates=<dir>]`
 
 Lists a set: its folder and frame, then one tab-separated line per card — number, name, frame (marked
-`(not installed)` when it isn't), and art (`ok`, `missing`, or `none`). A double-faced card's back is listed
+`(not installed)` when it isn't), and art (`ok`, `missing`, `unreadable` — there but damaged, empty or not a
+picture, so it prints as an empty art window — or `none`). A double-faced card's back is listed
 as `Nb`.
 
 ### `--listframes [templates=<dir>]`
@@ -359,7 +385,8 @@ Cardinator.exe --appshot examples/01-real-cards-custom-art/deck.csv examples/01-
 
 - Input list/CSV format is described in [`examples/README.md`](../examples/README.md) and the
   [User Guide](USER_GUIDE.md#4-making-many-cards-at-once).
-- Scryfall calls are throttled (~100 ms apart) and time out gracefully; offline runs still render
-  with drawn mana pips and any fields you supplied.
+- Scryfall calls are throttled (~100 ms apart) and time out gracefully. A list whose cards are complete never
+  asks Scryfall, so it renders offline with drawn mana pips; one that needs Scryfall while it can't be reached
+  stops (exit 1) rather than drawing blank cards.
 - These modes are also how the project is verified without opening the GUI (handy on a headless or
   remote machine).

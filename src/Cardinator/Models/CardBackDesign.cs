@@ -29,8 +29,17 @@ public sealed class CardBackDesign
     /// <summary>A picture back's image (travels with the set folder like card art).</summary>
     public string ImagePath { get; set; } = "";
 
+    /// <summary>Whatever a newer Cardinator stored here that this one doesn't know, written back unchanged on save.</summary>
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public System.Collections.Generic.Dictionary<string, System.Text.Json.JsonElement>? Unknown { get; set; }
+
     public bool IsDefault => !string.Equals(Style, DesignedStyle, System.StringComparison.OrdinalIgnoreCase)
                              && !(string.Equals(Style, PictureStyle, System.StringComparison.OrdinalIgnoreCase) && ImagePath.Trim().Length > 0);
 
-    public CardBackDesign Clone() => (CardBackDesign)MemberwiseClone();
+    public CardBackDesign Clone()
+    {
+        var c = (CardBackDesign)MemberwiseClone();
+        if (Unknown != null) c.Unknown = new(Unknown);
+        return c;
+    }
 }

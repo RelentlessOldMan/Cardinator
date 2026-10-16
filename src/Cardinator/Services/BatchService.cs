@@ -3,7 +3,8 @@ using Cardinator.Models;
 
 namespace Cardinator.Services;
 
-public sealed record FillReport(int Found, int Filled, List<string> NotFound);
+/// <param name="Offline">Scryfall couldn't be reached for some of the cards (they're in <paramref name="NotFound"/> too).</param>
+public sealed record FillReport(int Found, int Filled, List<string> NotFound, bool Offline = false);
 /// <summary>Exported = image files written; Repeats = cards identical to one already written (rendered once).</summary>
 public sealed record BatchExportResult(int Exported, List<string> Errors, int Repeats = 0);
 
@@ -249,7 +250,7 @@ public static class BatchService
         }
 
         progress?.Report($"Scryfall: {found} found, {notFound.Count} not found.");
-        return new FillReport(found, filled, notFound);
+        return new FillReport(found, filled, notFound, unreachable != null);
     }
 
     /// <summary>True when a list's card name is this card: its full name or either face's, ignoring case, accents and
@@ -272,11 +273,15 @@ public static class BatchService
     /// <summary>The frame a card whose own frame isn't installed is drawn on: the set's house frame if it's
     /// installed, else the first frame. The same rule as the preview, so every export matches what's on screen.</summary>
     internal static Template FallbackFrame(IReadOnlyList<Template> templates, string? houseFrame) =>
-        templates.FirstOrDefault(t => !string.IsNullOrEmpty(houseFrame) && t.Name == houseFrame) ?? templates[0];
+        templates.FirstOrDefault(t => !string.IsNullOrEmpty(houseFrame) && string.Equals(t.Name, houseFrame, StringComparison.OrdinalIgnoreCase)) ?? templates[0];
 
     /// <summary>Renders every card to a PNG (at 2x) in outDir. Filenames are index_slug.png. A card whose frame
     /// isn't installed is drawn on <paramref name="houseFrame"/> (the set's), else the first frame — as on screen.
-    /// A card identical to one already rendered (a deck's 22 Wastes) is rendered once: it would be the same picture.</summary>
+    /// A card identical to one already rendered (a deck's 22 Wastes) is rendered once: it would be the same picture.
+    /// <para><paramref name="numbers"/> gives each card its number in the whole set when only some are exported, so
+    /// re-rendering a few writes over their own files. <paramref name="wholeSet"/> means these cards are everything:
+    /// card pictures (NNN_name.png) left in the folder by an earlier export — of cards since deleted, moved or
+    /// repeated — are removed, so printing "everything in the folder" never prints an old card.</para></summary>
     public static BatchExportResult ExportAll(
         IReadOnlyList<CardModel> cards,
         IReadOnlyList<Template> templates,
@@ -284,7 +289,9 @@ public static class BatchService
         SymbolService symbols,
         IProgress<string>? progress = null,
         IProgress<double>? percent = null,
-        string? houseFrame = null)
+        string? houseFrame = null,
+        IReadOnlyList<int>? numbers = null,
+        bool wholeSet = false)
     {
         if (templates.Count == 0)
             return new BatchExportResult(0, new List<string> { "No templates available to render with." });
@@ -293,13 +300,14 @@ public static class BatchService
         var renderer = new CardRenderer(symbols);
 
         // Tolerate duplicate template names instead of throwing: the first wins, as in the app and on the sheet.
-        var byName = new Dictionary<string, Template>();
+        var byName = new Dictionary<string, Template>(StringComparer.OrdinalIgnoreCase);
         foreach (var t in templates) byName.TryAdd(t.Name, t);
         var fallback = FallbackFrame(templates, houseFrame);
 
         int exported = 0, repeats = 0;
         var errors = new List<string>();
         var seen = new HashSet<string>();
+        var written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < cards.Count; i++)
         {
             var card = cards[i];
@@ -317,16 +325,20 @@ public static class BatchService
                     : c.IsBackFace && string.IsNullOrWhiteSpace(c.TemplateName) ? TemplateFor(card)   // a back with none: its front's
                     : fallback;
 
+                int number = numbers != null && i < numbers.Count ? numbers[i] : i + 1;
                 var bmp = CardExporter.AtCardSize(renderer.RenderToBitmap(card, TemplateFor(card), supersample: 2));
-                var path = Path.Combine(outDir, $"{i + 1:000}_{TextUtil.Slug(card.Name)}.png");
+                var path = Path.Combine(outDir, $"{number:000}_{TextUtil.Slug(card.Name)}.png");
                 CardExporter.SavePng(bmp, path);
+                written.Add(Path.GetFileName(path));
                 exported++;
 
                 // Double-faced: write the back alongside as "NNN_slug-back.png".
                 if (card.BackFace is { } back)
                 {
                     var backBmp = CardExporter.AtCardSize(renderer.RenderToBitmap(back, TemplateFor(back), supersample: 2));
-                    CardExporter.SavePng(backBmp, Path.Combine(outDir, $"{i + 1:000}_{TextUtil.Slug(card.Name)}-back.png"));
+                    var backPath = Path.Combine(outDir, $"{number:000}_{TextUtil.Slug(card.Name)}-back.png");
+                    CardExporter.SavePng(backBmp, backPath);
+                    written.Add(Path.GetFileName(backPath));
                 }
                 progress?.Report($"Exported {i + 1}/{cards.Count}: {Path.GetFileName(path)}");
             }
@@ -336,7 +348,28 @@ public static class BatchService
             }
             percent?.Report((double)(i + 1) / cards.Count);
         }
+        if (wholeSet) RemoveStale(outDir, StaleCardFile, written);
         return new BatchExportResult(exported, errors, repeats);
+    }
+
+    /// <summary>A card picture an export writes: "NNN_name.png" or "NNN_name-back.png".</summary>
+    private static readonly System.Text.RegularExpressions.Regex StaleCardFile = new(@"^\d{3,}_[^\\/]+\.png$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>Removes the files in <paramref name="dir"/> named like an export's own (<paramref name="pattern"/>) that
+    /// this export didn't write. Best effort: a file that can't be removed is left.</summary>
+    internal static void RemoveStale(string dir, System.Text.RegularExpressions.Regex pattern, ISet<string> written)
+    {
+        try
+        {
+            foreach (var f in Directory.EnumerateFiles(dir, "*.png"))
+            {
+                var name = Path.GetFileName(f);
+                if (pattern.IsMatch(name) && !written.Contains(name))
+                    try { File.Delete(f); } catch { /* in use: leave it */ }
+            }
+        }
+        catch { }
     }
 
     /// <summary>Flattens cards into printable faces for a single-sided sheet: each card's front followed by

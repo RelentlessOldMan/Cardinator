@@ -62,7 +62,24 @@ public partial class DetailsWindow : Window
         new("landscape", "Landscape (sideways)"),
     };
 
-    private void OnDone(object sender, RoutedEventArgs e) => Close();   // keep edits (they're already live)
+    private void OnDone(object sender, RoutedEventArgs e) { _decided = true; Close(); }   // keep edits (they're already live)
+
+    private bool _decided;   // Done or Cancel chose; closing with the window's X hasn't
+
+    /// <summary>The window's X with changes made: asks whether to keep them. It kept them silently while Esc and Cancel
+    /// threw them away — two ways out of one dialog doing opposite things.</summary>
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        base.OnClosing(e);
+        if (_decided || e.Cancel || !HasChanges) return;
+        switch (ConfirmDialog.Show(this, "Edit details", "Keep the changes made in this dialog?",
+                    affirmative: "Keep", negative: "Discard", cancel: "Keep editing"))
+        {
+            case ConfirmResult.Affirmative: break;
+            case ConfirmResult.Negative: _card.CopyFrom(_snapshot); break;
+            default: e.Cancel = true; break;
+        }
+    }
 
     protected override void OnClosed(EventArgs e)
     {
@@ -88,6 +105,7 @@ public partial class DetailsWindow : Window
                 affirmative: "Discard", negative: "Keep editing") != ConfirmResult.Affirmative)
             return;
         _card.CopyFrom(_snapshot);   // discard everything changed in this dialog (incl. a Scryfall fill)
+        _decided = true;
         Close();
     }
 

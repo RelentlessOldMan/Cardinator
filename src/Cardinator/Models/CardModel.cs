@@ -250,6 +250,11 @@ public sealed class CardModel : INotifyPropertyChanged
     [JsonIgnore]
     public bool IsOtherHalf { get; set; }
 
+    /// <summary>Whatever a newer Cardinator stored on this card that this one doesn't know, written back unchanged on
+    /// save — so opening a newer set here and saving it doesn't quietly drop what that version added.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>True when this card has a second half and a layout to arrange it with.</summary>
     [JsonIgnore]
     public bool IsTwoPart => _otherHalf != null && !string.IsNullOrWhiteSpace(_halfLayout);

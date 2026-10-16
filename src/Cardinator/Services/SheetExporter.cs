@@ -209,6 +209,11 @@ public static class SheetExporter
             CardExporter.SavePng(bmp, path);
             paths.Add(path);
         }
+        // A shorter run into the same folder left the earlier run's later pages beside the new ones (sheet_page_03 of
+        // a 3-page deck next to this 1-page one), and "print everything in the folder" printed them.
+        var mine = new System.Text.RegularExpressions.Regex("^" + System.Text.RegularExpressions.Regex.Escape(baseName) + @"_page_\d+\.png$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        BatchService.RemoveStale(outDir, mine, paths.Select(p => Path.GetFileName(p)).ToHashSet(StringComparer.OrdinalIgnoreCase));
         return paths;
     }
 

@@ -23,11 +23,16 @@ public sealed class CardProject
 
     public List<CardModel> Cards { get; set; } = new();
 
+    /// <summary>Whatever a newer Cardinator stored here that this one doesn't know, written back unchanged on save.</summary>
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>The on-disk format this file was written with (0 = pre-versioning / older than 1.1.2).
     /// Lets future versions branch migration logic; readers must still tolerate any value.</summary>
     public int FormatVersion { get; set; }
 
-    /// <summary>The format version the current build writes.</summary>
+    /// <summary>The format version the current build writes. Bump it whenever a saved field is added or changes
+    /// meaning (FormatVersionTests pins the saved shape to it), so an older Cardinator warns before saving over it.</summary>
     public const int CurrentFormatVersion = 1;
 
     /// <summary>True when this file was written by a NEWER Cardinator than the one reading it. The file

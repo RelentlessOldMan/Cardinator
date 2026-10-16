@@ -113,6 +113,8 @@ public static class SelfTest
     {
         try
         {
+            if (!string.IsNullOrWhiteSpace(artDir) && !Directory.Exists(artDir))
+            { Console.Error.WriteLine($"Batch: art folder '{artDir}' not found."); return 2; }
             var content = ImportService.ReadListFile(inputPath);
             var templates = new TemplateService().LoadAll();
             var defaultTemplate = templates[0].Name;
@@ -121,11 +123,10 @@ public static class SelfTest
             Console.WriteLine($"Parsed {cards.Count} card(s) from {Path.GetFileName(inputPath)}.");
             if (cards.Count == 0) return 3;
 
-            var progress = new Progress<string>(Console.WriteLine);
+            var progress = new ConsoleProgress();
             var report = Task.Run(() => BatchService.FillFromScryfallAsync(cards, progress))
                              .GetAwaiter().GetResult();
-            if (report.NotFound.Count > 0)
-                Console.WriteLine("Not found: " + string.Join(", ", report.NotFound));
+            if (FillProblem("Batch", report) is { } stop) return stop;
 
             // ExportAll renders each card's back face itself (writes -back.png), so no flattening here.
             var models = cards.Select(c => c.Card).ToList();
@@ -146,7 +147,7 @@ public static class SelfTest
 
             Console.WriteLine($"Batch done: {result.Exported}/{models.Count - result.Repeats} exported to {outDir}"
                 + (result.Repeats > 0 ? $" ({result.Repeats} repeated card(s) rendered once)." : "."));
-            return result.Errors.Count == 0 ? 0 : 1;
+            return result.Errors.Count > 0 ? 1 : NotFoundExit(report);
         }
         catch (Exception ex)
         {
@@ -163,15 +164,17 @@ public static class SelfTest
     {
         try
         {
+            if (!string.IsNullOrWhiteSpace(artDir) && !Directory.Exists(artDir))
+            { Console.Error.WriteLine($"Sheet: art folder '{artDir}' not found."); return 2; }
             var content = ImportService.ReadListFile(inputPath);
             var templates = new TemplateService().LoadAll();
             var cards = ImportService.Parse(content, artDir, templates[0].Name);
             Console.WriteLine($"Parsed {cards.Count} card(s).");
             if (cards.Count == 0) return 3;
 
-            var progress = new Progress<string>(Console.WriteLine);
+            var progress = new ConsoleProgress();
             var report = Task.Run(() => BatchService.FillFromScryfallAsync(cards, progress)).GetAwaiter().GetResult();
-            if (report.NotFound.Count > 0) Console.WriteLine("Not found: " + string.Join(", ", report.NotFound));
+            if (FillProblem("Sheet", report) is { } stop) return stop;
 
             // Single-sided sheet: expand double-faced cards so both faces get their own printable slot.
             var models = BatchService.ExpandFaces(cards.Select(c => c.Card).ToList());
@@ -186,7 +189,7 @@ public static class SelfTest
             var pages = SheetExporter.Compose(models, templates, symbols, page, progress);
             var paths = SheetExporter.Save(pages, outDir);
             Console.WriteLine($"Sheet done: {paths.Count} page(s) ({page.Cols}x{page.Rows}) to {outDir}.");
-            return 0;
+            return NotFoundExit(report);
         }
         catch (Exception ex)
         {
@@ -219,11 +222,26 @@ public static class SelfTest
             if (!Path.IsPathRooted(face.ArtPath) && !File.Exists(face.ArtPath)
                 && File.Exists(Path.Combine(dir, face.ArtPath)))
                 face.ArtPath = Path.Combine(dir, face.ArtPath);
-            if (!File.Exists(face.ArtPath))
-                Console.Error.WriteLine($"  Note: {(string.IsNullOrWhiteSpace(face.Name) ? "a card" : face.Name)}'s art "
-                    + $"\"{face.ArtPath}\" isn't there — its art window is drawn empty.");
         }
+        foreach (var note in ArtCheck.Notes(new[] { card })) Console.Error.WriteLine("  Note: " + note);
     }
+
+    /// <summary>After a command's Scryfall fill: Scryfall unreachable stops it (exit 1 — what it would make is blank
+    /// cards); cards not found are named on the error output.</summary>
+    private static int? FillProblem(string command, FillReport report)
+    {
+        if (report.Offline)
+        {
+            Console.Error.WriteLine($"{command}: couldn't reach Scryfall for {report.NotFound.Count} card(s) — stopped. Check the connection and run it again.");
+            return 1;
+        }
+        if (report.NotFound.Count > 0)
+            Console.Error.WriteLine($"{command}: not found on Scryfall (drawn as names only): {string.Join("; ", report.NotFound)}");
+        return null;
+    }
+
+    /// <summary>Exit 4 when it finished but some cards weren't found on Scryfall, so a script can tell.</summary>
+    private static int NotFoundExit(FillReport report) => report.NotFound.Count > 0 ? 4 : 0;
 
     /// <summary>Renders a saved card JSON to a PNG (CLI export). Returns 0 on success.</summary>
     public static int RunRender(string cardJsonPath, string outPath, string[]? opts = null)
@@ -241,7 +259,9 @@ public static class SelfTest
             var card = Cardinator.Models.CardModel.Load(cardJsonPath);
             WarnMissingArt(card, cardJsonPath);
             var templates = new TemplateService().LoadAll();
-            var template = templates.FirstOrDefault(t => t.Name == card.TemplateName) ?? templates[0];
+            var template = templates.FirstOrDefault(t => string.Equals(t.Name, card.TemplateName, StringComparison.OrdinalIgnoreCase)) ?? templates[0];
+            if (!string.IsNullOrWhiteSpace(card.TemplateName) && !string.Equals(template.Name, card.TemplateName, StringComparison.OrdinalIgnoreCase))
+                Console.Error.WriteLine($"  Note: frame “{card.TemplateName}” isn't installed — drawn on “{template.Name}”.");
             var symbols = new SymbolService();
             if (!noSym)   // nosym = don't fetch Scryfall symbols; use the app's generic pips instead
                 Task.Run(() => symbols.PrimeAsync(ManaText.SymbolTokens(card.ManaCost, card.RulesText))).GetAwaiter().GetResult();
@@ -480,7 +500,7 @@ public static class SelfTest
         try
         {
             Directory.CreateDirectory(outDir);
-            var progress = new Progress<string>(Console.WriteLine);
+            var progress = new ConsoleProgress();
             var cards = Task.Run(() => new ScryfallClient().SearchAsync(query, max, progress))
                             .GetAwaiter().GetResult().ToList();
             if (cards.Count == 0) { Console.Error.WriteLine($"No cards matched \"{query}\"."); return 3; }

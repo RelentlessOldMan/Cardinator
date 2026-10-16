@@ -17,8 +17,12 @@ public static class SetFolder
     /// Returns the number of images that exist but could NOT be copied in (they stay absolute and won't travel).
     /// The set defaults' symbol (<paramref name="profile"/>) is copied in the same way, sharing one copy with the
     /// cards that use it — otherwise new cards in a moved or shared set would get a symbol that isn't there.
+    /// <para><paramref name="previousFolder"/> is where the set was opened from. When that folder was moved or
+    /// renamed while the set was open, its art is now under <paramref name="projectFolder"/>: a missing image that
+    /// was under the old folder is re-pointed at the same place in the new one, so saving there keeps every link.</para>
     /// </summary>
-    public static int LocalizeImages(IReadOnlyList<CardModel> cards, string projectFolder, SetProfile? profile = null)
+    public static int LocalizeImages(IReadOnlyList<CardModel> cards, string projectFolder, SetProfile? profile = null,
+        string? previousFolder = null)
     {
         var artDir = Path.Combine(projectFolder, "art");
         string artRoot;
@@ -27,6 +31,13 @@ public static class SetFolder
 
         var copied = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);   // source full → dest
         int stranded = 0;
+        string? oldRoot = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(previousFolder))
+                oldRoot = Path.GetFullPath(previousFolder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        }
+        catch { }
 
         string? Localize(string? p)
         {
@@ -34,6 +45,12 @@ public static class SetFolder
             string full;
             try { full = Path.GetFullPath(p); } catch { return p; }
             if (full.StartsWith(artRoot, StringComparison.OrdinalIgnoreCase)) return p;   // already in this set
+            if (!File.Exists(full) && oldRoot != null && full.StartsWith(oldRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                // The set's folder moved while it was open: the same file, where the folder is now.
+                var moved = Path.Combine(projectFolder, full[oldRoot.Length..]);
+                if (File.Exists(moved)) return moved;
+            }
             if (!File.Exists(full)) return p;                                             // missing → art-blank check handles it
             if (copied.TryGetValue(full, out var existing)) return existing;              // shared image → one copy
             if (SameFileIn(artDir, full) is { } same) { copied[full] = same; return same; }   // copied in before

@@ -29,7 +29,7 @@ SET="$WS/sets/$SHOW.cardinator"
 OUT="$WS/review/$SHOW"
 
 # Cardinator's output without the per-card progress lines: what it saved or rendered, and any note or warning.
-said() { grep -E '^(Note|Not installed|Saved|Rendered|  !)' || true; }
+said() { grep -E '^(Note|Import:|Saved|Rendered|  !)' || true; }
 
 mkdir -p "$WS/sets/backups"
 # The set is built under a working name next to it (so its pictures land in the same sets/art/), and only takes
@@ -38,6 +38,8 @@ mkdir -p "$WS/sets/backups"
 NEW="$WS/sets/$SHOW.building.cardinator"
 rm -f "$NEW"
 # name= keeps the set called "$SHOW" (not after the working file), and templates= lets the frame be one in frames/.
+# A card Scryfall doesn't know (a typo in the list) stops the build here (exit 4, the names on the error output);
+# so does Scryfall being unreachable (exit 1). The set that was there before is untouched either way.
 "$EXE" --import "$WS/decks/$DECK/decklist.txt" "$NEW" "art=$ART" noart "frame=$FRAME" "name=$SHOW" "templates=$WS/frames" | said
 
 STYLE=()
@@ -91,9 +93,10 @@ python "$(dirname "$0")/card_names.py" "$SET" "$WS/review/$SHOW card names.txt"
 mkdir -p "$OUT"
 rm -f "$OUT"/*.png   # empty it rather than delete it, so it can stay open in Explorer
 ONLY=(); [ -n "$CARDS" ] && ONLY=("only=$CARDS")
-RENDERED=$("$EXE" --renderset "$SET" "$OUT" "${ONLY[@]}" "templates=$WS/frames")
+# Notes (a frame not installed, art missing) come on the error output: kept with the rest to show and check.
+RENDERED=$("$EXE" --renderset "$SET" "$OUT" "${ONLY[@]}" "templates=$WS/frames" 2>&1)
 echo "$RENDERED" | said
-if echo "$RENDERED" | grep -q '^Not installed'; then
+if echo "$RENDERED" | grep -q '^Note: not installed'; then
   echo "The frame \"$FRAME\" isn't in $WS/frames/ (check its name, or run make_frames.py): the cards were drawn on another." >&2
   exit 1
 fi
