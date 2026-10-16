@@ -39,6 +39,7 @@
                     <Button Content="New" Style="{StaticResource Ghost}" Click="OnNewProject" IsEnabled="{Binding NotBusy}" ToolTip="New project (Ctrl+N)" MinWidth="62" Margin="0,0,6,0"/>
                     <Button Content="Open" Style="{StaticResource Ghost}" Click="OnOpenProject" IsEnabled="{Binding NotBusy}" ToolTip="Open project (Ctrl+O)" MinWidth="62" Margin="0,0,6,0"/>
                     <Button Content="Save" Style="{StaticResource Ghost}" Click="OnSaveProject" ToolTip="Save project (Ctrl+S)" MinWidth="62" Margin="0,0,6,0"/>
+                    <Button Content="Save as…" Style="{StaticResource Ghost}" Click="OnSaveProjectAs" IsEnabled="{Binding NotBusy}" ToolTip="Save the set under another name or in another folder (Ctrl+Shift+S)" MinWidth="62" Margin="0,0,6,0"/>
                     <Button Content="Restore…" Style="{StaticResource Ghost}" Click="OnRestoreBackup" IsEnabled="{Binding NotBusy}" ToolTip="Restore an earlier automatic backup of this set" MinWidth="62" Margin="0,0,6,0"/>
                     <Button Content="Help" Style="{StaticResource Ghost}" Click="OnHelp" ToolTip="Quick help (F1)" MinWidth="62"/>
                 </StackPanel>
@@ -59,8 +60,16 @@
                 <!-- When the window is short (or the display scaled up), the BATCH buttons scroll rather than squeezing
                      the card list below one row (OnSidebarSizeChanged keeps the list at least a few rows tall). -->
                 <DockPanel x:Name="Sidebar" SizeChanged="OnSidebarSizeChanged">
-                    <TextBlock DockPanel.Dock="Top" Text="CARDS" Style="{StaticResource SectionLabel}"/>
-                    <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="0,0,0,6">
+                    <Grid DockPanel.Dock="Top">
+                        <TextBlock Text="CARDS" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,4">
+                            <Button Content="▲" Style="{StaticResource Ghost}" Click="OnMoveUp" Padding="8,0" MinHeight="24" Height="24" Margin="0,0,4,0"
+                                    IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) up the list"/>
+                            <Button Content="▼" Style="{StaticResource Ghost}" Click="OnMoveDown" Padding="8,0" MinHeight="24" Height="24"
+                                    IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) down the list"/>
+                        </StackPanel>
+                    </Grid>
+                    <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="0,0,0,8">
                         <Button x:Name="NewCardBtn" Content="New card ▾" Click="OnNewCardMenu" Margin="0,0,4,0" Padding="4,0" IsEnabled="{Binding NotBusy}"
                                 ToolTip="Add a blank card or a token">
                             <Button.ContextMenu>
@@ -75,10 +84,6 @@
                         <Button Content="Delete" Click="OnDeleteCard" Margin="4,0,0,0" Padding="4,0" IsEnabled="{Binding CanEditSelected}"
                                 ToolTip="Delete the selected card(s) — Undo (Ctrl+Z) brings them back"/>
                     </UniformGrid>
-                    <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,0,8">
-                        <Button Content="Move up" Click="OnMoveUp" Margin="0,0,3,0" IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) up the list"/>
-                        <Button Content="Move down" Click="OnMoveDown" Margin="3,0,0,0" IsEnabled="{Binding CanEditSelected}" ToolTip="Move the selected card(s) down the list"/>
-                    </UniformGrid>
 
                     <ScrollViewer x:Name="BatchScroll" DockPanel.Dock="Bottom" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled" Focusable="False">
@@ -91,14 +96,20 @@
                             <Button Content="Search Scryfall…" Click="OnScryfallSearch" Margin="3,0,0,0" Padding="4,0" IsEnabled="{Binding NotBusy}"
                                     ToolTip="Search Scryfall and add the cards you tick, with their art"/>
                         </UniformGrid>
-                        <Button Content="Add art from a folder…" Click="OnMatchArtFolder" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
-                                ToolTip="Give cards the pictures in a folder whose file names match the card names"/>
-                        <Button Content="Fill in blanks from Scryfall" Click="OnLookupMissing" Margin="0,0,0,6" IsEnabled="{Binding CanExport}"
-                                ToolTip="Look up the cost, type, rules text and art of every card that's missing them"/>
+                        <UniformGrid Columns="2" Margin="0,0,0,6">
+                            <Button Content="Art from folder…" Click="OnMatchArtFolder" Margin="0,0,3,0" Padding="4,0" IsEnabled="{Binding CanExport}"
+                                    ToolTip="Add art from a folder: give cards the pictures whose file names match the card names"/>
+                            <Button Content="Fill in blanks" Click="OnLookupMissing" Margin="3,0,0,0" Padding="4,0" IsEnabled="{Binding CanExport}"
+                                    ToolTip="Fill in blanks from Scryfall: look up the cost, type, rules text and art of every card that's missing them"/>
+                        </UniformGrid>
 
                         <TextBlock Text="WHOLE SET" Style="{StaticResource SectionLabel}" Margin="2,8,0,4"/>
-                        <Button Content="Set settings…" Click="OnSetSettings" Margin="0,0,0,6"
-                                ToolTip="What every card in the set shares: set code, rarity, artist, copyright, set symbol, the frame for new cards, and the card back"/>
+                        <UniformGrid Columns="2" Margin="0,0,0,6">
+                            <Button Content="Set settings…" Click="OnSetSettings" Margin="0,0,3,0" Padding="4,0"
+                                    ToolTip="What every card in the set shares: set code, rarity, artist, copyright, set symbol, the frame for new cards, and the card back"/>
+                            <Button Content="Share the set…" Click="OnExportSetBundle" Margin="3,0,0,0" Padding="4,0" IsEnabled="{Binding CanExport}"
+                                    ToolTip="One .zip with the set, its art and its frames, to send to someone else"/>
+                        </UniformGrid>
                         <UniformGrid Columns="2" Margin="0,0,0,6">
                             <Button Content="Number cards" Click="OnNumberCards" Margin="0,0,3,0" Padding="4,0" IsEnabled="{Binding CanExport}"
                                     ToolTip="Give every card a collector number (001/120 …) in list order"/>
@@ -113,22 +124,24 @@
                             <Button Content="Print sheets…" Click="OnExportSheet" Margin="3,0,0,0" Padding="4,0" IsEnabled="{Binding CanExport}"
                                     ToolTip="Pages of cards ready to print and cut — with their backs, for double-sided printing"/>
                         </UniformGrid>
-                        <Button Content="Share the set…" Click="OnExportSetBundle" IsEnabled="{Binding CanExport}"
-                                ToolTip="One .zip with the set, its art and its frames, to send to someone else"/>
                     </StackPanel>
                     </ScrollViewer>
 
                     <Border Background="{StaticResource Bg}" CornerRadius="8" Padding="4">
-                        <ListBox x:Name="CardList" ItemsSource="{Binding Cards}" SelectedItem="{Binding SelectedCard}"
-                                 SelectionMode="Extended" DisplayMemberPath="Name"/>
+                        <Grid>
+                            <ListBox x:Name="CardList" ItemsSource="{Binding Cards}" SelectedItem="{Binding SelectedCard}"
+                                     SelectionMode="Extended" DisplayMemberPath="Name"/>
+                            <TextBlock Text="No cards yet." Foreground="{StaticResource Subtle}" FontSize="12" Margin="8,6" IsHitTestVisible="False"
+                                       Visibility="{Binding IsEmptySet, Converter={StaticResource BoolToVis}}"/>
+                        </Grid>
                     </Border>
                 </DockPanel>
             </Border>
 
             <!-- ===== Editor (simple flow) ===== -->
-            <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="10" Padding="18,18,6,18" Margin="14,0">
+            <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="10" Padding="18,18,6,12" Margin="14,0">
                 <!-- Scrolls when the window is too short for it all, so CHECKS and Export are never cut off. -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                <ScrollViewer x:Name="EditorScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Visibility="{Binding HasCards, Converter={StaticResource BoolToVis}}">
                 <StackPanel IsEnabled="{Binding CanEditSelected}" Margin="0,0,12,0">
                     <!-- Shown instead of the card's fields while the preview shows the set's card back. -->
                     <Border x:Name="CardBackNote" Background="{StaticResource Bg}" CornerRadius="8" Padding="12,10" Margin="0,0,0,14"
@@ -145,10 +158,37 @@
                     <TextBlock x:Name="NameLabel" Text="CARD NAME" Style="{StaticResource SectionLabel}"/>
                     <!-- Just the name of the side being edited (Front | Back above the preview picks it). To pull real
                          stats from Scryfall (even for a card with a different name), use the search inside Edit details…. -->
-                    <TextBox x:Name="NameBox" Height="36" Margin="0,0,0,14" Text="{Binding EditedFace.Name, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBox x:Name="NameBox" Height="36" Text="{Binding EditedFace.Name, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Your card's name — or a real card's: then Look up fills it in from Scryfall"/>
+                        <Button x:Name="LookupBtn" Grid.Column="1" Content="Look up" Click="OnLookup" Margin="6,0,0,0" Padding="12,0"
+                                IsEnabled="{Binding NotBusy}"
+                                ToolTip="Make this the real card with this name: its cost, type, rules, power/toughness and art from Scryfall (Ctrl+L)"/>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="120"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="TYPE LINE" Style="{StaticResource SectionLabel}"/>
+                            <TextBox x:Name="TypeLineBox" Height="36" Text="{Binding EditedFace.TypeLine, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Creature — Human Wizard, Instant, Legendary Artifact …"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                            <TextBlock Text="MANA COST" Style="{StaticResource SectionLabel}"/>
+                            <TextBox x:Name="ManaCostMainBox" Height="36" Text="{Binding EditedFace.ManaCost, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Symbols in braces: {2}{W}{U}, {X}{R}, {G/U} …"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="RULES TEXT" Style="{StaticResource SectionLabel}"/>
+                    <TextBox x:Name="RulesMainBox" Height="64" Margin="0,0,0,10" AcceptsReturn="True" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" Padding="8,6"
+                             Text="{Binding EditedFace.RulesText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="One ability per line; {T}, {W} and the like become symbols. Power/toughness, flavor text, rarity and more are in Edit details…"/>
 
                     <TextBlock Text="CARD LAYOUT" Style="{StaticResource SectionLabel}"/>
-                    <StackPanel Margin="0,0,0,14">
+                    <StackPanel Margin="0,0,0,10">
                         <ComboBox x:Name="LayoutBox" SelectionChanged="OnLayoutChanged" PreviewKeyDown="OnLayoutKeyDown"
                                   ToolTip="What kind of card this is: one face, two faces, a meld half, two halves on one face, or a creature with an adventure"/>
                         <!-- The one row of options for the chosen layout. -->
@@ -178,7 +218,7 @@
                     </StackPanel>
 
                     <TextBlock Text="FRAME" Style="{StaticResource SectionLabel}"/>
-                    <Grid Margin="0,0,0,14">
+                    <Grid Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -203,30 +243,29 @@
                     </Grid>
 
                     <TextBlock Text="ARTWORK" Style="{StaticResource SectionLabel}"/>
-                    <Grid Margin="0,0,0,4">
+                    <Grid Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Content="Change art…" Click="OnLoadArt"/>
+                        <Button Grid.Column="0" Content="Change art…" Click="OnLoadArt"
+                                ToolTip="Pick a picture — or drop one anywhere on the window; drag the preview to pan, scroll to zoom"/>
                         <Button Grid.Column="1" Content="Paste" Click="OnPasteArt" Margin="6,0,0,0"
                                 ToolTip="Paste an image, a copied image file, or an image URL from the clipboard"/>
                         <Button Grid.Column="2" Content="Reset" Style="{StaticResource Ghost}" Click="OnResetArt" Margin="6,0,0,0"
                                 ToolTip="Put the art back where it started: centred, at its original size (or press 0 on the preview)"/>
                         <Button Grid.Column="3" Content="Clear" Style="{StaticResource Ghost}" Click="OnClearArt" Margin="6,0,0,0"/>
                     </Grid>
-                    <TextBlock Text="Drop an image anywhere · drag the preview to pan · scroll to zoom" Foreground="{StaticResource Subtle}"
-                               FontSize="11" Margin="2,0,0,18"/>
 
-                    <Button x:Name="EditDetailsBtn" Content="Edit details…" Click="OnEditDetails" Margin="0,0,0,16"
-                            ToolTip="Everything on this side of the card: cost, type, rules, power/toughness, rarity, set and artist — and a Scryfall lookup"/>
+                    <Button x:Name="EditDetailsBtn" Content="Edit details…  (power/toughness, flavor, rarity, artist …)" Click="OnEditDetails" Margin="0,0,0,12"
+                            ToolTip="Everything on this side of the card: name, cost, type, rules, power/toughness, flavor, rarity, set and artist — and a Scryfall lookup"/>
                     </StackPanel>
 
                     <StackPanel x:Name="FaceFooter">
                     <TextBlock Text="CHECKS" Style="{StaticResource SectionLabel}"/>
-                    <Border Background="{StaticResource Bg}" CornerRadius="8" Padding="10,8" Margin="0,0,0,16">
+                    <Border Background="{StaticResource Bg}" CornerRadius="8" Padding="10,8">
                         <StackPanel>
                             <TextBlock Text="{Binding ValidationSummary}" FontSize="12" Foreground="{StaticResource Subtle}"/>
                             <TextBlock Text="{Binding ValidationDetails}" FontSize="11" Foreground="{StaticResource Warn}" TextWrapping="Wrap"
@@ -234,13 +273,6 @@
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Text="EXPORT THIS CARD" Style="{StaticResource SectionLabel}"/>
-                    <Button Content="Export PNG…" Click="OnExport"/>
-                    <UniformGrid Columns="2" Margin="0,8,0,0">
-                        <Button Content="Copy image" Click="OnCopyImage" Margin="0,0,4,0"
-                                ToolTip="Copy the finished card image to the clipboard"/>
-                        <Button Content="Open output folder" Click="OnOpenOutput" Margin="4,0,0,0"/>
-                    </UniformGrid>
                     </StackPanel>
                 </StackPanel>
                 </ScrollViewer>
@@ -253,9 +285,10 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <!-- Which side of the card is shown and edited; for a flip or split card, which half too. -->
-                    <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                    <StackPanel Grid.Row="0" Margin="0,0,0,12" Visibility="{Binding HasCards, Converter={StaticResource BoolToVis}}">
                         <WrapPanel HorizontalAlignment="Center">
                             <Border Style="{StaticResource SegmentBar}" Margin="4,0">
                                 <StackPanel Orientation="Horizontal">
@@ -281,10 +314,28 @@
                                   Visibility="Collapsed" Checked="OnWholeMeldChanged" Unchecked="OnWholeMeldChanged"
                                   ToolTip="Show the big melded card that this card's back and its partner's make together"/>
                     </StackPanel>
-                    <TextBlock x:Name="PreviewHint" Grid.Row="2" HorizontalAlignment="Center" Margin="0,10,0,0" FontSize="11"
+                    <TextBlock x:Name="PreviewHint" Grid.Row="2" Visibility="{Binding HasCards, Converter={StaticResource BoolToVis}}" HorizontalAlignment="Center" Margin="0,10,0,0" FontSize="11"
                                Foreground="{StaticResource Subtle}" TextWrapping="Wrap" TextAlignment="Center"
                                Text="Drag to pan · scroll to zoom · click the card for keys: arrows nudge, + / − zoom, 0 resets"/>
-                    <Image x:Name="PreviewImageControl" Grid.Row="1" Source="{Binding PreviewImage}" Stretch="Uniform"
+                    <!-- This card's own export, right under it: never scrolled out of sight. -->
+                    <Border Grid.Row="3" Visibility="{Binding HasCards, Converter={StaticResource BoolToVis}}">
+                    <StackPanel x:Name="CardExportBar" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0"
+                                IsEnabled="{Binding CanEditSelected}">
+                        <Button Content="Export PNG…" Click="OnExport" Padding="14,0" ToolTip="Save this card as a PNG"/>
+                        <Button Content="Copy image" Click="OnCopyImage" Padding="14,0" Margin="6,0,0,0"
+                                ToolTip="Copy the finished card image to the clipboard"/>
+                        <Button Content="Open output folder" Style="{StaticResource Ghost}" Click="OnOpenOutput" Padding="14,0" Margin="6,0,0,0"/>
+                    </StackPanel>
+                    </Border>
+                    <!-- An empty set: where to start. -->
+                    <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="340"
+                                Visibility="{Binding IsEmptySet, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="No cards yet" FontSize="17" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="13" LineHeight="20"
+                                   Text="Start with New card (top left) and make your own, or bring in many at once with Import cards… (a Moxfield deck or a list) or Search Scryfall…, or Open a set you've saved."/>
+                        <Button Content="New card" Click="OnAddCard" HorizontalAlignment="Center" Padding="18,0" Margin="0,14,0,0"/>
+                    </StackPanel>
+                    <Image x:Name="PreviewImageControl" Grid.Row="1" Source="{Binding PreviewImage}" Visibility="{Binding HasCards, Converter={StaticResource BoolToVis}}" Stretch="Uniform"
                            Focusable="True" RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True" Cursor="SizeAll"
                            MouseLeftButtonDown="OnPreviewMouseDown" MouseMove="OnPreviewMouseMove"
                            MouseLeftButtonUp="OnPreviewMouseUp" MouseWheel="OnPreviewWheel"

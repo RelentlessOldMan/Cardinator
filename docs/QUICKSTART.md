@@ -8,27 +8,31 @@ Cardinator makes custom Magic-style cards from your own art — one at a time, o
 
 ## Make one card
 
-1. **Name it.** Type a name in the CARD NAME box — that's just your card's title.
-2. **Pick a frame.** Choose one from the FRAME dropdown (its own row), with **Design…**
+1. **Name it.** Type a name in the CARD NAME box. Making a real card? Type its name and click
+   **Look up** (or press **Ctrl+L**): it becomes that card — its cost, type, rules text,
+   power/toughness, printing and, unless you've given it your own, its art — straight from Scryfall.
+   Your frame always stays. **Undo** puts back what was there.
+2. **Write it.** TYPE LINE, MANA COST and RULES TEXT are right under the name. Type mana as `{2}{U}{U}`
+   — it renders as symbols, in the title and inside rules text.
+3. **Pick a frame.** Choose one from the FRAME dropdown (its own row), with **Design…**
    and a **⋯** menu (*Import a frame…*, *Export this frame…*, *Delete this frame…*) beside it. Click **Design…** to mix and match the
    frame's look (below). Different cards in a set can use different frames.
-3. **Add your art.** Click **Change art…**, **Paste** a copied image or URL, or just drag an image
+4. **Add your art.** Click **Change art…**, **Paste** a copied image or URL, or just drag an image
    onto the window. Paste even handles images copied from a web browser. Drag the preview to pan,
    scroll to zoom (hold **Ctrl** for fine zoom); click the preview then use the **arrow keys** to
    nudge the art a pixel at a time, **+ / -** to zoom and **0** to reset. **Reset** (next to Clear)
    puts the art back centred at its original size.
-4. **Edit the details.** Click **Edit details…** for mana cost, type line, rules/flavor text,
-   power/toughness, loyalty, set, collector number, artist and more. Type mana as `{2}{U}{U}` —
-   it renders as symbols, in the title and inside rules text.
-5. **Borrow real stats (optional).** Inside **Edit details…**, use **Fill from Scryfall**: type any
+5. **Edit the details.** Click **Edit details…** for everything else: power/toughness, loyalty,
+   flavor text, rarity, set, collector number, artist and more.
+6. **Borrow real stats (optional).** Inside **Edit details…**, use **Fill from Scryfall**: type any
    real card name and it fills the mana cost, type, rules text, power/toughness and printing info —
    while leaving your card's **name, art and frame untouched**. So you can call a card "Boogie
    Woogie" and still pull Lightning Bolt's stats.
-6. **Watch the CHECKS panel** (just above **Export PNG…**). It flags problems as you go — an
+7. **Watch the CHECKS panel** (under the editing column). It flags problems as you go — an
    unrecognized symbol, a footer overlapping the text box, text too long for its box, duplicate
    collector numbers — and notes things like missing art, so nothing surprises you at export.
-7. **Export.** Click **Export PNG…** for a print-quality image, or **Copy image** to paste it
-   straight into a chat. **Open output folder** opens wherever you last exported.
+8. **Export.** Under the preview, click **Export PNG…** for a print-quality image, or **Copy image**
+   to paste it straight into a chat. **Open output folder** opens wherever you last exported.
 
 ### Editing the details (with Scryfall fill)
 ![Card details editor](images/app-details.png)
@@ -65,8 +69,8 @@ deleted afterwards.
    ```
 2. Click **Import cards…** → **Open a file…** (or drop the file on the window). Cardinator fills any
    blank fields from Scryfall and matches art files by name.
-3. Click **Fill in blanks from Scryfall** if you left fields blank, and **Add art from a folder…** to
-   attach a folder of images by filename.
+3. Click **Fill in blanks** if you left fields blank (it looks them up on Scryfall), and **Art from
+   folder…** to attach a folder of images by filename.
 4. Use **Set settings…** to give every card one frame (and/or set code, artist, rarity, copyright) —
    pick *…and replace them on every card already here*; only the fields you change go on the cards, so you
    can re-frame a whole set in one step. Choose the set's **card back** there too.
@@ -76,13 +80,15 @@ deleted afterwards.
 
 ## Saving a set
 **Save** writes your project into a **set folder**: the project file plus an `art/` subfolder (your
-images are copied in) and an `out/` subfolder (where exports and sheets default) — so give each set a
-new folder of its own the first time you save. The whole folder is
+images are copied in) and an `out/` subfolder (where exports and sheets default). The first Save
+offers *Documents\Cardinator Sets*, and a set saved into a folder that already holds other things
+gets a folder of its own, named after it. **Save as…** (Ctrl+Shift+S) saves a copy under another
+name or somewhere else. The whole folder is
 self-contained — move, zip or share it and every card still finds its art. One-off single cards need
 no setup: the folder is only created when you first save.
 
 ## Keyboard shortcuts
-`Ctrl+S` save · `Ctrl+O` open · `Ctrl+N` new · `Ctrl+L` look up · `Ctrl+E` export · `Ctrl+D` duplicate · `F1` help
+`Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+O` open · `Ctrl+N` new · `Ctrl+L` look up · `Ctrl+E` export · `Ctrl+D` duplicate · `F1` help
 · click the preview, then **arrows** nudge art (Shift = 10px) , **+/-** zoom and **0** resets
 
 ---

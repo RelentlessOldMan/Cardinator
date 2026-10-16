@@ -309,6 +309,17 @@ These drive the fix backlog.
   re-applies a re-picked value and rarity *(none)* clears it; the details window's X asks; an unsaved set's card
   back isn't stamped "Untitled Project"; status lines name the cards not found and the card not exported.
   `Review8Tests` (39), each fix mutation-checked.
+- ✅ **Eighth review, second half (1.7.5)** — the screens a new user meets (`Review9Tests`). **Look up** button
+  beside the name (Ctrl+L) makes the card the real one, the same as Edit details' lookup: the starter card's 5/5,
+  sample art, flavor and demo artist don't survive onto Lightning Bolt (`SampleAssets.IsBundled` knows the sample
+  picture by name and size, also as a saved set's copy); the user's own art, flavor, artist and frame stay. A
+  blank card is blank, so Fill in blanks fills it. TYPE LINE, MANA COST and RULES TEXT on the main screen, a Name
+  field and a rarity picker in Edit details (an odd rarity is kept as it is). Save offers Documents\Cardinator
+  Sets and puts a set saved into a busy folder into one of its own (`SetFolder.OwnFolderPath`); Save as… and
+  Ctrl+Shift+S. A set symbol shows without a rarity; rarity words (Rare, mythic) count as their letter in the
+  symbol and the footer, and an unknown one gets a note. At 1366×768 and 1280×720 every sidebar button shows; this
+  card's export sits under the preview. An empty set says where to start. Frame faults say they're the frame's and
+  point at Design…; Frame Design labels in plain words. Each fix was mutation-checked (28/28 killed).
 - ✅ **Review 7 loose ends (1.7.3)** — Set settings' Replace gains *Put the frame above on every card, even if
   unchanged* (re-picking the set's own frame no longer did nothing); tests for a click on a split card's card back
   (the window laid out off-screen) and a Moxfield deck dropping the opened file's folder. `Review7Tests` (21), the

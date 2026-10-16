@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using Cardinator.Models;
 using Cardinator.Services;
@@ -34,7 +35,11 @@ public partial class DetailsWindow : Window
         _scryfall = scryfall ?? new ScryfallClient();
         DataContext = card;
         SearchBox.Text = card.Name;   // a convenient default; edit it to search for something else
-        UseArtBox.IsChecked = _useArt;
+        // The starter card's sample picture (or no picture) isn't art of the user's own: the looked-up card's art goes on.
+        UseArtBox.IsChecked = _useArt || string.IsNullOrWhiteSpace(card.ArtPath) || SampleAssets.IsBundled(card.ArtPath);
+        SyncRarity();
+        RarityBox.SelectionChanged += OnRarityPicked;
+        _card.PropertyChanged += OnCardChanged;   // a Scryfall search (or Cancel) sets the rarity too
         UseArtBox.Checked += (_, _) => _useArt = true;
         UseArtBox.Unchecked += (_, _) => _useArt = false;
         LandStyleBox.ItemsSource = new[] { "row", "splitv", "splith", "pie", "yinyang" };
@@ -84,7 +89,43 @@ public partial class DetailsWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _closing.Cancel();
+        _card.PropertyChanged -= OnCardChanged;
         base.OnClosed(e);
+    }
+
+    private bool _syncingRarity;
+
+    /// <summary>Shows the card's rarity in the picker. One written some other way shows as its letter ("rare" → Rare);
+    /// one the picker doesn't have ("Epic") is added as itself, so opening the window never changes it.</summary>
+    private void SyncRarity()
+    {
+        _syncingRarity = true;
+        try
+        {
+            var code = CardRenderer.RarityCode(_card.Rarity);
+            var items = RarityBox.Items.Cast<ComboBoxItem>().ToList();
+            foreach (var extra in items.Where(i => i.Tag is string t && t is not ("" or "C" or "U" or "R" or "M")).ToList())
+                if (!string.Equals((string)extra.Tag, _card.Rarity, StringComparison.Ordinal)) RarityBox.Items.Remove(extra);
+            var match = RarityBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == code
+                || (string)i.Tag == _card.Rarity);
+            if (match == null)
+            {
+                match = new ComboBoxItem { Content = _card.Rarity.Trim(), Tag = _card.Rarity };
+                RarityBox.Items.Add(match);
+            }
+            RarityBox.SelectedItem = match;
+        }
+        finally { _syncingRarity = false; }
+    }
+
+    private void OnRarityPicked(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_syncingRarity && RarityBox.SelectedItem is ComboBoxItem { Tag: string tag }) _card.Rarity = tag;
+    }
+
+    private void OnCardChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CardModel.Rarity) or null or "") SyncRarity();
     }
 
     private void OnBrowseArt(object sender, RoutedEventArgs e)
@@ -147,6 +188,7 @@ public partial class DetailsWindow : Window
 
             var f = faces[0];
             CardDetailsFill.ApplyScryfall(_card, f);   // printed details only — name, art and frame left alone
+            SampleCards.ClearStarterLeftovers(_card);
 
             // A real double-faced card brings its back with it (G6) — but only onto a FRONT that hasn't got
             // one yet: a back face can't have a back of its own, and an existing one is the user's own work.

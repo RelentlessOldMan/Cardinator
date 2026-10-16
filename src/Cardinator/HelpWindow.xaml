@@ -47,11 +47,11 @@
             <StackPanel>
 
                 <TextBlock Text="Make a card" Style="{StaticResource GroupHeader}"/>
-                <TextBlock Style="{StaticResource Body}"><Run Text="1."/>  Type a card name and press <Run FontWeight="SemiBold" Text="Ctrl+L"/> to auto-fill from Scryfall — or just type the fields yourself for an original card.</TextBlock>
+                <TextBlock Style="{StaticResource Body}"><Run Text="1."/>  Type a card name. For a real card, click <Run FontWeight="SemiBold" Text="Look up"/> beside it (or press <Run FontWeight="SemiBold" Text="Ctrl+L"/>): it becomes that card — cost, type, rules, power/toughness and, unless it has your own, its art — from Scryfall, keeping your frame. For an original card, fill in TYPE LINE, MANA COST and RULES TEXT yourself.</TextBlock>
                 <TextBlock Style="{StaticResource Body}"><Run Text="2."/>  Pick a <Run FontWeight="SemiBold" Text="Frame"/> from the dropdown.</TextBlock>
                 <TextBlock Style="{StaticResource Body}"><Run Text="3."/>  Add your <Run FontWeight="SemiBold" Text="artwork"/> (see below), then drag the preview to pan and scroll to zoom. Click the preview to use the keys: arrows nudge, + / − zoom, 0 resets. <Run FontWeight="SemiBold" Text="Reset"/> puts the art back centred at its original size.</TextBlock>
-                <TextBlock Style="{StaticResource Body}"><Run Text="4."/>  Open <Run FontWeight="SemiBold" Text="Edit details…"/> to change any field (rules, flavor, rarity, artist, stats).</TextBlock>
-                <TextBlock Style="{StaticResource Body}"><Run Text="5."/>  <Run FontWeight="SemiBold" Text="Export PNG…"/> (1500×2100) or <Run FontWeight="SemiBold" Text="Copy image"/> to the clipboard.</TextBlock>
+                <TextBlock Style="{StaticResource Body}"><Run Text="4."/>  Open <Run FontWeight="SemiBold" Text="Edit details…"/> for the rest: power/toughness, flavor, rarity, set, artist and more — and Fill from Scryfall, which borrows a real card's stats but keeps your card's name.</TextBlock>
+                <TextBlock Style="{StaticResource Body}"><Run Text="5."/>  Under the preview: <Run FontWeight="SemiBold" Text="Export PNG…"/> (1500×2100) or <Run FontWeight="SemiBold" Text="Copy image"/> to the clipboard.</TextBlock>
 
                 <TextBlock Text="The card layout and its two sides" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
                 <TextBlock Style="{StaticResource Body}"><Run FontWeight="SemiBold" Text="Card layout"/> says what kind of card it is: Normal, Double-faced, Meld, Flip, Split or Adventure. Pick one and the card changes there and then; whatever the new layout uses is kept (a back face going from double-faced to meld, the other half going from flip to split), and if something you wrote would be lost it asks first — Undo brings it back. The one row under the dropdown holds that layout's options.</TextBlock>
@@ -91,6 +91,7 @@
                         <TextBlock Style="{StaticResource Key}" Text="Ctrl+N"/>
                         <TextBlock Style="{StaticResource Key}" Text="Ctrl+O"/>
                         <TextBlock Style="{StaticResource Key}" Text="Ctrl+S"/>
+                        <TextBlock Style="{StaticResource Key}" Text="Ctrl+Shift+S"/>
                         <TextBlock Style="{StaticResource Key}" Text="Ctrl+L"/>
                         <TextBlock Style="{StaticResource Key}" Text="Ctrl+E"/>
                         <TextBlock Style="{StaticResource Key}" Text="Ctrl+D"/>
@@ -101,7 +102,8 @@
                         <TextBlock Style="{StaticResource KeyDesc}" Text="New project"/>
                         <TextBlock Style="{StaticResource KeyDesc}" Text="Open project"/>
                         <TextBlock Style="{StaticResource KeyDesc}" Text="Save (same file after first save)"/>
-                        <TextBlock Style="{StaticResource KeyDesc}" Text="Look up current card"/>
+                        <TextBlock Style="{StaticResource KeyDesc}" Text="Save as… (another name or folder)"/>
+                        <TextBlock Style="{StaticResource KeyDesc}" Text="Look up: make it the real card with this name"/>
                         <TextBlock Style="{StaticResource KeyDesc}" Text="Export current card"/>
                         <TextBlock Style="{StaticResource KeyDesc}" Text="Duplicate current card"/>
                         <TextBlock Style="{StaticResource KeyDesc}" Text="Undo"/>
@@ -111,10 +113,10 @@
                 <TextBlock Style="{StaticResource Body}" Margin="0,4,0,0">The title bar shows <Run FontWeight="SemiBold" Text="●"/> when you have unsaved changes; Cardinator asks before you lose work. Every edit is undoable with Ctrl+Z / Ctrl+Y.</TextBlock>
 
                 <TextBlock Text="The CHECKS panel" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
-                <TextBlock Style="{StaticResource Body}">In the editing column, just above <Run FontWeight="SemiBold" Text="Export PNG…"/>, CHECKS watches the selected card and flags problems before export — an unknown <Run FontFamily="Consolas" Text="{}{symbol}"/>, a footer overlapping the text box, a region off the card, rules text too long for its box, or a collector number used twice. Notes (ℹ) point out things that may be on purpose, like a card with no art yet. "<Run Text="✓ No issues"/>" means you're clear.</TextBlock>
+                <TextBlock Style="{StaticResource Body}">At the bottom of the editing column, CHECKS watches the selected card and flags problems before export — an unknown <Run FontFamily="Consolas" Text="{}{symbol}"/>, a footer overlapping the text box, a region off the card, rules text too long for its box, or a collector number used twice. Notes (ℹ) point out things that may be on purpose, like a card with no art yet. "<Run Text="✓ No issues"/>" means you're clear.</TextBlock>
 
                 <TextBlock Text="Many cards at once" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>
-                                <TextBlock Style="{StaticResource Body}"><Run FontWeight="SemiBold" Text="ADD MANY CARDS"/>: <Run FontWeight="SemiBold" Text="Import cards…"/> (a Moxfield deck link, a list file — names or a spreadsheet — or a pasted list), <Run FontWeight="SemiBold" Text="Search Scryfall…"/>, <Run FontWeight="SemiBold" Text="Add art from a folder…"/> and <Run FontWeight="SemiBold" Text="Fill in blanks from Scryfall"/>. <Run FontWeight="SemiBold" Text="EXPORT"/>: <Run FontWeight="SemiBold" Text="All as images…"/>, <Run FontWeight="SemiBold" Text="Print sheets…"/> (3×3 at real size, with the card backs for double-sided printing) and <Run FontWeight="SemiBold" Text="Share the set…"/>. Save writes the set as its own folder.</TextBlock>
+                                <TextBlock Style="{StaticResource Body}"><Run FontWeight="SemiBold" Text="ADD MANY CARDS"/>: <Run FontWeight="SemiBold" Text="Import cards…"/> (a Moxfield deck link, a list file — names or a spreadsheet — or a pasted list), <Run FontWeight="SemiBold" Text="Search Scryfall…"/>, <Run FontWeight="SemiBold" Text="Art from folder…"/> (pictures named after the cards) and <Run FontWeight="SemiBold" Text="Fill in blanks"/> (looks up every card that has only a name). <Run FontWeight="SemiBold" Text="EXPORT"/>: <Run FontWeight="SemiBold" Text="All as images…"/>, <Run FontWeight="SemiBold" Text="Print sheets…"/> (3×3 at real size, with the card backs for double-sided printing). <Run FontWeight="SemiBold" Text="Share the set…"/> (under WHOLE SET) makes one .zip to send someone. Save writes the set as its own folder — saved into a folder that already holds other things, it makes one named after the set.</TextBlock>
                                 <TextBlock Style="{StaticResource Body}"><Run FontWeight="SemiBold" Text="WHOLE SET"/>: <Run FontWeight="SemiBold" Text="Set settings…"/> holds what every card shares — set code, rarity, artist, copyright line, set symbol, the frame for new cards and the card back — and whether those reach only new cards, fill in blanks on the cards already here, or replace theirs. <Run FontWeight="SemiBold" Text="Number cards"/> numbers the set in list order, padded to its size (1/9 for 9 cards, 01/12 for 12, 001/120 for 120); <Run FontWeight="SemiBold" Text="Check all cards"/> lists every card that needs attention.</TextBlock>
 
                 <TextBlock Text="If something goes wrong" Style="{StaticResource GroupHeader}" Margin="0,14,0,8"/>

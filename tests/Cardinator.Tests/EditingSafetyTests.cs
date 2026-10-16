@@ -37,28 +37,6 @@ public class EditingSafetyTests
         Assert.Equal("3/3", cards[2].CollectorNumber);
     }
 
-    // --- M6: non-destructive Ctrl+L ---------------------------------------
-
-    [Fact]
-    public void MergeNonEmpty_FillsFromFaceButNeverBlanksUserData()
-    {
-        var card = new CardModel
-        {
-            Name = "My Bear", TypeLine = "Creature — Bear", Power = "2", Toughness = "2", Loyalty = "7",
-        };
-        var face = new CardModel
-        {
-            Name = "Grizzly Bears", ManaCost = "{1}{G}", TypeLine = "Creature — Bear",
-            Power = "2", Toughness = "2", Loyalty = "",   // vanilla creature → no loyalty
-        };
-
-        CardDetailsFill.MergeNonEmpty(card, face);
-
-        Assert.Equal("Grizzly Bears", card.Name);   // filled from face
-        Assert.Equal("{1}{G}", card.ManaCost);
-        Assert.Equal("7", card.Loyalty);            // NOT blanked — the face had none
-    }
-
     // --- M7: details editor cancel (snapshot restore) ---------------------
 
     [Fact]

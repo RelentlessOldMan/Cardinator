@@ -76,7 +76,7 @@
             <StackPanel>
                 <TextBlock Text="Frame design" FontSize="17" FontWeight="SemiBold"/>
                 <TextBlock Text="{Binding Name}" Foreground="{StaticResource Subtle}" FontSize="12" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
-                <TextBlock Text="Mix &amp; match — changes apply to this template." Foreground="{StaticResource Subtle}" FontSize="11" Margin="0,2,0,0"/>
+                <TextBlock Text="Changes go into this frame (Apply) — or Save as new… keeps them as a frame of its own." Foreground="{StaticResource Subtle}" FontSize="11" Margin="0,2,0,0"/>
             </StackPanel>
         </Border>
 
@@ -166,9 +166,9 @@
                     <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3" x:Name="NameBox"/>
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Footer " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11"/>
                     <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" x:Name="FooterPlacementBox"/>
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Mana px " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Cost symbol size " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11"/>
                     <TextBox Grid.Row="2" Grid.Column="1" x:Name="ManaSizeBox" Margin="0,1,8,1"/>
-                    <TextBlock Grid.Row="2" Grid.Column="2" Text="Rules px " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11" Margin="0,0,3,0"/>
+                    <TextBlock Grid.Row="2" Grid.Column="2" Text="Rules text size " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11" Margin="0,0,3,0"/>
                     <TextBox Grid.Row="2" Grid.Column="3" x:Name="RulesSizeBox"/>
                 </Grid>
 
@@ -200,7 +200,7 @@
                         <TextBlock Text="Zoom &gt;1 crops in; Offset Y + moves the art down (closes a bottom gap)." TextWrapping="Wrap" Foreground="{StaticResource Subtle}" FontSize="11" Margin="0,8,0,0"/>
 
                         <Border Height="1" Background="{StaticResource Line}" Margin="0,10,0,8"/>
-                        <CheckBox x:Name="TranslucentChk" Content="Translucent mask (chroma key)" Margin="0,0,0,6"/>
+                        <CheckBox x:Name="TranslucentChk" Content="Let the art show through one colour of the frame picture" Margin="0,0,0,6"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" SharedSizeGroup="FitLbl"/>
@@ -208,27 +208,27 @@
                                 <ColumnDefinition Width="62"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions><RowDefinition Height="34"/><RowDefinition Height="34"/><RowDefinition Height="34"/></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Show-through " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="How clear " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11"/>
                             <Slider Grid.Row="0" Grid.Column="1" x:Name="TranslucentSlider" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1" IsSnapToTickEnabled="False" Margin="4,0,8,0"/>
                             <TextBox Grid.Row="0" Grid.Column="2" x:Name="TranslucentNum" VerticalAlignment="Center" TextAlignment="Center"/>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Key color " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="That colour " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11"/>
                             <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" x:Name="TranslucentKeyBox" VerticalAlignment="Center" Margin="4,0,0,0"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Backing " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Colour behind " VerticalAlignment="Center" Foreground="{StaticResource Subtle}" FontSize="11"/>
                             <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" x:Name="TranslucentBackingBox" VerticalAlignment="Center" Margin="4,0,0,0"/>
                         </Grid>
-                        <TextBlock Text="Paint the key color into the frame image where art should show through; show-through 1 = fully clear, 0 = opaque." TextWrapping="Wrap" Foreground="{StaticResource Subtle}" FontSize="11" Margin="0,8,0,0"/>
+                        <TextBlock Text="Paint that colour (a hex code like #FF00FF) into the frame picture wherever the art should show through. How clear: 1 = the art shows fully, 0 = not at all." TextWrapping="Wrap" Foreground="{StaticResource Subtle}" FontSize="11" Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>
 
                 <TextBlock x:Name="CustomNote" Visibility="Collapsed" TextWrapping="Wrap"
                            Foreground="{StaticResource Subtle}" FontSize="11" Margin="0,0,0,8"
-                           Text="Custom frame image: the greyed-out style knobs below don't apply. Use Text &amp; layout, Frame image (zoom/position/border), Card details, Corner/Panel radius, and Colors."/>
+                           Text="This frame is a picture, so the greyed-out style settings below don't apply to it. What does: Text &amp; layout, Frame image, Card details, the corner and panel roundness, and Colors."/>
 
                 <Border Height="1" Background="{StaticResource Line}" Margin="0,14,0,10"/>
                 <TextBlock Text="Base style" Style="{StaticResource SectionLabel}"/>
                 <ComboBox x:Name="StyleBox" Margin="0,0,0,8"/>
 
-                <TextBlock Text="Toppers &amp; crown" Style="{StaticResource SectionLabel}"/>
+                <TextBlock Text="Top decorations" Style="{StaticResource SectionLabel}"/>
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,6,0">
@@ -242,17 +242,17 @@
                 </Grid>
                 <CheckBox x:Name="LegendaryCrownChk" Content="Show legendary crown (Legendary cards)" Margin="0,0,0,8"/>
 
-                <TextBlock Text="Composable knobs" Style="{StaticResource SectionLabel}"/>
-                <CheckBox x:Name="ConnectedChk" Content="Connected panels (two-tone hollow outline)" Margin="0,0,0,6"/>
+                <TextBlock Text="Extras" Style="{StaticResource SectionLabel}"/>
+                <CheckBox x:Name="ConnectedChk" Content="Connected panels (outlined in two colours)" Margin="0,0,0,6"/>
                 <CheckBox x:Name="BackgroundChk" Content="Textured colored background" Margin="0,0,0,6"/>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                     <TextBlock Text="Bottom taper" VerticalAlignment="Center" Width="150" Foreground="{StaticResource Subtle}"/>
                     <ComboBox x:Name="TaperBox" Width="150"/>
                 </StackPanel>
-                <CheckBox x:Name="FadedChk" Content="Faded (melt art edges into frame)" Margin="0,0,0,6"/>
+                <CheckBox x:Name="FadedChk" Content="Faded (the art's edges melt into the frame)" Margin="0,0,0,6"/>
                 <CheckBox x:Name="EmbellishChk" Content="Corner filigree (classic/ornate)" Margin="0,0,0,6"/>
-                <CheckBox x:Name="PtBevelChk" Content="P/T box inner bevel" Margin="0,0,0,6"/>
-                <CheckBox x:Name="RoyalChk" Content="Royal sub-border (ornate inner ring; insets all panels)" Margin="0,0,0,6"/>
+                <CheckBox x:Name="PtBevelChk" Content="Raised edge inside the power/toughness box" Margin="0,0,0,6"/>
+                <CheckBox x:Name="RoyalChk" Content="Royal inner border (an ornate ring; moves the panels in a little)" Margin="0,0,0,6"/>
                 <CheckBox x:Name="FullArtChk" Content="Full art (text on the artwork)" Margin="0,0,0,8"/>
 
                 <TextBlock Text="Texture &amp; border" Style="{StaticResource SectionLabel}"/>
@@ -270,25 +270,25 @@
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                        <TextBlock Text="Border px" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="Black border width" Style="{StaticResource SectionLabel}"/>
                         <TextBox x:Name="BorderBox"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="4,0,4,0">
-                        <TextBlock Text="Sub-border px" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="Inner border width" Style="{StaticResource SectionLabel}"/>
                         <TextBox x:Name="SubBorderBox"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Margin="4,0,4,0">
-                        <TextBlock Text="Corner radius" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="Card corner roundness" Style="{StaticResource SectionLabel}"/>
                         <TextBox x:Name="CornerBox"/>
                     </StackPanel>
                     <StackPanel Grid.Column="3" Margin="4,0,0,0">
-                        <TextBlock Text="Panel radius" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="Panel corner roundness" Style="{StaticResource SectionLabel}"/>
                         <TextBox x:Name="PanelRadiusBox"/>
                     </StackPanel>
                 </Grid>
 
                 <Border Height="1" Background="{StaticResource Line}" Margin="0,14,0,10"/>
-                <TextBlock Text="Colors (hex)" Style="{StaticResource SectionLabel}"/>
+                <TextBlock Text="Colors (hex codes like #C9A227)" Style="{StaticResource SectionLabel}"/>
                 <Grid Margin="0,0,0,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
@@ -301,7 +301,7 @@
                     <TextBox  Grid.Row="0" Grid.Column="1" x:Name="ColBorder" Margin="0,3"/>
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Frame" VerticalAlignment="Center" Margin="0,3,8,3" Foreground="{StaticResource Subtle}" FontSize="11"/>
                     <TextBox  Grid.Row="1" Grid.Column="1" x:Name="ColFrame" Margin="0,3"/>
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Frame 2" VerticalAlignment="Center" Margin="0,3,8,3" Foreground="{StaticResource Subtle}" FontSize="11"/>
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Frame (second)" VerticalAlignment="Center" Margin="0,3,8,3" Foreground="{StaticResource Subtle}" FontSize="11"/>
                     <TextBox  Grid.Row="2" Grid.Column="1" x:Name="ColFrame2" Margin="0,3"/>
                     <!-- Column 2: panel / panel border -->
                     <TextBlock Grid.Row="0" Grid.Column="3" Text="Panel" VerticalAlignment="Center" Margin="0,3,8,3" Foreground="{StaticResource Subtle}" FontSize="11"/>

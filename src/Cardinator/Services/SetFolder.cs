@@ -97,6 +97,28 @@ public static class SetFolder
         return null;
     }
 
+    /// <summary>Where Save puts a set picked in the Save dialog: a set keeps its art\ and out\ next to it, so one saved
+    /// into a folder that already holds other things (Documents, Desktop, another set) gets a folder of its own named
+    /// after it — <c>folder\Name\Name.cardinator</c>. Kept as picked: an empty folder, a folder already named after
+    /// the set, or a set file that's already there (the dialog asked about replacing it).</summary>
+    public static string OwnFolderPath(string picked)
+    {
+        try
+        {
+            var full = Path.GetFullPath(picked);
+            var folder = Path.GetDirectoryName(full);
+            var name = Path.GetFileNameWithoutExtension(full);
+            if (folder == null || name.Length == 0 || File.Exists(full)) return full;
+            if (string.Equals(Path.GetFileName(folder), name, StringComparison.OrdinalIgnoreCase)) return full;
+            if (!Directory.Exists(folder) || !Directory.EnumerateFileSystemEntries(folder).Any()) return full;
+            return Path.Combine(folder, name, Path.GetFileName(full));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return picked;
+        }
+    }
+
     /// <summary>True if <paramref name="folder"/> already holds a <c>.cardinator</c> project other than
     /// <paramref name="thisProjectPath"/> — used to warn before two sets share one folder's art/ and out/.</summary>
     public static bool ContainsOtherProject(string folder, string? thisProjectPath)

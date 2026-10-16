@@ -49,7 +49,7 @@ public class Review5Tests
                 var (tpl, dir, picture) = HandMadeFrame(root);
                 Assert.Equal(picture, File.ReadAllBytes(Path.Combine(dir, "frame.png")));   // loading kept it
                 var win = new FrameDesignWindow(tpl) { Standalone = true };
-                win.Show();
+                TestHelpers.ShowOffScreen(win);
                 win.NameBox.Text = tpl.Name;
                 Invoke(win, "OnApply", win, new RoutedEventArgs());
                 Assert.Equal(picture, File.ReadAllBytes(Path.Combine(dir, "frame.png")));

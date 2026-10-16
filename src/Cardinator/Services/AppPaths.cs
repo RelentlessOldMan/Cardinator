@@ -17,6 +17,22 @@ public static class AppPaths
     public static string SamplesDir => EnsureDir(Path.Combine(DataDir, "samples"));
     public static string OutputDir => EnsureDir(Path.Combine(DataDir, "output"));
 
+    /// <summary>Where Save first offers to put a new set: Documents\Cardinator Sets (made when first asked for), not the
+    /// app's shared samples folder; the samples folder if Documents can't be used.</summary>
+    public static string NewSetsDir
+    {
+        get
+        {
+            try
+            {
+                var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                if (!string.IsNullOrEmpty(docs)) return EnsureDir(Path.Combine(docs, "Cardinator Sets"));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            return SamplesDir;
+        }
+    }
+
     /// <summary>Where pasted/downloaded art is copied so cards keep a stable local path.</summary>
     public static string ArtCacheDir => EnsureDir(Path.Combine(DataDir, "art"));
 

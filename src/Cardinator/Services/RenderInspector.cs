@@ -114,7 +114,7 @@ public static class RenderInspector
             {
                 if (t < minOk)
                     issues.Add(new(IssueSeverity.Error, "border-thin",
-                        $"Black border on the {name} is missing or too thin ({t / scale:F0}px vs {spec.BorderThickness:F0}px expected)."));
+                        $"The black border on the {name} is missing or too thin ({t / scale:F0}px, the frame says {spec.BorderThickness:F0}px) — a fault in the frame, not the card: pick another frame, or check its border in Frame Design…."));
             }
             Side("top", top); Side("bottom", bot); Side("left", left); Side("right", right);
         }

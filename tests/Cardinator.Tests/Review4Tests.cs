@@ -205,7 +205,7 @@ public class Review4Tests
                 var win = new FrameDesignWindow(tpl) { Standalone = true };
                 var closed = false;
                 win.Closed += (_, _) => closed = true;
-                win.Show();
+                TestHelpers.ShowOffScreen(win);
                 Assert.False(win.HasUnappliedChanges);
                 win.BorderBox.Text = "17";   // an edit, not applied
                 Assert.True(win.HasUnappliedChanges);

@@ -8,14 +8,11 @@ namespace Cardinator.Services;
 /// </summary>
 public static class SampleCards
 {
+    /// <summary>A card with nothing on it but a name to replace: type a real card's name and Look up (or Fill in
+    /// blanks) fills it, or write your own. (It used to be a {2}{W} 2/2 Human, so Fill in blanks skipped it.)</summary>
     public static CardModel Blank(string templateName) => new()
     {
         Name = "New Card",
-        ManaCost = "{2}{W}",
-        TypeLine = "Creature — Human",
-        RulesText = "",
-        Power = "2",
-        Toughness = "2",
         TemplateName = templateName,
     };
 
@@ -46,13 +43,24 @@ public static class SampleCards
                 ManaCost = "{3}{W}{W}",
                 TypeLine = "Legendary Creature — Angel",
                 RulesText = "Flying, vigilance, lifelink\nOther creatures you control get +1/+1.",
-                FlavorText = "Where she passes, the dark forgets itself.",
-                Power = "5", Toughness = "5", Rarity = "M", Artist = "Cardinator Demo",
+                FlavorText = StarterFlavor,
+                Power = "5", Toughness = "5", Rarity = "M", Artist = StarterArtist,
                 SetCode = "DSK", CollectorNumber = "12",
                 ArtPath = SampleAssets.Path("seraph-angel.png"),
                 TemplateName = Has("Gold Multicolor", templateName),
             },
         };
+    }
+
+    private const string StarterFlavor = "Where she passes, the dark forgets itself.";
+    private const string StarterArtist = "Cardinator Demo";
+
+    /// <summary>After a lookup turned the starter card into a real one: its sample flavor text and "Cardinator Demo"
+    /// credit don't belong on Lightning Bolt. The user's own flavor and artist are left alone.</summary>
+    public static void ClearStarterLeftovers(CardModel card)
+    {
+        if (card.FlavorText == StarterFlavor) card.FlavorText = "";
+        if (card.Artist == StarterArtist) card.Artist = "";
     }
 
     /// <summary>The preferred frame name (samples pin one); callers pass the loaded template list's default

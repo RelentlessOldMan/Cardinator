@@ -13,6 +13,27 @@ public static class SampleAssets
     private static bool _done;
     private static readonly object _lock = new();
 
+    /// <summary>A bundled sample picture — the starter card's — wherever it is now (a saved set copies it into its own
+    /// art folder): same file name and size as one in the exe. A lookup treats it as no art of the user's own.</summary>
+    public static bool IsBundled(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        try
+        {
+            var name = System.IO.Path.GetFileName(path);
+            var asm = Assembly.GetExecutingAssembly();
+            foreach (var res in asm.GetManifestResourceNames())
+            {
+                int i = res.IndexOf(Marker, System.StringComparison.Ordinal);
+                if (i < 0 || !string.Equals(res[(i + Marker.Length)..], name, System.StringComparison.OrdinalIgnoreCase)) continue;
+                using var stream = asm.GetManifestResourceStream(res);
+                return stream != null && File.Exists(path) && new FileInfo(path).Length == stream.Length;
+            }
+        }
+        catch { }
+        return false;
+    }
+
     /// <summary>Full path to a bundled sample image in the samples folder (whether or not it's extracted yet).</summary>
     public static string Path(string fileName) => System.IO.Path.Combine(AppPaths.SamplesDir, fileName);
 

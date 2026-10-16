@@ -112,6 +112,12 @@ public static class CardValidator
         if (hasP ^ hasT)
             issues.Add(new(IssueSeverity.Warning, "half-pt", "Only one of power/toughness is set.", nameof(card.Power)));
 
+        // A rarity the symbol can't colour ("X", "Epic") is drawn as a common one: say so.
+        if (!string.IsNullOrWhiteSpace(card.Rarity) && CardRenderer.RarityCode(card.Rarity) is not ("C" or "U" or "R" or "M"))
+            issues.Add(new(IssueSeverity.Info, "rarity-unknown",
+                $"Rarity “{card.Rarity.Trim()}” isn't common, uncommon, rare or mythic, so its set symbol is drawn as a common one.",
+                nameof(card.Rarity)));
+
         // A loyalty value turns ANY card into a planeswalker layout (hiding the power/toughness box). Flag a
         // stray loyalty on a non-planeswalker, which otherwise silently hides P/T.
         bool typeIsPw = (card.TypeLine ?? "").Contains("Planeswalker", System.StringComparison.OrdinalIgnoreCase);
@@ -178,7 +184,8 @@ public static class CardValidator
         {
             if (r == null || (r.W <= 0 && r.H <= 0)) return;
             if (r.X < b - 0.5 || r.Y < b - 0.5 || r.Right > W - b + 0.5 || r.Bottom > H - b + 0.5)
-                issues.Add(new(IssueSeverity.Warning, "out-of-bounds", $"The {name} region extends under/over the card border.", name));
+                issues.Add(new(IssueSeverity.Warning, "out-of-bounds",
+                    $"This frame's {name} box runs under the card's black border — a fault in the frame, not the card: pick another frame, or move the box in Frame Design….", name));
         }
         Bounds("title", spec.TitleBar);
         Bounds("type line", spec.TypeBar);
@@ -190,7 +197,8 @@ public static class CardValidator
         if (fp == "frame" && spec.CreditBar != null && spec.EffectiveTextBox != null
             && spec.CreditBar.Y < spec.EffectiveTextBox.Bottom - 0.5
             && spec.CreditBar.Right > spec.EffectiveTextBox.X && spec.CreditBar.X < spec.EffectiveTextBox.Right)
-            issues.Add(new(IssueSeverity.Warning, "footer-overlap", "The footer overlaps the description panel.", "footer"));
+            issues.Add(new(IssueSeverity.Warning, "footer-overlap",
+                "This frame's footer (number, set, artist) sits over the rules text box — a fault in the frame, not the card: pick another frame, or move the footer in Frame Design….", "footer"));
 
         // --- project-level -------------------------------------------------
         // Compare on the NORMALIZED number so mixed styles still collide: "5", "005" and "005/20" are the

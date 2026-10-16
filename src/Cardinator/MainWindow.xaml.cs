@@ -96,6 +96,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             OnPropertyChanged(nameof(ProjectSummary));
             OnPropertyChanged(nameof(HasCards));
+            OnPropertyChanged(nameof(IsEmptySet));
             OnPropertyChanged(nameof(CanExport));
             MarkDirty();
             QueueUndoCommit();
@@ -249,6 +250,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             CardBackNote.Visibility = _viewingCardBack ? Visibility.Visible : Visibility.Collapsed;
             FaceEditor.Visibility = _viewingCardBack ? Visibility.Collapsed : Visibility.Visible;
             FaceFooter.Visibility = FaceEditor.Visibility;   // the checks and Export are about a face
+            CardExportBar.Visibility = FaceEditor.Visibility;
             var face = EditedFace;
             NameLabel.Text = card == null || face == null || ReferenceEquals(face, card) ? "CARD NAME"
                 : ReferenceEquals(face, card.BackFace) ? (layout == CardLayout.Meld ? "MELDED CARD NAME" : "BACK FACE NAME")
@@ -759,6 +761,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     /// <summary>True when the project has at least one card (gates batch/export actions).</summary>
     public bool HasCards => Cards.Count > 0;
+
+    /// <summary>No cards at all: the preview shows where to start instead of an empty frame.</summary>
+    public bool IsEmptySet => Cards.Count == 0;
 
     /// <summary>A long/mutating operation (lookup, import, search, export…) is running. While true, other
     /// actions are disabled and re-entrant handlers early-return, so nothing conflicts or double-fires.</summary>
@@ -1693,6 +1698,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnSaveProject(object sender, RoutedEventArgs e) => SaveProject(forceDialog: false);
 
+    private void OnSaveProjectAs(object sender, RoutedEventArgs e)
+    {
+        if (Busy) return;   // the button is disabled while busy; Ctrl+Shift+S would otherwise slip through
+        SaveProject(forceDialog: true);
+    }
+
     /// <summary>Opens one of this set's automatic backups (made on each save) after confirming any unsaved
     /// work. Lets the user roll back a bad save / buggy build without hunting through the file system.</summary>
     private void OnRestoreBackup(object sender, RoutedEventArgs e)
@@ -1747,7 +1758,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 InitialDirectory = SaveDialogFolder(),
             };
             if (dlg.ShowDialog() != true) return false;
-            path = dlg.FileName;
+            path = SetFolder.OwnFolderPath(dlg.FileName);   // into a folder of its own when the picked one holds other things
+            if (!string.Equals(path, Path.GetFullPath(dlg.FileName), StringComparison.OrdinalIgnoreCase) && File.Exists(path))
+            {
+                var replace = ConfirmDialog.Show(this, "Save set",
+                    $"There's already a set at {path}. Replace it with this one? (It's backed up first.)",
+                    affirmative: "Replace", cancel: "Cancel");
+                if (replace != ConfirmResult.Affirmative) return false;
+            }
 
             // Warn before two sets share one folder (their art/ and out/ would mingle / overwrite).
             var folder = Path.GetDirectoryName(Path.GetFullPath(path));
@@ -1774,6 +1792,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // name derived from the path — otherwise a reloaded file would show a stale/"Untitled" name.
             var name = Path.GetFileNameWithoutExtension(path);
             var projFolder = Path.GetDirectoryName(Path.GetFullPath(path))!;
+            Directory.CreateDirectory(projFolder);
 
             // Localize art → relative paths → back up the previous good file → atomic write. That exact
             // order is the data-safety guarantee, so it lives in ProjectWriter where it can be tested.
@@ -1795,7 +1814,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 ? $"Saved project ({Cards.Count} cards), but {stranded} image(s) couldn't be copied into the set — they won't travel if you move the folder."
                 : missing > 0
                     ? $"Saved project ({Cards.Count} cards) to {Path.GetFileName(path)}, but {missing} card face(s) point at art that isn't there — use Restore… if the set's folder was moved."
-                    : $"Saved project ({Cards.Count} cards) to {Path.GetFileName(path)}. Art in \\art, exports go to \\out.";
+                    : $"Saved project ({Cards.Count} cards) to {path}. Art in \\art, exports go to \\out.";
             return true;
         }
         catch (Exception ex)
@@ -1806,7 +1825,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     /// <summary>Where the Save dialog opens: the set's own folder, or — when that folder was moved or renamed — the
-    /// folder it was in, so "Save as… to where the set is now" starts next to it; the samples folder for a new set.</summary>
+    /// folder it was in, so "Save as… to where the set is now" starts next to it; Documents\Cardinator Sets for a new set.</summary>
     private string SaveDialogFolder()
     {
         try
@@ -1819,7 +1838,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         }
         catch { }
-        return AppPaths.SamplesDir;
+        return AppPaths.NewSetsDir;
     }
 
     private (string Path, DateTime Written, long Length)? _diskStamp;   // the set file as opened / last saved here
@@ -2615,8 +2634,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (faces.Count == 0) { Status = $"No card found for \"{query}\"."; return; }
 
             var f = faces[0];
-            // Non-destructive: fill from the looked-up face but never blank a field the user already typed.
-            CardDetailsFill.MergeNonEmpty(card, f);
+            // The card becomes the one looked up — the same as Edit details' lookup: its printed details replace the
+            // card's (a 5/5 left over from another card would be wrong on Lightning Bolt); Undo puts them back. The
+            // card's own art, flavor and frame stay; the starter card's sample art and flavor count as none.
+            bool ownArt = !string.IsNullOrWhiteSpace(card.ArtPath) && !SampleAssets.IsBundled(card.ArtPath);
+            card.Name = f.Name;
+            CardDetailsFill.ApplyScryfall(card, f);
+            SampleCards.ClearStarterLeftovers(card);
 
             // A genuinely two-sided card becomes ONE card with a back face (flip + indicator + a -back.png on
             // export), exactly as batch import does. A split/flip/aftermath card is printed on one side, so
@@ -2638,11 +2662,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             _ = _symbols.PrimeAsync(faces.SelectMany(x => ManaText.SymbolTokens(x.ManaCost, x.RulesText)));
 
-            // Pull the real art from Scryfall only for a face that doesn't already have art — a card's own
-            // art (and its frame) are never replaced by a lookup. Remember whether this card already had art
-            // so the status line can honestly say what changed.
-            bool hadArt = !string.IsNullOrWhiteSpace(card.ArtPath);
-            bool gotArt = await FillArtFromScryfall(card, f.ArtUrl);
+            // Pull the real art from Scryfall unless the card has art of its own — that (and its frame) is never
+            // replaced by a lookup. Remember whether it did, so the status line can honestly say what changed.
+            bool hadArt = ownArt;
+            bool gotArt = ownArt || await ReplaceArtFromScryfall(card, f.ArtUrl);
             if (gotArt && !hadArt) CardDetailsFill.SplitSharedArt(card);
             if (card.BackFace is { } back) await FillArtFromScryfall(back, back.ArtUrl);
             for (int i = 1; i < faces.Count; i++)
@@ -2679,6 +2702,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Status = "Lookup failed: " + ex.Message;
         }
         finally { Busy = false; }
+    }
+
+    /// <summary>Puts Scryfall's art on a card whose art isn't its own (none, or the starter's sample), framing reset.
+    /// On a failed download the card keeps what it had. Returns true if art was set.</summary>
+    private static async Task<bool> ReplaceArtFromScryfall(CardModel card, string artUrl)
+    {
+        if (string.IsNullOrWhiteSpace(artUrl)) return false;
+        try
+        {
+            card.ArtPath = await ImageIntake.DownloadAsync(artUrl);
+            card.ArtScale = 1.0;
+            card.ArtOffsetX = 0;
+            card.ArtOffsetY = 0;
+            return true;
+        }
+        catch { return false; /* keep the card's art rather than failing the lookup */ }
     }
 
     /// <summary>Downloads Scryfall art for a card that has none yet. Returns true if art was set.</summary>
@@ -3238,6 +3277,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             && e.Key == System.Windows.Input.Key.Z)
         {
             Redo(); e.Handled = true; return;
+        }
+        if (mods == (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift)
+            && e.Key == System.Windows.Input.Key.S)
+        {
+            OnSaveProjectAs(sender, e); e.Handled = true; return;
         }
         if (mods != System.Windows.Input.ModifierKeys.Control) return;
         switch (e.Key)

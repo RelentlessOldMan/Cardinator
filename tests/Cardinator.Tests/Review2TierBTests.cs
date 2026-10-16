@@ -324,13 +324,11 @@ public class Review2TierBTests
             Name = "Bonecrusher Giant", ManaCost = "{2}{R}", TypeLine = "Creature — Giant", Power = "4", Toughness = "3",
             AdventureName = "Stomp", AdventureCost = "{1}{R}", AdventureType = "Instant — Adventure", AdventureText = "Damage can't be prevented this turn.",
         };
-        var lookedUp = new CardModel { Name = "Bonecrusher Giant" };
-        CardDetailsFill.MergeNonEmpty(lookedUp, Giant());   // Ctrl+L
         var details = new CardModel { Name = "My Giant" };
-        CardDetailsFill.ApplyScryfall(details, Giant());     // Edit details → Fill from Scryfall
+        CardDetailsFill.ApplyScryfall(details, Giant());     // Look up / Ctrl+L, and Edit details → Fill from Scryfall
         var imported = new CardModel { Name = "Bonecrusher Giant" };
         BatchService.FillBlanks(imported, Giant(), canonicalName: true);   // import / Fill blanks
-        foreach (var c in new[] { lookedUp, details, imported })
+        foreach (var c in new[] { details, imported })
         {
             Assert.Equal(("Stomp", "{1}{R}", "Instant — Adventure"), (c.AdventureName, c.AdventureCost, c.AdventureType));
             Assert.True(c.IsAdventure);

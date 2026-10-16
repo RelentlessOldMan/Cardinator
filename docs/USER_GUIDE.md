@@ -25,10 +25,18 @@ export.**
 
 ![Cardinator main window](images/app-main.png)
 
-*Left: your cards + tools for the whole set. Middle: the editor (name, frame, artwork, export). Right:
-the live preview that updates as you type.*
+*Left: your cards + tools for the whole set. Middle: the editor (name, type line, mana cost, rules text,
+frame, artwork). Right: the live preview that updates as you type, with this card's export buttons under it.*
 
-1. **Name your card.** The **CARD NAME** box is just your card's title — type whatever you like.
+1. **Name your card.** The **CARD NAME** box is your card's title — type whatever you like. Making a real
+   card? Type its name and click **Look up** beside the box (or press **Ctrl+L**): the card becomes that
+   card from Scryfall — its name, cost, type, rules text, power/toughness, loyalty, printing and rarity
+   replace what was there (a 5/5 left from another card would be wrong on Lightning Bolt), and it takes
+   Scryfall's art unless it already has art of your own. Your frame, and any flavor text and artist you
+   wrote, stay. **Ctrl+Z** puts everything back. (The starter card's sample art and flavor don't count as
+   yours: looking up a real card on it gives you that card's own.)
+   **TYPE LINE**, **MANA COST** and **RULES TEXT** sit right under the name for writing an original card.
+   **New card** starts one with nothing on it but a name, so **Fill in blanks** can fill it too.
 2. **Pick a frame** from the **Frame** dropdown (on its own row so long names aren't clipped), with
    **Design…** and a **⋯** menu (*Import a frame…*, *Export this frame…*, *Delete this frame…*) beside it. Choose **Full Art** for a card
    whose text sits directly on the artwork. Click **Design…** to open the frame designer — mix and
@@ -47,8 +55,8 @@ the live preview that updates as you type.*
    **Clear**), or **0** on the preview, puts the art back centred at its original size — undoable with
    **Ctrl+Z**. (The Art zoom / Pan sliders in **Edit details…** work too.)
 5. **Tweak anything** by hand in **Edit details…** — every field is editable, so you can change
-   the rules text, add flavor text, set rarity, artist, etc. — or make a completely original card
-   with no Scryfall lookup at all.
+   the name, power/toughness, flavor text, rarity (pick Common, Uncommon, Rare or Mythic), artist, etc. —
+   or make a completely original card with no Scryfall lookup at all.
 
    ![Edit details dialog](images/app-details.png)
 
@@ -56,10 +64,10 @@ the live preview that updates as you type.*
    real card name and it fills the mana cost, type, rules text, power/toughness and printing info,
    while leaving your card's **name, art and frame untouched**. (So "Boogie Woogie" can have Lightning
    Bolt's stats.) Tick **Also use its art** to take the looked-up card's Scryfall art as well (Cancel
-   puts yours back). *(No internet? Just type the fields yourself.)* **Ctrl+L** still does a quick
-   look-up of the selected card by its own name, and takes its name — and its art, if the card has none
-   yet (art you've already added is never replaced).
-6. **Export PNG…** saves a print-quality **1500×2100** image — pick **PNG or JPEG** in the save
+   puts yours back; it starts ticked when the card has no art of your own). *(No internet? Just type the
+   fields yourself.)* **Look up** on the main screen is the same lookup by the card's own name, except
+   that it takes the real card's name too.
+6. **Export PNG…** (under the preview) saves a print-quality **1500×2100** image — pick **PNG or JPEG** in the save
    dialog. It's tagged **600 DPI**, so it prints at real card size (2.5″×3.5″).
    Phone photos used as art come out the right way up. Exports default to your set's `out` folder (or wherever you last saved one), and **Open
    output folder** opens that same place. Or click **Copy image** to drop the finished card straight
@@ -72,12 +80,15 @@ the live preview that updates as you type.*
 > and cached; after that it works offline. Before it's cached (or with no internet), Cardinator
 > draws clean colored pips instead, so nothing ever breaks. You can also use a **custom set-symbol
 > image** — for the whole set, or just the cards you select, in **Set settings…**.
-> It's drawn in its own proportions, where the rarity pip goes.
+> It's drawn in its own proportions, where the rarity pip goes — whether or not the card has a rarity.
+> A rarity typed as a word (*Rare*, *mythic*) counts the same as its letter; one that's neither
+> (*Epic*) gets a note in CHECKS, since its symbol is drawn as a common one.
 
-> **The CHECKS panel** (in the editing column, just above **Export PNG…**) watches the selected card as you
+> **The CHECKS panel** (at the bottom of the editing column) watches the selected card as you
 > edit and flags problems before you export — an unrecognized `{symbol}`, a footer overlapping the text box,
 > a region that falls outside the card, rules text too long for its box, or a collector number used by more
-> than one card. It also looks at the **rendered pixels**, so it even catches art that's assigned but came out
+> than one card. Problems that come from the frame itself (a box running under the border, the footer over the
+> rules text, a border drawn too thin) say so: pick another frame, or fix it in **Design…**. It also looks at the **rendered pixels**, so it even catches art that's assigned but came out
 > **blank** (a moved or corrupt image file). Lighter **notes** (ℹ) point out things that may be on purpose —
 > no art yet, two cards with the same name. "✓ No issues" means you're clear.
 
@@ -309,11 +320,11 @@ by card (**New card ▾**), or add many at once with the **ADD MANY CARDS** grou
 - **Search Scryfall…** — type a Scryfall query (e.g. `t:dragon c:r`, `set:dom`) and Cardinator lists up
   to 60 matching cards; tick the ones you want and **Add** brings them in **with their real art** — a fast
   way to build a themed set. (Also on the command line via `--search`.)
-- **Add art from a folder…** — point it at a folder of images and it attaches them to cards by
+- **Art from folder…** — point it at a folder of images and it attaches them to cards by
   matching the filename to the card name (`serra angel.png` → "Serra Angel"). Only fills cards
   that don't already have art. Exact filename matches are used silently; any **best-guess** (fuzzy)
   matches are listed afterwards so you can review the ones it wasn't sure about.
-- **Fill in blanks from Scryfall** — fills any card that still has only a name.
+- **Fill in blanks** — fills any card that still has only a name from Scryfall.
 
 The **WHOLE SET** group:
 
@@ -355,17 +366,20 @@ The **EXPORT** group:
   exactly the same, isn't installed twice. If you have a *different* frame with the same name, yours is kept and
   theirs comes in as "Name (2)" — and the set's cards use theirs.
 
-Under **CARDS**, **Move up** / **Move down** reorder the selected card in the list (this is also the print/collector
+Under **CARDS**, the **▲** / **▼** buttons beside the heading reorder the selected card in the list (this is also the print/collector
 order), and **Duplicate** (**Ctrl+D**) copies it.
 
 Editing is fully **undoable** (**Ctrl+Z** / **Ctrl+Y**, or the header Undo/Redo buttons), across the
-whole project. Use **New / Open / Save** in the top-right to manage projects.
+whole project. Use **New / Open / Save / Save as…** in the top-right to manage projects. An empty set says
+where to start in place of the preview.
 
 **Saving a set.** When you **Save**, Cardinator writes a **set folder**: the `.cardinator` project file
 plus an `art/` subfolder (your images are copied in) and an `out/` subfolder (where Export and Print
-sheet default). So the first time, **make a new, empty folder for the set** in the Save dialog (its *New
-folder* button) — saving straight into Documents or the Desktop puts `art/` and `out/` there too (Cardinator
-warns if the folder already holds another set). The whole folder is self-contained — **move, zip or share it** and every card still
+sheet default). The first Save of a new set offers *Documents\Cardinator Sets*. Pick a folder that already
+holds other things — Documents, the Desktop, another set's folder — and Cardinator makes a folder for the set
+inside it, named after the set (`Documents\My Set\My Set.cardinator`), so its `art/` and `out/` don't spill
+over; it asks first if a set of that name is already there. An empty folder, or one already named after the
+set, is used as it is. **Save as…** (**Ctrl+Shift+S**) saves under another name or in another place. The whole folder is self-contained — **move, zip or share it** and every card still
 finds its art, because art is stored as a path relative to the folder. A one-off single card needs no
 setup: the folder is only created the first time you save. (Older single-file projects still open fine.)
 
@@ -440,7 +454,8 @@ Special layouts add their own columns (any one of them makes the row that kind o
 | **Ctrl+N** | New project |
 | **Ctrl+O** | Open project |
 | **Ctrl+S** | Save (re-saves to the same file after the first save) |
-| **Ctrl+L** | Look up the current card on Scryfall |
+| **Ctrl+Shift+S** | Save as… (another name or folder) |
+| **Ctrl+L** | Look up: the card becomes the real card with its name (the **Look up** button) |
 | **Ctrl+E** | Export the current card |
 | **Ctrl+D** | Duplicate the current card |
 | **Ctrl+Z** | Undo the last edit |

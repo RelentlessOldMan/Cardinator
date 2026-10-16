@@ -215,7 +215,7 @@ public class Review6Tests
                 File.AppendAllText(json, "\n");   // laid out unlike Apply writes it, so Apply's own write is a change
                 var tpl = new TemplateService().LoadFrom(root).Single();
                 var win = new FrameDesignWindow(tpl) { Standalone = true };
-                win.Show();
+                TestHelpers.ShowOffScreen(win);
 
                 File.AppendAllText(json, " ");   // --editframe / another window / a script saved it meanwhile
                 var elsewhere = File.ReadAllText(json);

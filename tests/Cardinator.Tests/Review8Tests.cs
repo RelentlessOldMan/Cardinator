@@ -547,7 +547,7 @@ public class Review8Tests
             {
                 ConfirmDialog.TestAnswer = t => { asked.Add(t); return ConfirmResult.Negative; };   // Discard
                 var win = new DetailsWindow(card);
-                win.Show();
+                TestHelpers.ShowOffScreen(win);
                 card.Name = "Changed";
                 win.Close();
                 Assert.Single(asked);
@@ -557,7 +557,7 @@ public class Review8Tests
                 var stays = new DetailsWindow(card);
                 bool closed = false;
                 stays.Closed += (_, _) => closed = true;
-                stays.Show();
+                TestHelpers.ShowOffScreen(stays);
                 card.Name = "Kept";
                 stays.Close();
                 Assert.False(closed);
@@ -569,7 +569,7 @@ public class Review8Tests
                 asked.Clear();
                 ConfirmDialog.TestAnswer = t => { asked.Add(t); return ConfirmResult.Affirmative; };
                 var unchanged = new DetailsWindow(card);
-                unchanged.Show();
+                TestHelpers.ShowOffScreen(unchanged);
                 unchanged.Close();
                 Assert.Empty(asked);   // nothing to lose: no question
             }

@@ -103,13 +103,15 @@ dotnet publish src/Cardinator/Cardinator.csproj -c Release -r win-x64 `
 
 ## Quick start
 
-1. **Type a card name** and press **Ctrl+L** to auto-fill from Scryfall (or use **Search** in
-   **Edit details…**) — or type the fields yourself for an original card.
+1. **Type a card name** and click **Look up** (or press **Ctrl+L**): it becomes that real card from
+   Scryfall — cost, type, rules, power/toughness and art (your own art and frame stay). Or write an
+   original card in the **Type line**, **Mana cost** and **Rules text** boxes.
 2. **Pick a frame** from the dropdown.
 3. **Add art** — **Change art…**, **Paste** (image / file / URL), or **drag an image onto the
    window**. Drag the preview to pan, scroll to zoom.
-4. **Edit details…** to tweak any field (rules, flavor, rarity, artist…).
-5. **Export PNG…** (1500×2100) or **Copy image** to the clipboard.
+4. **Edit details…** for the rest (power/toughness, flavor, rarity, artist…) — its **Fill from Scryfall**
+   borrows a real card's stats but keeps your card's name.
+5. **Export PNG…** (1500×2100) or **Copy image** under the preview.
 
 Full walkthrough → **[User Guide](docs/USER_GUIDE.md)**.
 
@@ -120,7 +122,7 @@ Full walkthrough → **[User Guide](docs/USER_GUIDE.md)**.
 Cardinator works on a **project** (the list on the left). **Import cards…** loads a batch — a
 Moxfield deck link, a list of names, `Name | art.png` lines, or a CSV/TSV with a header row (see the
 [example deck](examples/01-real-cards-custom-art/deck.csv)) — or **Search Scryfall…** imports a whole search.
-Then **Fill in blanks from Scryfall** fills what's missing, **Add art from a folder…** attaches art by filename,
+Then **Fill in blanks** fills what's missing from Scryfall, **Art from folder…** attaches art by filename,
 **Set settings…** sets the set code/artist/rarity/frame/card back for the whole set, and **All as images…** /
 **Print sheets…** render everything (3×3 pages at real size + optional card backs). A live **CHECKS** panel flags
 problems as you type, and every edit is undoable.
@@ -191,7 +193,7 @@ output are all checked in.** Click a thumbnail for that example's guide.
 
 ## Keyboard shortcuts
 
-**F1** built-in help · **Ctrl+N/O/S** new/open/save · **Ctrl+L** look up · **Ctrl+E** export ·
+**F1** built-in help · **Ctrl+N/O/S** new/open/save · **Ctrl+Shift+S** save as · **Ctrl+L** look up · **Ctrl+E** export ·
 **Ctrl+D** duplicate · **Ctrl+Z** undo · **Ctrl+Y** (or **Ctrl+Shift+Z**) redo. The title shows
 **●** for unsaved changes; Cardinator asks before you lose work. There's also a **Help** button in
 the top-right for the in-app cheat sheet.

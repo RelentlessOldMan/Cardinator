@@ -33,6 +33,18 @@ internal static class TestHelpers
         if (captured != null) throw captured;
     }
 
+    /// <summary>Shows a window the way a test needs it (bindings live, Close behaving as in the app) but far off-screen
+    /// and without taking focus, so a test run never puts windows in front of whoever is using the PC.</summary>
+    public static void ShowOffScreen(System.Windows.Window w)
+    {
+        w.WindowStartupLocation = System.Windows.WindowStartupLocation.Manual;
+        w.Left = -32000;
+        w.Top = -32000;
+        w.ShowActivated = false;
+        w.ShowInTaskbar = false;
+        w.Show();
+    }
+
     /// <summary>
     /// Lets go of everything a window test built on this thread: closes its windows and shuts its Dispatcher down.
     /// Both hold a MainWindow (its frames, renders and undo history) alive after the thread ends, so without this

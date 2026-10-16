@@ -741,8 +741,10 @@ public sealed class CardRenderer
         var bar = ToRect(spec.TypeBar);
         double pad = 16;
         double pipD = bar.Height * 0.62;
-        bool hasRarity = !string.IsNullOrWhiteSpace(card.Rarity);
-        var custom = hasRarity ? TryLoadSetSymbol(card.SetSymbolPath) : null;
+        // A set's own symbol shows whether or not the card has a rarity (it used to wait for one); the drawn
+        // stand-in only with a rarity, which picks its colour.
+        var custom = TryLoadSetSymbol(card.SetSymbolPath);
+        bool hasRarity = custom != null || !string.IsNullOrWhiteSpace(card.Rarity);
         var symSize = custom != null ? SetSymbolSize(custom, pipD) : new Size(pipD, pipD);
         double rightLimit = hasRarity ? bar.Right - pad - symSize.Width - 8 : bar.Right - pad;
 
@@ -807,7 +809,16 @@ public sealed class CardRenderer
         catch { return null; }
     }
 
-    private static (Color fill, Color text) RarityStyle(string rarity) => rarity.ToUpperInvariant() switch
+    /// <summary>"C", "U", "R" or "M" for a rarity written either way ("R", "rare", "Mythic rare" …); anything else as
+    /// it was, upper-cased. Typing "Rare" used to draw a common symbol and print "RARE" in the footer.</summary>
+    internal static string RarityCode(string? rarity)
+    {
+        var r = (rarity ?? "").Trim();
+        var mapped = ScryfallMapper.MapRarity(r.Split(' ')[0]);
+        return mapped.Length > 0 && r.Length > 1 ? mapped : r.ToUpperInvariant();
+    }
+
+    private static (Color fill, Color text) RarityStyle(string rarity) => RarityCode(rarity) switch
     {
         "U" => (Color.FromRgb(0x9F, 0xB2, 0xC4), Color.FromRgb(0x14, 0x20, 0x2C)),
         "R" => (Color.FromRgb(0xC9, 0xA2, 0x27), Color.FromRgb(0x3A, 0x2E, 0x06)),
@@ -994,7 +1005,7 @@ public sealed class CardRenderer
     {
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(card.CollectorNumber)) parts.Add(card.CollectorNumber.Trim());
-        if (!string.IsNullOrWhiteSpace(card.Rarity)) parts.Add(card.Rarity.ToUpperInvariant());
+        if (!string.IsNullOrWhiteSpace(card.Rarity)) parts.Add(RarityCode(card.Rarity));
         var left = string.Join(" ", parts);
         var tail = new List<string>();
         if (!string.IsNullOrWhiteSpace(card.SetCode)) tail.Add(card.SetCode.ToUpperInvariant());
