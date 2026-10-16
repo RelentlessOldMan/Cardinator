@@ -320,6 +320,21 @@ These drive the fix backlog.
   symbol and the footer, and an unknown one gets a note. At 1366×768 and 1280×720 every sidebar button shows; this
   card's export sits under the preview. An empty set says where to start. Frame faults say they're the frame's and
   point at Design…; Frame Design labels in plain words. Each fix was mutation-checked (28/28 killed).
+- ✅ **Ninth independent review, batch A — data safety (1.7.6)** (plan: [REVIEW-2026-10-16.md](REVIEW-2026-10-16.md)).
+  **Export all / `--renderset`** remove only the pictures they wrote before, listed in `.cardinator-export` in the
+  folder; the user's own `007_holiday.png` beside them is never touched (a hand-edited list can't point outside the
+  folder). **The window's Save** waits a moment for a command holding the set (`SetLock`) and otherwise saves nothing,
+  and doesn't save over a save made while it waited; **`--import`/`--restyle`** don't save over a change made while
+  they ran, and an import into a new file checks again once it has the lock (two at once: the second exits 2).
+  **Set folders:** the first set saved in Documents\Cardinator Sets gets a folder of its own; Save as… inside another
+  set's folder goes beside it; Save as… and Open start beside the set's folder; a shared set unpacks into Cardinator
+  Sets, not the app's data folder. **Scryfall down** (5xx, or still 429 after retries) counts as unreachable: an
+  import exits 1 and saves nothing instead of a set of blank cards. **Recovery copies** keep a newer version's set
+  fields and format version, so the recovered set still warns and keeps them; **format version 2** (half frames and
+  the card back), and a save never lowers a newer file's version. A recovered set whose folder moved since the crash
+  asks before saving. **Atomic writes** flush to disk before the rename and retry for a moment when the file is held
+  open (OneDrive, a scanner); the set lock waits out a lock file that's still being deleted. `Review10Tests` (16),
+  each fix mutation-checked.
 - ✅ **Review 7 loose ends (1.7.3)** — Set settings' Replace gains *Put the frame above on every card, even if
   unchanged* (re-picking the set's own frame no longer did nothing); tests for a click on a split card's card back
   (the window laid out off-screen) and a Moxfield deck dropping the opened file's folder. `Review7Tests` (21), the

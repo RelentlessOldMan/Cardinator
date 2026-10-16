@@ -32,8 +32,10 @@ public sealed class CardProject
     public int FormatVersion { get; set; }
 
     /// <summary>The format version the current build writes. Bump it whenever a saved field is added or changes
-    /// meaning (FormatVersionTests pins the saved shape to it), so an older Cardinator warns before saving over it.</summary>
-    public const int CurrentFormatVersion = 1;
+    /// meaning (FormatVersionTests pins the saved shape to it), so an older Cardinator warns before saving over it.
+    /// 2: half frames (<c>halfTemplateName</c>, 1.6.9) and the set's card back (<c>profile.cardBack</c>, 1.7.0) — an
+    /// older Cardinator would drop both on save.</summary>
+    public const int CurrentFormatVersion = 2;
 
     /// <summary>True when this file was written by a NEWER Cardinator than the one reading it. The file
     /// still loads (tolerant reads are the compatibility promise), but anything this build doesn't know
@@ -84,7 +86,9 @@ public sealed class CardProject
 
     public void Save(string path)
     {
-        FormatVersion = CurrentFormatVersion;   // stamp what wrote this file
+        // Stamp what wrote this file — but never lower: a set a newer Cardinator wrote keeps that version (its fields this
+        // build doesn't know are kept in Unknown), so an older one still warns before saving over it.
+        FormatVersion = Math.Max(FormatVersion, CurrentFormatVersion);
         // Atomic write: a crash/disk-full while overwriting must never corrupt the user's whole project.
         Cardinator.Services.IoUtil.AtomicWriteText(path, JsonSerializer.Serialize(this, JsonOpts));
     }

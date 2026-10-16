@@ -19,10 +19,11 @@ public static class ProjectWriter
     /// <summary>Writes the set to <paramref name="path"/>. Returns how many images exist but could not be
     /// copied into the set folder (they stay absolute and won't travel with it). <paramref name="previousFolder"/> is
     /// the folder the set was opened from, when it may have been moved since (see <see cref="SetFolder.LocalizeImages"/>).
-    /// <paramref name="unknown"/>: the loaded set's <see cref="CardProject.Unknown"/>.</summary>
+    /// <paramref name="unknown"/>: the loaded set's <see cref="CardProject.Unknown"/>, and <paramref name="formatVersion"/>
+    /// its <see cref="CardProject.FormatVersion"/> (a newer one is kept).</summary>
     public static int Write(string path, IReadOnlyList<CardModel> cards, string name,
         string artBaseDir, string defaultTemplate, SetProfile profile, string? timestamp = null, string? previousFolder = null,
-        Dictionary<string, System.Text.Json.JsonElement>? unknown = null)
+        Dictionary<string, System.Text.Json.JsonElement>? unknown = null, int formatVersion = 0)
     {
         var projFolder = Path.GetDirectoryName(Path.GetFullPath(path))!;
 
@@ -43,6 +44,7 @@ public static class ProjectWriter
             Profile = savedProfile,
             Cards = cards.Select(c => CloneWithRelativeArt(c, projFolder)).ToList(),
             Unknown = unknown,   // the set's fields a newer Cardinator wrote, kept as they were
+            FormatVersion = formatVersion,
         };
 
         // 3. Roll the PREVIOUS good file aside, then 4. write atomically. Order matters: see the summary.

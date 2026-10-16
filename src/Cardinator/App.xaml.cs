@@ -560,9 +560,10 @@ public partial class App : Application
         ## Saving a set
         **Save** writes your project into a **set folder**: the project file plus an `art/` subfolder (your
         images are copied in) and an `out/` subfolder (where exports and sheets default). The first Save
-        offers *Documents\Cardinator Sets*, and a set saved into a folder that already holds other things
-        gets a folder of its own, named after it. **Save as…** (Ctrl+Shift+S) saves a copy under another
-        name or somewhere else. The whole folder is
+        offers *Documents\Cardinator Sets* and gives the set a folder of its own there; a set saved into a
+        folder that already holds other things gets one too, named after it. **Save as…** (Ctrl+Shift+S)
+        saves under another name or somewhere else — beside the set's folder, never inside it — and you
+        carry on in the new one. The whole folder is
         self-contained — move, zip or share it and every card still finds its art. One-off single cards need
         no setup: the folder is only created when you first save.
 

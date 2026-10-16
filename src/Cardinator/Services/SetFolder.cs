@@ -99,9 +99,14 @@ public static class SetFolder
 
     /// <summary>Where Save puts a set picked in the Save dialog: a set keeps its art\ and out\ next to it, so one saved
     /// into a folder that already holds other things (Documents, Desktop, another set) gets a folder of its own named
-    /// after it — <c>folder\Name\Name.cardinator</c>. Kept as picked: an empty folder, a folder already named after
-    /// the set, or a set file that's already there (the dialog asked about replacing it).</summary>
-    public static string OwnFolderPath(string picked)
+    /// after it — <c>folder\Name\Name.cardinator</c>. Picked inside another set's folder, it goes beside that set
+    /// instead (<c>parent\Name\Name.cardinator</c>), never inside it. Kept as picked: a folder already named after the
+    /// set, an empty folder the user made for it (but never the sets library itself, Documents\Cardinator Sets — the
+    /// first set saved there would otherwise hold every later one), or a set file that's already there (the dialog
+    /// asked about replacing it).</summary>
+    public static string OwnFolderPath(string picked) => OwnFolderPath(picked, AppPaths.NewSetsPath);
+
+    internal static string OwnFolderPath(string picked, string? setsLibrary)
     {
         try
         {
@@ -110,13 +115,35 @@ public static class SetFolder
             var name = Path.GetFileNameWithoutExtension(full);
             if (folder == null || name.Length == 0 || File.Exists(full)) return full;
             if (string.Equals(Path.GetFileName(folder), name, StringComparison.OrdinalIgnoreCase)) return full;
-            if (!Directory.Exists(folder) || !Directory.EnumerateFileSystemEntries(folder).Any()) return full;
-            return Path.Combine(folder, name, Path.GetFileName(full));
+            var file = Path.GetFileName(full);
+            // In another set's own folder (Sets\MySet\ holding MySet.cardinator): beside that set, so moving, zipping or
+            // deleting the old set never takes this one with it.
+            if (IsSetsOwnFolder(folder) && Path.GetDirectoryName(folder) is { } parent)
+                return Path.Combine(parent, name, file);
+            bool isLibrary = setsLibrary != null
+                && string.Equals(Path.GetFullPath(setsLibrary).TrimEnd('\\', '/'), folder.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+            if (!isLibrary && (!Directory.Exists(folder) || !Directory.EnumerateFileSystemEntries(folder).Any())) return full;
+            return Path.Combine(folder, name, file);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             return picked;
         }
+    }
+
+    /// <summary>True when <paramref name="folder"/> is a set's folder of its own: it holds the set file named after it
+    /// (<c>MySet\MySet.cardinator</c>).</summary>
+    public static bool IsSetsOwnFolder(string? folder)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(folder)) return false;
+            var trimmed = folder.TrimEnd('\\', '/');
+            var name = Path.GetFileName(trimmed);
+            return name.Length > 0 && File.Exists(Path.Combine(trimmed, name + ".cardinator"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { return false; }
     }
 
     /// <summary>True if <paramref name="folder"/> already holds a <c>.cardinator</c> project other than

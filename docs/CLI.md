@@ -290,7 +290,9 @@ A4). `only=` renders just the cards whose name contains one of the `|`-separated
 have commas). `templates=<dir>` also uses frames straight from a folder without installing them (they win
 over an installed frame of the same name). Rendering the whole set removes card pictures (`NNN_name.png`) an
 earlier render left in the folder — of cards since deleted, moved or repeated — so "print everything in the
-folder" never prints an old card; other files are left alone. With `only=`, each card keeps its number in the
+folder" never prints an old card. Only pictures a render wrote are removed: each one lists what it wrote in the
+folder's `.cardinator-export` file, and nothing else in the folder is touched, even a photo named like
+`20241010_142233.png` (a folder rendered by 1.7.5 or earlier is tidied from the second render on). With `only=`, each card keeps its number in the
 whole set, so it writes over its own picture. Art that's missing or can't be read is named on the error output.
 
 ### `--restyle <set.cardinator> [frame=<name>] [art=<dir>] [titles=<file>] [setcode=<code>] [number=<n>] [symbol=<image>] [only=<name|name>] [templates=<dir>]`

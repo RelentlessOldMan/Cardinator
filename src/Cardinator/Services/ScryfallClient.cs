@@ -233,8 +233,11 @@ public sealed class ScryfallClient
                         continue;
                     }
 
+                    // Still down (5xx) or still rate-limiting after the retries is Scryfall unavailable, not a card it
+                    // didn't find: an import then stops and saves nothing rather than a set of blank, name-only cards.
                     if (!resp.IsSuccessStatusCode)
-                        throw new ScryfallException($"Scryfall returned {(int)resp.StatusCode} {resp.ReasonPhrase}.");
+                        throw new ScryfallException($"Scryfall returned {(int)resp.StatusCode} {resp.ReasonPhrase}.",
+                            unreachable: (int)resp.StatusCode >= 500 || resp.StatusCode == HttpStatusCode.TooManyRequests);
 
                     return await resp.Content.ReadAsStringAsync(ct);
                 }

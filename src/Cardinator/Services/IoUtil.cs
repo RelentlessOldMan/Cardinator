@@ -46,7 +46,10 @@ public static class IoUtil
         try
         {
             writeToTemp(tmp);
-            File.Move(tmp, path, overwrite: true);
+            // On disk before it replaces the old file: after a power cut the rename can otherwise be there while the
+            // bytes aren't, leaving an empty set file where a good one was.
+            using (var fs = new FileStream(tmp, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) fs.Flush(flushToDisk: true);
+            MoveOver(tmp, path);
         }
         catch
         {
@@ -54,4 +57,30 @@ public static class IoUtil
             throw;
         }
     }
+
+    /// <summary>How long a move over a file someone else has open (OneDrive syncing it, an antivirus scan, an image
+    /// viewer) is retried before giving up. Tests shorten it.</summary>
+    internal static int MoveTries = 5;
+    internal static TimeSpan MoveRetryPause = TimeSpan.FromMilliseconds(100);
+
+    private static void MoveOver(string tmp, string path)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try { File.Move(tmp, path, overwrite: true); return; }
+            catch (Exception ex) when (attempt < MoveTries && IsBusy(ex))
+            {
+                Thread.Sleep(MoveRetryPause);
+            }
+        }
+    }
+
+    /// <summary>The destination is held open by another program for now (a sharing or lock violation, or a file
+    /// that's being deleted), as opposed to a path that can never be written.</summary>
+    internal static bool IsBusy(Exception ex) => ex switch
+    {
+        UnauthorizedAccessException => true,   // a pending delete, or a sync client holding it, reads as access denied
+        IOException io => (io.HResult & 0xFFFF) is 32 or 33,   // ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION
+        _ => false,
+    };
 }

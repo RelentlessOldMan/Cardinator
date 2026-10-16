@@ -349,7 +349,8 @@ The **EXPORT** group:
 - **All as images…** — renders every card to PNGs (600 DPI, real card size) in a folder you choose. Runs
   in the background with a progress bar so the window stays responsive, even for 100 cards. Card pictures an
   earlier export left in that folder (of cards you've since deleted or moved) are removed, so the folder holds just
-  this set; other files are left alone. The status line says which card couldn't be exported, and how many have
+  this set. Only pictures Cardinator itself exported there are removed (it keeps a list in the folder's
+  `.cardinator-export` file); your own files are never touched, whatever they're called. The status line says which card couldn't be exported, and how many have
   art that's missing or can't be read.
 - **Print sheets…** — lays cards out **9 per page (3×3) at real size (2.5″×3.5″, 300 DPI)** on
   Letter pages with cut marks — one PNG per page, ready to print and cut. (A4 pages are on the command line:
@@ -361,7 +362,7 @@ The **EXPORT** group:
   cards use, with its flip and sideways layouts) so you can hand it to someone who doesn't have your
   frames. The set must have been saved once; any unsaved changes, it offers to save first.
   **Got one?** Don't unzip it — **Open** it (or drop it on the window). Cardinator unpacks the set and its art into
-  a folder of its own next to your other sets (`My Set`, or `My Set (2)` if you already have one — yours is never
+  a folder of its own next to your other sets in *Documents\Cardinator Sets* (`My Set`, or `My Set (2)` if you already have one — yours is never
   touched), installs its frames, and opens it; the status line says where it went. A frame you already have,
   exactly the same, isn't installed twice. If you have a *different* frame with the same name, yours is kept and
   theirs comes in as "Name (2)" — and the set's cards use theirs.
@@ -375,11 +376,14 @@ where to start in place of the preview.
 
 **Saving a set.** When you **Save**, Cardinator writes a **set folder**: the `.cardinator` project file
 plus an `art/` subfolder (your images are copied in) and an `out/` subfolder (where Export and Print
-sheet default). The first Save of a new set offers *Documents\Cardinator Sets*. Pick a folder that already
-holds other things — Documents, the Desktop, another set's folder — and Cardinator makes a folder for the set
-inside it, named after the set (`Documents\My Set\My Set.cardinator`), so its `art/` and `out/` don't spill
-over; it asks first if a set of that name is already there. An empty folder, or one already named after the
-set, is used as it is. **Save as…** (**Ctrl+Shift+S**) saves under another name or in another place. The whole folder is self-contained — **move, zip or share it** and every card still
+sheet default). The first Save of a new set offers *Documents\Cardinator Sets* and makes the set a folder of
+its own there (`Cardinator Sets\My Set\My Set.cardinator`). Pick a folder that already holds other things —
+Documents, the Desktop — and Cardinator makes a folder for the set inside it, named after the set
+(`Documents\My Set\My Set.cardinator`), so its `art/` and `out/` don't spill over; it asks first if a set of that
+name is already there. Pick another set's folder and the new set goes **beside** it, not inside it, so moving or
+deleting one set never takes the other along. An empty folder you made for the set, or one already named after
+the set, is used as it is. **Save as…** (**Ctrl+Shift+S**) saves under another name or in another place — it
+starts beside the set's folder — and you carry on in the new copy. **Open** starts there too. The whole folder is self-contained — **move, zip or share it** and every card still
 finds its art, because art is stored as a path relative to the folder. A one-off single card needs no
 setup: the folder is only created the first time you save. (Older single-file projects still open fine.)
 

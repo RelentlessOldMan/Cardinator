@@ -280,8 +280,9 @@ public static class BatchService
     /// A card identical to one already rendered (a deck's 22 Wastes) is rendered once: it would be the same picture.
     /// <para><paramref name="numbers"/> gives each card its number in the whole set when only some are exported, so
     /// re-rendering a few writes over their own files. <paramref name="wholeSet"/> means these cards are everything:
-    /// card pictures (NNN_name.png) left in the folder by an earlier export — of cards since deleted, moved or
-    /// repeated — are removed, so printing "everything in the folder" never prints an old card.</para></summary>
+    /// card pictures (NNN_name.png) an earlier export wrote to the folder — of cards since deleted, moved or
+    /// repeated — are removed, so printing "everything in the folder" never prints an old card. Only pictures listed
+    /// in the folder's <see cref="ExportManifestName"/> are removed; nothing else in the folder is touched.</para></summary>
     public static BatchExportResult ExportAll(
         IReadOnlyList<CardModel> cards,
         IReadOnlyList<Template> templates,
@@ -348,13 +349,57 @@ public static class BatchService
             }
             percent?.Report((double)(i + 1) / cards.Count);
         }
-        if (wholeSet) RemoveStale(outDir, StaleCardFile, written);
+        // Only pictures an earlier export *recorded writing* are ever removed: a name pattern alone also matched the
+        // user's own files (a camera's 20241010_142233.png in the folder they picked was deleted).
+        var earlier = ReadExportManifest(outDir);
+        var kept = new HashSet<string>(written, StringComparer.OrdinalIgnoreCase);
+        foreach (var name in earlier)
+        {
+            if (written.Contains(name)) continue;
+            if (wholeSet && StaleCardFile.IsMatch(name))
+            {
+                var f = Path.Combine(outDir, name);
+                try { if (File.Exists(f)) File.Delete(f); }
+                catch { kept.Add(name); continue; }   // in use: leave it, and try again next time
+            }
+            else if (File.Exists(Path.Combine(outDir, name))) kept.Add(name);
+        }
+        WriteExportManifest(outDir, kept);
         return new BatchExportResult(exported, errors, repeats);
     }
 
     /// <summary>A card picture an export writes: "NNN_name.png" or "NNN_name-back.png".</summary>
     private static readonly System.Text.RegularExpressions.Regex StaleCardFile = new(@"^\d{3,}_[^\\/]+\.png$",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>The list, kept in an export folder, of the card pictures exports have written there — the only
+    /// files a whole-set export may remove.</summary>
+    internal const string ExportManifestName = ".cardinator-export";
+
+    private static HashSet<string> ReadExportManifest(string dir)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var path = Path.Combine(dir, ExportManifestName);
+            if (!File.Exists(path)) return names;
+            foreach (var line in File.ReadAllLines(path))
+            {
+                var name = line.Trim();
+                // Just a file name in this folder: a hand-edited "..\x.png" or "C:\x.png" never reaches File.Delete.
+                if (name.Length > 0 && name == Path.GetFileName(name) && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0)
+                    names.Add(name);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        return names;
+    }
+
+    private static void WriteExportManifest(string dir, IEnumerable<string> names)
+    {
+        try { IoUtil.AtomicWriteText(Path.Combine(dir, ExportManifestName), string.Join(Environment.NewLine, names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)) + Environment.NewLine); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best effort: next export just removes less */ }
+    }
 
     /// <summary>Removes the files in <paramref name="dir"/> named like an export's own (<paramref name="pattern"/>) that
     /// this export didn't write. Best effort: a file that can't be removed is left.</summary>

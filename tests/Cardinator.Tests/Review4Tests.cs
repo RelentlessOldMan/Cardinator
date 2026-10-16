@@ -70,7 +70,7 @@ public class Review4Tests
         try
         {
             var set = SavedSet(root);
-            var json = File.ReadAllText(set).Replace("\"formatVersion\": 1", "\"formatVersion\": 9, \"futureThing\": 1");
+            var json = File.ReadAllText(set).Replace($"\"formatVersion\": {CardProject.CurrentFormatVersion}", "\"formatVersion\": 9, \"futureThing\": 1");
             Assert.Contains("futureThing", json);
             File.WriteAllText(set, json);
             Assert.Equal(2, SetCommands.RunRestyle(set, new[] { "setcode=JA" }));

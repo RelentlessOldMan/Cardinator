@@ -306,7 +306,7 @@ public class SetCommandsTests
             var cardsOut = Path.Combine(root, "cards");
             Assert.Equal(0, SetCommands.RunRenderSet(set, cardsOut, new[] { "only=hero|villain", "nosym" }));
             Assert.Equal(new[] { "001_hero.png", "002_villain.png" },
-                Directory.GetFiles(cardsOut).Select(Path.GetFileName).Order());
+                Directory.GetFiles(cardsOut, "*.png").Select(Path.GetFileName).Order());
 
             var sheetOut = Path.Combine(root, "sheets");
             Assert.Equal(0, SetCommands.RunRenderSet(set, sheetOut, new[] { "sheet", "nosym" }));

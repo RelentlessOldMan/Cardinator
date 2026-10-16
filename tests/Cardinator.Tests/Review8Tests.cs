@@ -160,7 +160,7 @@ public class Review8Tests
                         && p.GetCustomAttribute<System.Text.Json.Serialization.JsonExtensionDataAttribute>() == null)
             .Select(p => t.Name + "." + p.Name).OrderBy(n => n, StringComparer.Ordinal);
         var shape = string.Join(" ", new[] { typeof(CardProject), typeof(CardModel), typeof(SetProfile), typeof(CardBackDesign) }.SelectMany(Saved));
-        Assert.Equal(1, CardProject.CurrentFormatVersion);
+        Assert.Equal(2, CardProject.CurrentFormatVersion);
         Assert.True(shape == PinnedShape, "The saved shape changed — see this test's summary. It is now: " + shape);
     }
 
@@ -287,7 +287,8 @@ public class Review8Tests
             {
                 Directory.CreateDirectory(root);
                 var templates = new TemplateService().LoadAll();
-                File.WriteAllBytes(Path.Combine(root, "007_deleted-card.png"), TestHelpers.PngBytes(4, 4));
+                // An earlier export wrote card 7, since deleted from the set (1.7.6: only pictures an export wrote go).
+                BatchService.ExportAll(new[] { new CardModel { Name = "Deleted card" } }, templates, root, new SymbolService(), numbers: new[] { 7 });
                 File.WriteAllBytes(Path.Combine(root, "my-notes.png"), TestHelpers.PngBytes(4, 4));
                 var cards = new[] { new CardModel { Name = "One" }, new CardModel { Name = "Two" } };
 

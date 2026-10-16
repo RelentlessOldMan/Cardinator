@@ -39,9 +39,12 @@ public static class RecoveryStore
         return Path.Combine(Dir, $"{key}-{Session}.cardinator");
     }
 
-    /// <summary>Writes the cards as they are (art paths absolute, nothing copied anywhere) plus the meta file.</summary>
+    /// <summary>Writes the cards as they are (art paths absolute, nothing copied anywhere) plus the meta file.
+    /// <paramref name="unknown"/> and <paramref name="formatVersion"/> are the open set's fields from a newer Cardinator
+    /// and its format version: kept in the copy, so a recovered set still keeps them and still warns.</summary>
     public static void Write(string file, string setPath, string name, IEnumerable<CardModel> cards,
-        string artBaseDir, string defaultTemplate, SetProfile profile)
+        string artBaseDir, string defaultTemplate, SetProfile profile,
+        Dictionary<string, JsonElement>? unknown = null, int formatVersion = 0)
     {
         var project = new CardProject
         {
@@ -50,6 +53,8 @@ public static class RecoveryStore
             DefaultTemplate = defaultTemplate,
             Profile = profile.Clone(),
             Cards = cards.Select(c => c.Clone()).ToList(),
+            Unknown = unknown,
+            FormatVersion = formatVersion,
         };
         project.Save(file);
         IoUtil.AtomicWriteText(file + ".meta",

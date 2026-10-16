@@ -25,11 +25,20 @@ public static class AppPaths
         {
             try
             {
-                var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-                if (!string.IsNullOrEmpty(docs)) return EnsureDir(Path.Combine(docs, "Cardinator Sets"));
+                if (NewSetsPath is { } sets) return EnsureDir(sets);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             return SamplesDir;
+        }
+    }
+
+    /// <summary>Where <see cref="NewSetsDir"/> is (Documents\Cardinator Sets), without making it; null with no Documents.</summary>
+    public static string? NewSetsPath
+    {
+        get
+        {
+            var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            return string.IsNullOrEmpty(docs) ? null : Path.Combine(docs, "Cardinator Sets");
         }
     }
 

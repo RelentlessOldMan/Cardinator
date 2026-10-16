@@ -191,6 +191,9 @@ public class LegacyFixtureTests
         {
             CardProject.Load(path).Save(resaved);
             var after = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(resaved))!;
+            // The one value a save is meant to change: it stamps the version that wrote it.
+            Assert.Equal(CardProject.CurrentFormatVersion, (int)after["formatVersion"]!);
+            original["formatVersion"] = CardProject.CurrentFormatVersion;
             AssertKept(original, after, "$");
         }
         finally { try { File.Delete(resaved); } catch { } }

@@ -35,6 +35,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string? _lastExportDir;       // where the last PNG/sheet went, so "Open output folder" opens there
     private string _defaultTemplate = ""; // the set's saved house frame, inherited by new/imported cards
     private Dictionary<string, System.Text.Json.JsonElement>? _projectUnknown;   // the set's fields from a newer Cardinator
+    private int _projectFormatVersion;   // the loaded file's format version: a newer one is kept on save
     private SetProfile _setProfile = new();  // the set's shared metadata defaults (W1), inherited by new/imported cards
     private bool _viewingBack;                // DFC: preview is showing the back face (preview-only flip)
     private bool _viewingFlipped;             // flip card: preview is turned upside down to read the other half
@@ -991,7 +992,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             var file = RecoveryStore.FileFor(_projectPath);
             if (_recoveryWritten != null && _recoveryWritten != file) ClearRecovery();
-            RecoveryStore.Write(file, _projectPath, _projectName, Cards, _artBaseDir, _defaultTemplate, _setProfile);
+            RecoveryStore.Write(file, _projectPath, _projectName, Cards, _artBaseDir, _defaultTemplate, _setProfile,
+                _projectUnknown, _projectFormatVersion);
             _recoveryWritten = file;
         }
         catch { /* a recovery copy must never get in the way */ }
@@ -1051,6 +1053,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var setPath = entry.Meta.SetPath ?? "";
         _projectPath = setPath;   // "" (never saved) → Save asks where
         StampDisk();
+        // The set file isn't there any more (its folder moved or was renamed since the crash): Save asks first rather
+        // than re-creating the old folder with only the set file in it.
+        if (_diskStamp == null && setPath.Length > 0)
+            try { _diskStamp = (Path.GetFullPath(setPath), default, -1); } catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException) { }
         if (!string.IsNullOrWhiteSpace(entry.Meta.Name)) _projectName = entry.Meta.Name;
         SetProjectFolder(setPath.Length > 0 ? Path.GetDirectoryName(Path.GetFullPath(setPath)) : null);
         MarkUnsavedAgainstDisk();
@@ -1565,6 +1571,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _defaultTemplate = "";
         _setProfile = new SetProfile();
         _projectUnknown = null;
+        _projectFormatVersion = 0;
         _artBaseDir = "";
         AddAndSelect(SampleCards.Blank(DefaultTemplateName));
         _loading = false;
@@ -1583,7 +1590,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Title = "Open project",
             Filter = "Cardinator project or shared set (*.cardinator;*.json;*.zip)|*.cardinator;*.json;*.zip|All files|*.*",
-            InitialDirectory = AppPaths.SamplesDir,
+            InitialDirectory = SaveDialogFolder(),   // where the sets are: beside this one, else Documents\Cardinator Sets
         };
         if (dlg.ShowDialog() != true) return;
         if (Path.GetExtension(dlg.FileName).Equals(".zip", StringComparison.OrdinalIgnoreCase)) OpenSharedSet(dlg.FileName);
@@ -1592,10 +1599,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     /// <summary>Opens a set someone shared (a "Share set + frames" zip): unpacks it into a folder of its own beside
     /// the other sets, installs its frames, and opens it — no unzipping by hand, and nothing saved into a temp folder.</summary>
-    internal bool OpenSharedSet(string zipPath)
+    internal bool OpenSharedSet(string zipPath) => OpenSharedSet(zipPath, AppPaths.NewSetsDir);
+
+    /// <summary>Unpacks into <paramref name="setsFolder"/> — Documents\Cardinator Sets, with the user's own sets, not the
+    /// app's data folder beside the exe, which an update that replaces the app's folder would take with it.</summary>
+    internal bool OpenSharedSet(string zipPath, string setsFolder)
     {
         string projectPath;
-        try { projectPath = SetPackager.UnpackSharedSet(zipPath, AppPaths.SamplesDir); }
+        try { projectPath = SetPackager.UnpackSharedSet(zipPath, setsFolder); }
         catch (Exception ex) { Status = "Couldn't open that shared set: " + ex.Message; return false; }
         RefreshTemplates();
         if (!LoadProjectFile(projectPath)) return false;
@@ -1627,6 +1638,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // Restore the set's shared metadata defaults (W1); LoadResolved already made its symbol path absolute.
             _setProfile = project.Profile;
             _projectUnknown = project.Unknown;
+            _projectFormatVersion = project.FormatVersion;
             SelectedCard = Cards.FirstOrDefault();
             _loading = false;
             Dirty = false;
@@ -1744,12 +1756,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Status = $"Loaded backup “{Path.GetFileName(dlg.FileName)}”. Use Save to restore it over “{Path.GetFileName(realPath)}”.";
     }
 
+    /// <summary>How long Save waits for a command that's changing the set before giving up (on the UI thread, so short).</summary>
+    internal static TimeSpan SaveLockWait = TimeSpan.FromSeconds(1);
+
     /// <summary>Saves to the remembered path when we have one; otherwise prompts for a location.</summary>
     private bool SaveProject(bool forceDialog)
     {
         var path = _projectPath;
+        bool askedAboutDisk = false;   // the user already chose what to do about the file changing on disk
         if (forceDialog || string.IsNullOrEmpty(path))
         {
+            askedAboutDisk = true;
             var dlg = new SaveFileDialog
             {
                 Title = "Save project",
@@ -1759,7 +1776,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             };
             if (dlg.ShowDialog() != true) return false;
             path = SetFolder.OwnFolderPath(dlg.FileName);   // into a folder of its own when the picked one holds other things
-            if (!string.Equals(path, Path.GetFullPath(dlg.FileName), StringComparison.OrdinalIgnoreCase) && File.Exists(path))
+            if (!string.Equals(path, Path.GetFullPath(dlg.FileName), StringComparison.OrdinalIgnoreCase) && File.Exists(path)
+                && !string.Equals(path, string.IsNullOrEmpty(_projectPath) ? "" : Path.GetFullPath(_projectPath), StringComparison.OrdinalIgnoreCase))
             {
                 var replace = ConfirmDialog.Show(this, "Save set",
                     $"There's already a set at {path}. Replace it with this one? (It's backed up first.)",
@@ -1784,8 +1802,35 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 affirmative: "Save as…", negative: conflict.Moved ? "Save there anyway" : "Overwrite", cancel: "Cancel");
             if (choice == ConfirmResult.Cancel) return false;
             if (choice == ConfirmResult.Affirmative) return SaveProject(forceDialog: true);
+            askedAboutDisk = true;
         }
         CommitHistory();   // fold in edits still waiting on the undo debounce, so the saved point IS what's written
+
+        // A command (--restyle, --import append) holds the set from load to save; writing now would be undone by its
+        // save, so wait a moment for it and otherwise save nothing.
+        SetLock? setLock;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);   // the lock file sits beside the set
+            setLock = SetLock.Take(path, wait: SaveLockWait);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or ArgumentException or NotSupportedException or IOException)
+        {
+            Status = "Couldn't save project: " + ex.Message;
+            return false;
+        }
+        using var heldLock = setLock;
+        if (setLock == null)
+        {
+            Status = "A Cardinator command is changing this set right now — nothing saved. Save again when it's finished.";
+            return false;
+        }
+        // It may have finished (and saved) while we waited: that save isn't overwritten without asking.
+        if (!askedAboutDisk && SaveConflict() is not null)
+        {
+            Status = "The set file was just changed by something else — nothing saved. Save again to choose what to do.";
+            return false;
+        }
         try
         {
             // The file name IS the project's identity (there's no separate name field), so persist the
@@ -1797,7 +1842,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // Localize art → relative paths → back up the previous good file → atomic write. That exact
             // order is the data-safety guarantee, so it lives in ProjectWriter where it can be tested.
             int stranded = ProjectWriter.Write(path, Cards.ToList(), name, _artBaseDir, _defaultTemplate, _setProfile,
-                previousFolder: _projectFolder, unknown: _projectUnknown);
+                previousFolder: _projectFolder, unknown: _projectUnknown, formatVersion: _projectFormatVersion);
             int missing = SetFolder.CountMissingArt(Cards);
             // Writing copied outside art into the set and re-pointed the cards at the copies. That's what's on disk
             // now, so it's what this history position holds — not a new edit that brings the ● straight back.
@@ -1832,8 +1877,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             if (!string.IsNullOrEmpty(_projectFolder))
             {
-                if (Directory.Exists(_projectFolder)) return _projectFolder;
                 var parent = Path.GetDirectoryName(Path.GetFullPath(_projectFolder).TrimEnd(Path.DirectorySeparatorChar));
+                // A set in a folder of its own: beside that folder, not in it — Save as "MySet v2" then makes
+                // Sets\MySet v2\, a sibling of Sets\MySet\. A set kept loose in a folder: that folder.
+                if (SetFolder.IsSetsOwnFolder(_projectFolder) && parent != null && Directory.Exists(parent)) return parent;
+                if (Directory.Exists(_projectFolder)) return _projectFolder;
                 if (parent != null && Directory.Exists(parent)) return parent;
             }
         }

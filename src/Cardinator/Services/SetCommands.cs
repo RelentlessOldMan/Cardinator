@@ -135,6 +135,13 @@ public static class SetCommands
             if (!string.IsNullOrEmpty(setDir)) Directory.CreateDirectory(setDir);
             using var setLock = TakeLock(setPath, "Import");
             if (setLock == null) return 1;
+            // Again now the set is ours: another import may have made the file while this one waited for the lock.
+            if (File.Exists(setPath) && !append)
+            {
+                Console.Error.WriteLine($"Import: {setPath} already exists. Pass append to add to it, or choose another file.");
+                return 2;
+            }
+            var loaded = DiskStamp.Of(setPath);
             CardProject? existing = append && File.Exists(setPath) ? CardProject.LoadResolved(setPath, out _) : null;
             if (existing != null && WontWrite(setPath, existing) is { } whyNot) { Console.Error.WriteLine("Import: " + whyNot); return 2; }
             frame = InstalledName(templates, frame);
@@ -172,7 +179,8 @@ public static class SetCommands
             var cards = (existing?.Cards ?? new List<CardModel>()).Concat(added).ToList();
             // name= names the set (a build that writes beside the real file, then swaps it in, keeps the real name).
             var name = Opt(opts, "name") ?? (existing?.Name is { Length: > 0 } n ? n : Path.GetFileNameWithoutExtension(setPath));
-            int stranded = ProjectWriter.Write(setPath, cards, name, existing?.ArtBaseDir ?? listDir, houseFrame, profile, unknown: existing?.Unknown);
+            if (ChangedSince(loaded, setPath, "Import")) return 1;
+            int stranded = ProjectWriter.Write(setPath, cards, name, existing?.ArtBaseDir ?? listDir, houseFrame, profile, unknown: existing?.Unknown, formatVersion: existing?.FormatVersion ?? 0);
 
             Console.WriteLine($"Saved {setPath}: {added.Count} card(s) added ({cards.Count} in the set). "
                 + $"Scryfall filled {report.Filled}"
@@ -280,6 +288,7 @@ public static class SetCommands
 
             using var setLock = TakeLock(setPath, "Restyle");
             if (setLock == null) return 1;
+            var loaded = DiskStamp.Of(setPath);
             var project = CardProject.LoadResolved(setPath, out _);
             if (WontWrite(setPath, project) is { } whyNot) { Console.Error.WriteLine("Restyle: " + whyNot); return 2; }
             var cards = Only(project.Cards, only);
@@ -314,7 +323,8 @@ public static class SetCommands
                 if (symbol != null) project.Profile.SetSymbolPath = Path.GetFullPath(symbol);
             }
 
-            ProjectWriter.Write(setPath, project.Cards, project.Name, project.ArtBaseDir, project.DefaultTemplate, project.Profile, unknown: project.Unknown);
+            if (ChangedSince(loaded, setPath, "Restyle")) return 1;
+            ProjectWriter.Write(setPath, project.Cards, project.Name, project.ArtBaseDir, project.DefaultTemplate, project.Profile, unknown: project.Unknown, formatVersion: project.FormatVersion);
             Console.WriteLine($"Saved {setPath}: {cards.Count} card(s)"
                 + (frame != null ? $" on “{frame}”" : "")
                 + (artDir != null ? $"; {matched} picture(s) from {artDir}" : "")
@@ -478,6 +488,16 @@ public static class SetCommands
         var held = SetLock.Take(setPath, () => Console.Error.WriteLine($"{command}: waiting for another Cardinator command to finish with {setPath}…"));
         if (held == null) Console.Error.WriteLine($"{command}: another Cardinator command is still changing {setPath} — nothing saved. Run it again when that one's done.");
         return held;
+    }
+
+    /// <summary>True (after saying so) when the set file changed since <paramref name="loaded"/> — saved by the window
+    /// or a script that doesn't take <see cref="SetLock"/> while this command worked. Saving now would quietly undo that
+    /// save, so the command stops instead.</summary>
+    private static bool ChangedSince(DiskStamp loaded, string setPath, string command)
+    {
+        if (DiskStamp.Of(setPath) == loaded) return false;
+        Console.Error.WriteLine($"{command}: {setPath} was changed by something else while this ran — nothing saved, so that change is kept. Run it again.");
+        return true;
     }
 
     private static IEnumerable<string> FramesUsed(IEnumerable<CardModel> cards) =>
