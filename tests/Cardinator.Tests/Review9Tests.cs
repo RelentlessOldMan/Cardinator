@@ -359,6 +359,12 @@ public class Review9Tests
             Assert.True(main.BatchScroll.ScrollableHeight < 1, $"the sidebar buttons scroll by {main.BatchScroll.ScrollableHeight:F0}px");
             Assert.True(main.CardList.ActualHeight > 100, $"the card list is only {main.CardList.ActualHeight:F0}px");
             Assert.True(main.EditorScroll.ScrollableHeight < 1, $"the editing column scrolls by {main.EditorScroll.ScrollableHeight:F0}px");
+            // With room to spare: text measures a pixel or two taller on some PCs (it did on the build server), and a
+            // layout that only just fits here scrolls there.
+            double sidebarSpare = main.BatchScroll.MaxHeight - main.BatchScroll.ExtentHeight;
+            double editorSpare = main.EditorScroll.ViewportHeight - main.EditorScroll.ExtentHeight;
+            Assert.True(sidebarSpare >= 8, $"the sidebar buttons fit with only {sidebarSpare:F1}px to spare");
+            Assert.True(editorSpare >= 8, $"the editing column fits with only {editorSpare:F1}px to spare");
         });
 
     // --- 18: an empty set, frame faults, Save as ----------------------------------------------------------

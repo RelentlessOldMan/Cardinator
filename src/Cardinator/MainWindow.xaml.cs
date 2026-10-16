@@ -3300,8 +3300,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     /// <summary>Set for off-screen/headless rendering so closing never shows the save prompt.</summary>
     public bool SuppressClosePrompt { get; set; }
 
-    /// <summary>The fewest pixels the card list keeps (about four cards): below that the BATCH buttons scroll instead.</summary>
-    internal const double MinCardListHeight = 150;
+    /// <summary>The fewest pixels the card list keeps (three cards or so): below that the BATCH buttons scroll instead. Low
+    /// enough that on a 1280x720 laptop every button still shows with room to spare, whatever the fonts measure.</summary>
+    internal const double MinCardListHeight = 120;
 
     /// <summary>Caps the BATCH buttons' height to what's left after the buttons above the card list and the list's
     /// minimum — on a short window (or a display scaled to 150%) they took it all, and the list showed one card, cut off.</summary>

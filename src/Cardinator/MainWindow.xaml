@@ -139,7 +139,7 @@
             </Border>
 
             <!-- ===== Editor (simple flow) ===== -->
-            <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="10" Padding="18,18,6,12" Margin="14,0">
+            <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="10" Padding="18,18,6,6" Margin="14,0">
                 <!-- Scrolls when the window is too short for it all, so CHECKS and Export are never cut off. -->
                 <ScrollViewer x:Name="EditorScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Visibility="{Binding HasCards, Converter={StaticResource BoolToVis}}">
                 <StackPanel IsEnabled="{Binding CanEditSelected}" Margin="0,0,12,0">
@@ -160,7 +160,7 @@
                          stats from Scryfall (even for a card with a different name), use the search inside Edit details…. -->
                     <Grid Margin="0,0,0,10">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <TextBox x:Name="NameBox" Height="36" Text="{Binding EditedFace.Name, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox x:Name="NameBox" Height="34" Text="{Binding EditedFace.Name, UpdateSourceTrigger=PropertyChanged}"
                                  ToolTip="Your card's name — or a real card's: then Look up fills it in from Scryfall"/>
                         <Button x:Name="LookupBtn" Grid.Column="1" Content="Look up" Click="OnLookup" Margin="6,0,0,0" Padding="12,0"
                                 IsEnabled="{Binding NotBusy}"
@@ -171,12 +171,12 @@
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="120"/></Grid.ColumnDefinitions>
                         <StackPanel>
                             <TextBlock Text="TYPE LINE" Style="{StaticResource SectionLabel}"/>
-                            <TextBox x:Name="TypeLineBox" Height="36" Text="{Binding EditedFace.TypeLine, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox x:Name="TypeLineBox" Height="34" Text="{Binding EditedFace.TypeLine, UpdateSourceTrigger=PropertyChanged}"
                                      ToolTip="Creature — Human Wizard, Instant, Legendary Artifact …"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="6,0,0,0">
                             <TextBlock Text="MANA COST" Style="{StaticResource SectionLabel}"/>
-                            <TextBox x:Name="ManaCostMainBox" Height="36" Text="{Binding EditedFace.ManaCost, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox x:Name="ManaCostMainBox" Height="34" Text="{Binding EditedFace.ManaCost, UpdateSourceTrigger=PropertyChanged}"
                                      ToolTip="Symbols in braces: {2}{W}{U}, {X}{R}, {G/U} …"/>
                         </StackPanel>
                     </Grid>
@@ -259,7 +259,7 @@
                         <Button Grid.Column="3" Content="Clear" Style="{StaticResource Ghost}" Click="OnClearArt" Margin="6,0,0,0"/>
                     </Grid>
 
-                    <Button x:Name="EditDetailsBtn" Content="Edit details…  (power/toughness, flavor, rarity, artist …)" Click="OnEditDetails" Margin="0,0,0,12"
+                    <Button x:Name="EditDetailsBtn" Content="Edit details…  (power/toughness, flavor, rarity, artist …)" Click="OnEditDetails" Margin="0,0,0,10"
                             ToolTip="Everything on this side of the card: name, cost, type, rules, power/toughness, flavor, rarity, set and artist — and a Scryfall lookup"/>
                     </StackPanel>
 
